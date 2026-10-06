@@ -11,15 +11,15 @@ class Settings(BaseSettings):
 
     # --- Model configurations ---
     ORCHESTRATOR_MODEL_ID: str = Field(
-        default="us.anthropic.claude-3-5-haiku-20241022-v1:0",
+        default="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         description="Model for main orchestrator (tool selection, conversation management).",
     )
     EXTRACTION_MODEL_ID: str = Field(
-        default="us.anthropic.claude-3-5-haiku-20241022-v1:0",
+        default="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         description="Model for data extraction tasks (JSON parsing, structured data).",
     )
     ROUTER_MODEL_ID: str = Field(
-        default="us.anthropic.claude-3-5-haiku-20241022-v1:0",
+        default="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         description="Model for router/intent classification (lightweight, fast).",
     )
 
@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     TYPESAFE_API_KEY: SecretStr | None = Field(
         default=None,
         description="TypeSafe API key used by the Jev intent router.",
+    )
+    TYPESAFE_SECRET_ARN: str = Field(
+        default="",
+        description="Secrets Manager ARN containing the TypeSafe API key for deployed runtimes.",
     )
     JEV_ROUTER_MODEL: str = Field(
         default="jev-1.13.0",

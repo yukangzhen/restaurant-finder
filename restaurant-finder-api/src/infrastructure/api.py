@@ -1,9 +1,12 @@
 """
 API entrypoint for the Restaurant Finder Agent.
 
-Provides the main entrypoint for BedrockAgentCoreApp with startup hooks
+Provides the main entrypoint for BedrockAgentCoreApp with lifespan hooks
 for initializing infrastructure components.
 """
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from loguru import logger
@@ -12,20 +15,9 @@ from src.infrastructure.startup import initialize_infrastructure
 from src.infrastructure.streaming import stream_response
 from src.infrastructure.jev_router import close_jev_router, initialize_jev_router
 
-# Initialize BedrockAgentCoreApp
-app = BedrockAgentCoreApp()
-
-
-@app.on_event("startup")
-async def startup_event():
-    """
-    Application startup hook.
-
-    Initializes infrastructure components:
-    - Observability (OpenTelemetry with CloudWatch GenAI Observability)
-    - Memory system (creates or retrieves existing memory)
-    - Guardrails (creates or retrieves existing guardrail)
-    """
+@asynccontextmanager
+async def lifespan(_: BedrockAgentCoreApp) -> AsyncIterator[None]:
+    """Initialize infrastructure on startup and close reusable clients on shutdown."""
     logger.info("Application startup initiated")
     results = await initialize_infrastructure()
     jev_ready = await initialize_jev_router()
@@ -49,11 +41,14 @@ async def startup_event():
             f"Guardrail initialization error: {results['guardrails'].get('error')}"
         )
 
+    try:
+        yield
+    finally:
+        await close_jev_router()
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Close the reusable TypeSafe HTTP client when the app stops."""
-    await close_jev_router()
+
+# Initialize BedrockAgentCoreApp with the lifecycle API supported by the SDK.
+app = BedrockAgentCoreApp(lifespan=lifespan)
 
 
 @app.entrypoint

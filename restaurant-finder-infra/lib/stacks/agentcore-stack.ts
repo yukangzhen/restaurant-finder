@@ -24,6 +24,13 @@ export class AgentCoreStack extends cdk.Stack {
 
     const region = cdk.Stack.of(this).region;
     const accountId = cdk.Stack.of(this).account;
+    const inferenceProfileId = "us.anthropic.claude-haiku-4-5-20251001-v1:0";
+    const foundationModelId = "anthropic.claude-haiku-4-5-20251001-v1:0";
+    const inferenceProfileArn = `arn:aws:bedrock:${region}:${accountId}:inference-profile/${inferenceProfileId}`;
+    const inferenceModelArns = ["us-east-1", "us-east-2", "us-west-2"].map(
+      (modelRegion) =>
+        `arn:aws:bedrock:${modelRegion}::foundation-model/${foundationModelId}`,
+    );
 
     /*****************************
      * AgentCore Gateway
@@ -44,6 +51,18 @@ export class AgentCoreStack extends cdk.Stack {
         secretObjectValue: {
           api_key: cdk.SecretValue.unsafePlainText(""),
         },
+      },
+    );
+
+    // Keep the Jev provider key in Secrets Manager instead of the runtime
+    // environment or container image. Populate this after deployment.
+    const jevRouterSecretName = `${props.appName}/jev-router-key`;
+    const jevRouterSecret = new secretsmanager.Secret(
+      this,
+      `${props.appName}-JevRouterSecret`,
+      {
+        secretName: jevRouterSecretName,
+        description: "TypeSafe API key for the Jev intent router.",
       },
     );
 
@@ -274,16 +293,19 @@ export class AgentCoreStack extends cdk.Stack {
           ],
         }),
         new iam.PolicyStatement({
+          sid: "BedrockInferenceProfileAccess",
+          effect: iam.Effect.ALLOW,
+          actions: ["bedrock:GetInferenceProfile"],
+          resources: [inferenceProfileArn],
+        }),
+        new iam.PolicyStatement({
           sid: "BedrockModelInvocation",
           effect: iam.Effect.ALLOW,
           actions: [
             "bedrock:InvokeModel",
             "bedrock:InvokeModelWithResponseStream",
           ],
-          resources: [
-            `arn:aws:bedrock:*::foundation-model/*`,
-            `arn:aws:bedrock:${region}:${accountId}:*`,
-          ],
+          resources: [inferenceProfileArn, ...inferenceModelArns],
         }),
         new iam.PolicyStatement({
           sid: "BedrockPromptsAccess",
@@ -310,19 +332,12 @@ export class AgentCoreStack extends cdk.Stack {
           actions: ["bedrock:ListGuardrails"],
           resources: ["*"],
         }),
-        // Bedrock Runtime - ApplyGuardrail and Converse API
+        // Model calls use InvokeModel / InvokeModelWithResponseStream above.
         new iam.PolicyStatement({
           sid: "BedrockRuntimeOperations",
           effect: iam.Effect.ALLOW,
-          actions: [
-            "bedrock:ApplyGuardrail",
-            "bedrock:Converse",
-            "bedrock:ConverseStream",
-          ],
-          resources: [
-            `arn:aws:bedrock:${region}:${accountId}:guardrail/*`,
-            `arn:aws:bedrock:*::foundation-model/*`,
-          ],
+          actions: ["bedrock:ApplyGuardrail"],
+          resources: [`arn:aws:bedrock:${region}:${accountId}:guardrail/*`],
         }),
         // AgentCore Memory operations - full access to memory resources
         new iam.PolicyStatement({
@@ -403,6 +418,7 @@ export class AgentCoreStack extends cdk.Stack {
         },
       },
     );
+    jevRouterSecret.grantRead(runtimeRole);
 
     this.agentCoreRuntime = new bedrockagentcore.CfnRuntime(
       this,
@@ -427,6 +443,7 @@ export class AgentCoreStack extends cdk.Stack {
           GATEWAY_URL: this.agentCoreGateway.attrGatewayUrl,
           GATEWAY_ID: this.agentCoreGateway.attrGatewayIdentifier,
           MEMORY_ID: this.agentCoreMemory.attrMemoryId,
+          TYPESAFE_SECRET_ARN: jevRouterSecret.secretArn,
 
           // Feature Flags
           ENABLE_BROWSER_TOOLS: "true",
@@ -543,6 +560,12 @@ export class AgentCoreStack extends cdk.Stack {
       value: searchSecret.secretArn,
       description: "Search API secret ARN",
       exportName: `${props.appName}-SearchSecretArn`,
+    });
+
+    new cdk.CfnOutput(this, "JevSecretArn", {
+      value: jevRouterSecret.secretArn,
+      description: "Secrets Manager ARN for the TypeSafe Jev router key",
+      exportName: `${props.appName}-JevSecretArn`,
     });
 
     // Additional Memory outputs

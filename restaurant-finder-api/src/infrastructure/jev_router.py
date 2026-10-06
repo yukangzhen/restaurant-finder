@@ -1,9 +1,12 @@
 """TypeSafe Jev intent classification with a reusable async client."""
 
+import asyncio
 from dataclasses import dataclass
 
+import boto3
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from loguru import logger
+from pydantic import SecretStr
 from typesafe_sdk import AsyncTypeSafeClient, Choice, RetryPolicy
 
 from src.config import settings
@@ -24,6 +27,32 @@ class JevRouterUnavailable(RuntimeError):
 
 _VALID_INTENTS: set[str] = {"restaurant_search", "simple", "off_topic"}
 _jev_client: AsyncTypeSafeClient | None = None
+
+
+async def _load_api_key() -> SecretStr | None:
+    """Load the router key from local settings or its deployed secret."""
+    if settings.TYPESAFE_API_KEY is not None:
+        return settings.TYPESAFE_API_KEY
+
+    if not settings.TYPESAFE_SECRET_ARN:
+        return None
+
+    def read_secret() -> str:
+        response = boto3.client(
+            "secretsmanager",
+            region_name=settings.AWS_REGION,
+        ).get_secret_value(SecretId=settings.TYPESAFE_SECRET_ARN)
+        return response.get("SecretString", "")
+
+    try:
+        secret_value = await asyncio.to_thread(read_secret)
+        return SecretStr(secret_value) if secret_value else None
+    except Exception as error:
+        logger.warning(
+            "Could not load TypeSafe key from Secrets Manager; Bedrock fallback will be used (error_type={})",
+            type(error).__name__,
+        )
+        return None
 
 
 def _message_for_jev(message: BaseMessage) -> dict:
@@ -58,14 +87,15 @@ async def initialize_jev_router() -> bool:
     if _jev_client is not None:
         return True
 
-    if settings.TYPESAFE_API_KEY is None:
+    api_key = await _load_api_key()
+    if api_key is None:
         logger.warning("TYPESAFE_API_KEY is not configured; router requests will use Bedrock fallback")
         return False
 
     client = None
     try:
         client = AsyncTypeSafeClient(
-            api_key=settings.TYPESAFE_API_KEY.get_secret_value(),
+            api_key=api_key.get_secret_value(),
             model=settings.JEV_ROUTER_MODEL,
             retry=RetryPolicy(
                 max_retries=0,

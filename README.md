@@ -83,7 +83,7 @@ An AI-powered restaurant finder built with **AWS Bedrock AgentCore**, **LangGrap
 
 ## Prerequisites
 
-- **AWS Account** with Bedrock model access enabled (Claude 3.5 Haiku)
+- **AWS Account** with access to the Claude Haiku 4.5 inference profile (`us.anthropic.claude-haiku-4-5-20251001-v1:0`)
 - **AWS CLI** configured with credentials (`aws configure`)
 - **Node.js 20+** (for CDK)
 - **Python 3.11+**
@@ -103,13 +103,23 @@ cd restaurant-finder-agentic-ai-with-agentcore
 
 ### 2. Deploy Infrastructure First
 
-Even for local development, you need AWS resources (Gateway, Memory) provisioned:
+Even for local development, the Gateway and Memory must be deployed. The AgentCore Runtime stack also expects its container image to exist in ECR, so deploy the ECR repository, build and push the initial image, then deploy the AgentCore stack:
 
 ```bash
 cd restaurant-finder-infra
-npm install
-npx cdk bootstrap   # First time only
-npx cdk deploy --all
+npm ci
+npx cdk bootstrap "aws://$(aws sts get-caller-identity --query Account --output text)/us-east-2"   # First time only
+npx cdk deploy restaurantFinder-EcrStack
+
+cd ..
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ECR_URI="$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent"
+aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com"
+docker build --platform linux/arm64 -t "$ECR_URI:latest" ./restaurant-finder-api
+docker push "$ECR_URI:latest"
+
+cd restaurant-finder-infra
+npx cdk deploy restaurantFinder-AgentCoreStack
 ```
 
 Note the stack outputs — you'll need `GatewayUrl`, `GatewayId`, and `MemoryId`.
@@ -123,6 +133,8 @@ aws secretsmanager put-secret-value \
   --secret-id restaurantFinder/restaurant-search-key \
   --secret-string '{"api_key":"YOUR_SEARCHAPI_KEY"}'
 ```
+
+The CDK stack also creates a Secrets Manager secret named `restaurantFinder/jev-router-key`. Copy the `TYPESAFE_API_KEY` value from your local `.env` into that secret in the AWS console. The deployed Runtime reads it using its execution role; the key is not included in the image or CloudFormation environment values.
 
 ### 4. Set Up the API
 
@@ -141,7 +153,7 @@ MEMORY_ID=your-memory-id
 TYPESAFE_API_KEY=your-typesafe-api-key
 ```
 
-The TypeSafe key is used by the local Jev router. Keep it in the ignored `.env` file and never commit it. The CDK runtime configuration has not been updated to provide this key to AWS; until that is configured, a deployed copy will use the Bedrock fallback.
+The TypeSafe key is used by the local Jev router. Keep it in the ignored `.env` file and never commit it. For the deployed Runtime, also copy it to the `restaurantFinder/jev-router-key` Secrets Manager secret created by CDK.
 
 Install dependencies and start the local server:
 
@@ -177,30 +189,14 @@ Open `http://localhost:8000` and try:
 
 ```bash
 cd restaurant-finder-infra
-npm install
-npx cdk bootstrap   # First time only
-npx cdk deploy --all
+npm ci
+npx cdk bootstrap "aws://$(aws sts get-caller-identity --query Account --output text)/us-east-2"   # First time only
+npx cdk deploy restaurantFinder-EcrStack
 ```
 
-This creates:
+This first creates the ECR repository. The AgentCore stack cannot be deployed until its initial image has been pushed.
 
-- **ECR Repository** - Container image storage
-- **AgentCore Gateway** - MCP protocol endpoint with Lambda target
-- **AgentCore Memory** - Conversation persistence with 3 strategies
-- **AgentCore Runtime** - Containerized agent with auto-scaling
-- **Lambda Function** - SearchAPI restaurant search
-- **IAM Roles** - Least-privilege permissions
-- **CloudWatch** - Logging and X-Ray integration
-
-### 2. Set the SearchAPI Secret
-
-```bash
-aws secretsmanager put-secret-value \
-  --secret-id restaurantFinder/restaurant-search-key \
-  --secret-string '{"api_key":"YOUR_SEARCHAPI_KEY"}'
-```
-
-### 3. Build and Push the Container
+### 2. Build and Push the Container
 
 **Option A: Automatic via GitHub Actions**
 
@@ -209,24 +205,35 @@ Push to `main` with changes in `restaurant-finder-api/` — the `deploy-image.ym
 **Option B: Manual deployment**
 
 ```bash
-# Authenticate with ECR
-aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com
-
-# Build and push
-cd restaurant-finder-api
-docker build --platform linux/arm64 -t restaurantfinder-agent .
-docker tag restaurantfinder-agent:latest <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:latest
-docker push <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:latest
-
-# Update the runtime
-aws bedrock-agentcore-control update-agent-runtime \
-  --agent-runtime-id <RUNTIME_ID> \
-  --agent-runtime-artifact '{"containerConfiguration":{"containerUri":"<IMAGE_URI>"}}' \
-  --role-arn <RUNTIME_ROLE_ARN> \
-  --network-configuration '{"networkMode":"PUBLIC"}'
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ECR_URI="$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent"
+aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com"
+docker build --platform linux/arm64 -t "$ECR_URI:latest" ./restaurant-finder-api
+docker push "$ECR_URI:latest"
 ```
 
-### 4. Connect the UI to AWS
+### 3. Deploy the AgentCore Stack
+
+After the initial container image is available in ECR, deploy the stack that creates the Gateway, Memory, Runtime, Lambda, and supporting roles:
+
+```bash
+cd restaurant-finder-infra
+npx cdk deploy restaurantFinder-AgentCoreStack
+```
+
+### 4. Set the SearchAPI Secret
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id restaurantFinder/restaurant-search-key \
+  --secret-string '{"api_key":"YOUR_SEARCHAPI_KEY"}'
+```
+
+### 5. Set the TypeSafe Jev Secret
+
+Copy the `TYPESAFE_API_KEY` value from `restaurant-finder-api/.env` into the `restaurantFinder/jev-router-key` secret in AWS Secrets Manager, in `us-east-2`.
+
+### 6. Connect the UI to AWS
 
 ```bash
 cd restaurant-finder-ui
@@ -269,9 +276,12 @@ GitHub Actions are disabled for this development repository so the inherited dep
 | ----------------------------- | -------- | ------------------------- | --------------------------------------- |
 | `AWS_REGION`                  | Yes      | `us-east-2`               | AWS region for all services             |
 | `TYPESAFE_API_KEY`            | For Jev  | -                         | Secret TypeSafe API key for local Jev routing |
+| `TYPESAFE_SECRET_ARN`         | Runtime | Set by CDK                | Secrets Manager ARN used by deployed Jev routing |
 | `JEV_ROUTER_MODEL`            | No       | `jev-1.13.0`               | Jev model used for intent classification |
 | `JEV_ROUTER_TIMEOUT_SECONDS`  | No       | `2.0`                     | Jev request timeout before Bedrock fallback |
-| `ROUTER_MODEL_ID`             | No       | `us.anthropic.claude-3-5-haiku-20241022-v1:0` | Bedrock router used when Jev fails |
+| `ORCHESTRATOR_MODEL_ID`       | No       | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Bedrock model for the orchestrator |
+| `EXTRACTION_MODEL_ID`         | No       | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Bedrock model for structured data extraction |
+| `ROUTER_MODEL_ID`             | No       | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Bedrock router used when Jev fails |
 | `GATEWAY_URL`                 | Yes      | -                         | MCP Gateway URL (CDK output)            |
 | `GATEWAY_ID`                  | Yes      | -                         | Gateway identifier (CDK output)         |
 | `MEMORY_ID`                   | Yes      | -                         | Memory identifier (CDK output)          |
