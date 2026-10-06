@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,21 @@ class Settings(BaseSettings):
     ROUTER_MODEL_ID: str = Field(
         default="us.anthropic.claude-3-5-haiku-20241022-v1:0",
         description="Model for router/intent classification (lightweight, fast).",
+    )
+
+    # --- Jev router configuration ---
+    TYPESAFE_API_KEY: SecretStr | None = Field(
+        default=None,
+        description="TypeSafe API key used by the Jev intent router.",
+    )
+    JEV_ROUTER_MODEL: str = Field(
+        default="jev-1.13.0",
+        description="Pinned Jev model version for intent classification.",
+    )
+    JEV_ROUTER_TIMEOUT_SECONDS: float = Field(
+        default=2.0,
+        gt=0,
+        description="Maximum time allowed for a Jev routing request before Bedrock fallback.",
     )
 
     # --- Browser Tools Configuration ---

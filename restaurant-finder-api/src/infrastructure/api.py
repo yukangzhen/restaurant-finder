@@ -10,6 +10,7 @@ from loguru import logger
 
 from src.infrastructure.startup import initialize_infrastructure
 from src.infrastructure.streaming import stream_response
+from src.infrastructure.jev_router import close_jev_router, initialize_jev_router
 
 # Initialize BedrockAgentCoreApp
 app = BedrockAgentCoreApp()
@@ -27,6 +28,7 @@ async def startup_event():
     """
     logger.info("Application startup initiated")
     results = await initialize_infrastructure()
+    jev_ready = await initialize_jev_router()
 
     # Log initialization summary
     observability_status = results.get("observability", {}).get("status", "unknown")
@@ -34,7 +36,7 @@ async def startup_event():
 
     logger.info(
         f"Startup complete - Observability: {observability_status}, "
-        f"Guardrails: {guardrail_status}"
+        f"Guardrails: {guardrail_status}, Jev router: {'ready' if jev_ready else 'Bedrock fallback'}"
     )
 
     if observability_status == "error":
@@ -46,6 +48,12 @@ async def startup_event():
         logger.warning(
             f"Guardrail initialization error: {results['guardrails'].get('error')}"
         )
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close the reusable TypeSafe HTTP client when the app stops."""
+    await close_jev_router()
 
 
 @app.entrypoint

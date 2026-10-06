@@ -137,7 +137,10 @@ AWS_REGION=us-east-2
 GATEWAY_URL=https://your-gateway-url.gateway.bedrock-agentcore.us-east-2.amazonaws.com/mcp
 GATEWAY_ID=your-gateway-id
 MEMORY_ID=your-memory-id
+TYPESAFE_API_KEY=your-typesafe-api-key
 ```
+
+The TypeSafe key is used by the local Jev router. Keep it in the ignored `.env` file and never commit it. The CDK runtime configuration has not been updated to provide this key to AWS; until that is configured, a deployed copy will use the Bedrock fallback.
 
 Install dependencies and start the local server:
 
@@ -244,6 +247,8 @@ chainlit run app.py
 
 ## CI/CD Pipelines
 
+GitHub Actions are disabled for this development repository so the inherited deploy workflows cannot change AWS resources when code is pushed. Enable Actions in repository settings only when you are ready to configure deployment credentials and use those workflows.
+
 | Workflow            | Trigger                                  | Action                                           |
 | ------------------- | ---------------------------------------- | ------------------------------------------------ |
 | `deploy-infra.yml`  | Push to `main` (infra changes) or manual | Deploys CDK stacks (ECR + AgentCore)             |
@@ -262,6 +267,10 @@ chainlit run app.py
 | Variable                      | Required | Default                   | Description                             |
 | ----------------------------- | -------- | ------------------------- | --------------------------------------- |
 | `AWS_REGION`                  | Yes      | `us-east-2`               | AWS region for all services             |
+| `TYPESAFE_API_KEY`            | For Jev  | -                         | Secret TypeSafe API key for local Jev routing |
+| `JEV_ROUTER_MODEL`            | No       | `jev-1.13.0`               | Jev model used for intent classification |
+| `JEV_ROUTER_TIMEOUT_SECONDS`  | No       | `2.0`                     | Jev request timeout before Bedrock fallback |
+| `ROUTER_MODEL_ID`             | No       | `us.anthropic.claude-3-5-haiku-20241022-v1:0` | Bedrock router used when Jev fails |
 | `GATEWAY_URL`                 | Yes      | -                         | MCP Gateway URL (CDK output)            |
 | `GATEWAY_ID`                  | Yes      | -                         | Gateway identifier (CDK output)         |
 | `MEMORY_ID`                   | Yes      | -                         | Memory identifier (CDK output)          |

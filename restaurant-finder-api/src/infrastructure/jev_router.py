@@ -1,0 +1,149 @@
+"""TypeSafe Jev intent classification with a reusable async client."""
+
+from dataclasses import dataclass
+
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from loguru import logger
+from typesafe_sdk import AsyncTypeSafeClient, Choice, RetryPolicy
+
+from src.config import settings
+from src.infrastructure.model import extract_text_content
+
+
+@dataclass(frozen=True)
+class JevClassification:
+    """Typed routing answer returned by Jev."""
+
+    intent: str
+    confidence: float | None
+
+
+class JevRouterUnavailable(RuntimeError):
+    """Raised when Jev cannot provide a valid routing answer."""
+
+
+_VALID_INTENTS: set[str] = {"restaurant_search", "simple", "off_topic"}
+_jev_client: AsyncTypeSafeClient | None = None
+
+
+def _message_for_jev(message: BaseMessage) -> dict:
+    """Convert a LangChain message into a compact, role-labelled record."""
+    if isinstance(message, HumanMessage):
+        role = "user"
+    elif isinstance(message, AIMessage):
+        role = "assistant"
+    elif isinstance(message, ToolMessage):
+        role = "tool"
+    else:
+        role = message.type
+
+    item = {"role": role, "content": extract_text_content(message.content)}
+
+    if isinstance(message, AIMessage) and message.tool_calls:
+        item["tool_calls"] = [
+            {"name": call.get("name"), "args": call.get("args")}
+            for call in message.tool_calls
+        ]
+    elif isinstance(message, ToolMessage):
+        item["tool_name"] = message.name
+        item["tool_call_id"] = message.tool_call_id
+
+    return item
+
+
+async def initialize_jev_router() -> bool:
+    """Open the reusable Jev client; leave it unavailable if setup fails."""
+    global _jev_client
+
+    if _jev_client is not None:
+        return True
+
+    if settings.TYPESAFE_API_KEY is None:
+        logger.warning("TYPESAFE_API_KEY is not configured; router requests will use Bedrock fallback")
+        return False
+
+    client = None
+    try:
+        client = AsyncTypeSafeClient(
+            api_key=settings.TYPESAFE_API_KEY.get_secret_value(),
+            model=settings.JEV_ROUTER_MODEL,
+            retry=RetryPolicy(
+                max_retries=0,
+                timeout=settings.JEV_ROUTER_TIMEOUT_SECONDS,
+            ),
+        )
+        await client.__aenter__()
+        _jev_client = client
+        logger.info("Jev router initialized (model={})", settings.JEV_ROUTER_MODEL)
+        return True
+    except Exception as error:
+        if client is not None:
+            try:
+                await client.__aexit__(type(error), error, error.__traceback__)
+            except Exception:
+                pass
+        logger.warning(
+            "Could not initialize Jev router; Bedrock fallback will be used (error_type={})",
+            type(error).__name__,
+        )
+        return False
+
+
+async def close_jev_router() -> None:
+    """Close the reusable Jev HTTP client during application shutdown."""
+    global _jev_client
+
+    client, _jev_client = _jev_client, None
+    if client is None:
+        return
+
+    try:
+        await client.__aexit__(None, None, None)
+    except Exception as error:
+        logger.warning("Could not close Jev router client (error_type={})", type(error).__name__)
+
+
+async def classify_with_jev(messages: list[BaseMessage]) -> JevClassification:
+    """Classify the latest user message while preserving the conversation context."""
+    if _jev_client is None:
+        raise JevRouterUnavailable("Jev router client is not initialized")
+
+    response = await _jev_client.system_one(
+        state={"messages": [_message_for_jev(message) for message in messages]},
+        questions={
+            "intent": Choice(
+                instructions=(
+                    "Classify the intent of the latest user message. Use earlier messages only "
+                    "to understand references or follow-ups. Do not classify based only on an "
+                    "earlier message. If the latest user message mentions food, eating, dining, "
+                    "or restaurants in any way, or may relate to dining, choose restaurant_search."
+                ),
+                criteria={
+                    "restaurant_search": (
+                        "The user wants to find, search, or get recommendations or information "
+                        "about restaurants, food, or dining. Includes restaurant names, cuisine, "
+                        "meals, hunger, and dietary options."
+                    ),
+                    "simple": (
+                        "A greeting, thanks, acknowledgment, goodbye, or a question about the "
+                        "assistant and its capabilities."
+                    ),
+                    "off_topic": (
+                        "A request unrelated to restaurants, food, dining, or the assistant's "
+                        "capabilities, such as weather, coding, math, jokes, or sports."
+                    ),
+                },
+            )
+        },
+    )
+
+    answer = response.choices.get("intent")
+    intent = answer.choice if answer is not None else None
+    if intent not in _VALID_INTENTS:
+        raise JevRouterUnavailable("Jev returned an invalid intent")
+
+    confidence = answer.confidence
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+        confidence = None
+
+    return JevClassification(intent=intent, confidence=confidence)

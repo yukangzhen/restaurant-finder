@@ -1,4 +1,5 @@
 import time
+from typing import cast
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
@@ -9,9 +10,11 @@ from src.application.orchestrator.workflow.chains import (
     get_router_chain,
     get_simple_response_chain,
 )
+from src.config import settings
 from src.infrastructure.model import extract_text_content as _extract_text_content
 from src.infrastructure.memory import get_memory_instance
 from src.infrastructure.observability import get_observability_manager
+from src.infrastructure.jev_router import classify_with_jev
 
 
 async def search_agent_node(
@@ -155,31 +158,57 @@ async def router_node(
 
     messages = list(state["messages"])
 
-    router_chain = get_router_chain()
-
     with observability.create_span(
         "router.classify",
         attributes={"message.count": len(messages)},
     ):
-        response = await router_chain.ainvoke(
-            {"messages": messages},
-            config,
-        )
+        provider = "jev"
+        model = settings.JEV_ROUTER_MODEL
+        confidence = None
+        fallback_reason = None
 
-    # Parse the intent from the response
-    response_text = _extract_text_content(response.content).strip().lower()
+        try:
+            with observability.create_span(
+                "router.jev",
+                attributes={"router.model": model},
+            ):
+                classification = await classify_with_jev(messages)
+            intent = cast(IntentType, classification.intent)
+            confidence = classification.confidence
+        except Exception as error:
+            provider = "bedrock"
+            model = settings.ROUTER_MODEL_ID
+            fallback_reason = type(error).__name__
+            logger.warning(
+                "Jev routing failed; using Bedrock fallback (error_type={})",
+                fallback_reason,
+            )
 
-    # Map response to intent type
-    if "restaurant_search" in response_text:
-        intent: IntentType = "restaurant_search"
-    elif "simple" in response_text:
-        intent = "simple"
-    elif "off_topic" in response_text:
-        intent = "off_topic"
-    else:
-        # Default to restaurant_search if unclear
-        logger.warning(f"Unclear intent classification: {response_text}, defaulting to restaurant_search")
-        intent = "restaurant_search"
+            with observability.create_span(
+                "router.bedrock_fallback",
+                attributes={
+                    "router.model": model,
+                    "fallback.reason": fallback_reason,
+                },
+            ):
+                response = await get_router_chain().ainvoke(
+                    {"messages": messages},
+                    config,
+                )
+
+            response_text = _extract_text_content(response.content).strip().lower()
+            if "restaurant_search" in response_text:
+                intent = "restaurant_search"
+            elif "simple" in response_text:
+                intent = "simple"
+            elif "off_topic" in response_text:
+                intent = "off_topic"
+            else:
+                logger.warning(
+                    "Unclear Bedrock fallback intent: {}; defaulting to restaurant_search",
+                    response_text,
+                )
+                intent = "restaurant_search"
 
     duration_ms = (time.time() - start_time) * 1000
     observability.record_workflow_step(
@@ -187,7 +216,13 @@ async def router_node(
         step_type="node",
         duration_ms=duration_ms,
         success=True,
-        metadata={"intent": intent, "raw_response": response_text[:50]},
+        metadata={
+            "intent": intent,
+            "provider": provider,
+            "model": model,
+            "confidence": confidence,
+            "fallback_reason": fallback_reason,
+        },
     )
 
     logger.info(f"Router classified intent: {intent}")

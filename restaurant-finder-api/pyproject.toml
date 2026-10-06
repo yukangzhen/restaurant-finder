@@ -19,6 +19,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.2.1",
     "requests>=2.32.0",
+    "typesafe-sdk==0.7.2",
     # Observability dependencies
     "aws-opentelemetry-distro>=0.12.0",
     "opentelemetry-api>=1.20.0",

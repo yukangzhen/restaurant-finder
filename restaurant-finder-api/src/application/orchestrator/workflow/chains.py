@@ -139,14 +139,14 @@ def get_search_agent_chain(
 
 def get_router_chain() -> Runnable:
     """
-    Create the router chain for intent classification.
+    Create the Bedrock fallback chain for intent classification.
 
     This is a lightweight chain that classifies user intent into:
     - restaurant_search: User wants to find/search restaurants
     - simple: Greetings, thanks, questions about the assistant
     - off_topic: Unrelated questions
 
-    Uses a fast model for low latency routing decisions.
+    Uses the configured router model when the primary Jev router is unavailable.
 
     Returns:
         A runnable chain (prompt | model) for intent classification.
