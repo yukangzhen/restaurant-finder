@@ -48,6 +48,7 @@ An AI-powered restaurant finder built with **AWS Bedrock AgentCore**, **LangGrap
 │   │       ├── api.py             # BedrockAgentCoreApp entrypoint
 │   │       ├── browser.py         # AgentCore Browser toolkit
 │   │       ├── guardrails.py      # Bedrock Guardrails management
+│   │       ├── jev_router.py      # TypeSafe Jev router client and classification
 │   │       ├── mcp_client.py      # MCP Gateway client
 │   │       ├── memory.py          # AgentCore Memory manager
 │   │       ├── model.py           # Bedrock model configuration
