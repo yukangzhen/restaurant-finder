@@ -52,12 +52,13 @@ async def initialize_infrastructure() -> dict:
             )
             results["observability"] = {
                 "status": "success",
+                "export_delivery": "not_verified",
                 "service_name": settings.OTEL_SERVICE_NAME,
                 "enabled": observability_manager.enabled,
             }
             logger.info(
-                f"Observability initialized: service={settings.OTEL_SERVICE_NAME}, "
-                f"enabled={observability_manager.enabled}"
+                f"OpenTelemetry initialized: service={settings.OTEL_SERVICE_NAME}, "
+                f"enabled={observability_manager.enabled}, export_delivery=not_verified"
             )
         except Exception as e:
             logger.error(f"Failed to initialize observability: {e}")

@@ -8,12 +8,12 @@ Wraps the orchestrator's response stream with:
 """
 
 import json
-import uuid
 from typing import AsyncGenerator
 
 from loguru import logger
 
 from src.application.orchestrator.streaming import get_streaming_response
+from src.application.orchestrator.identity import resolve_request_identity
 from src.infrastructure.guardrails import (
     apply_input_guardrail,
     apply_output_guardrail,
@@ -26,6 +26,7 @@ async def stream_response(
     user_input: str,
     customer_name: str = "Guest",
     conversation_id: str | None = None,
+    actor_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """
     Async generator that yields SSE-formatted events with guardrail protection.
@@ -54,8 +55,14 @@ async def stream_response(
         - {"error": "..."} on failure
         - {"blocked": true, "message": "..."} if input blocked by guardrails
     """
-    # Use conversation_id as session ID for observability, or generate one
-    session_id = conversation_id or str(uuid.uuid4())
+    try:
+        identity = resolve_request_identity(conversation_id, actor_id)
+    except ValueError as error:
+        yield f"data: {json.dumps({'error': str(error)})}\n\n"
+        yield f"data: {json.dumps({'done': True})}\n\n"
+        return
+
+    session_id = identity.conversation_id
 
     # Get observability manager and set session context
     observability = get_observability_manager()
@@ -67,7 +74,6 @@ async def stream_response(
             "request.start",
             attributes={
                 "session.id": session_id,
-                "customer.name": customer_name,
                 "input.length": len(user_input),
             }
         )
@@ -98,13 +104,13 @@ async def stream_response(
                 "workflow.execution",
                 attributes={
                     "session.id": session_id,
-                    "customer.name": customer_name,
                 }
             ):
                 async for chunk in get_streaming_response(
                     messages=user_input,
                     customer_name=customer_name,
-                    conversation_id=conversation_id,
+                    conversation_id=identity.conversation_id,
+                    actor_id=identity.actor_id,
                 ):
                     if chunk:
                         full_response.append(chunk)
@@ -153,7 +159,6 @@ async def stream_response(
                 "request.error",
                 attributes={
                     "error.type": error_type,
-                    "error.message": error_msg,
                 }
             )
 

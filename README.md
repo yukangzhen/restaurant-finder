@@ -12,6 +12,7 @@ An AI-powered restaurant finder built with **AWS Bedrock AgentCore**, **LangGrap
 | **Runtime**              | Bedrock AgentCore          | Containerized Python app with auto-scaling               |
 | **Tool Routing**         | MCP Gateway + Lambda       | Restaurant search via SearchAPI                          |
 | **Memory**               | AgentCore Memory           | User preferences, semantic facts, conversation summaries |
+| **Prompt versions**      | Bedrock Prompt Management  | Explicitly synchronized, immutable prompt versions      |
 | **Guardrails**           | Bedrock Guardrails         | Content filtering, PII protection, topic control         |
 | **Observability**        | OpenTelemetry + CloudWatch | Distributed tracing, GenAI Observability dashboard       |
 | **UI**                   | Chainlit                   | Chat interface with streaming responses                  |
@@ -114,15 +115,30 @@ npx cdk deploy restaurantFinder-EcrStack
 cd ..
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_URI="$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent"
+TAG=$(date -u +%Y%m%d%H%M%S)
 aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com"
-docker build --platform linux/arm64 -t "$ECR_URI:latest" ./restaurant-finder-api
-docker push "$ECR_URI:latest"
+
+cd restaurant-finder-api
+uv sync --extra local-aws
+python -m src.deployment.sync_prompts --profile default --region us-east-2
+python -m src.deployment.validate_prompts
+cd ..
+docker build --platform linux/arm64 -t "$ECR_URI:$TAG" ./restaurant-finder-api
+docker push "$ECR_URI:$TAG"
 
 cd restaurant-finder-infra
-npx cdk deploy restaurantFinder-AgentCoreStack
+npx cdk deploy restaurantFinder-AgentCoreStack -c "imageUri=$ECR_URI:$TAG"
 ```
 
+Use the same version-specific image tag for the build, push, and CDK deployment. Avoid
+relying on `latest` for an existing Runtime; its tag can point to an older image.
+
 Note the stack outputs — you'll need `GatewayUrl`, `GatewayId`, and `MemoryId`.
+
+Prompt sync reuses a matching immutable version and never deletes older
+versions. It writes `restaurant-finder-api/.generated/prompt-manifest.json`,
+which is included in the image and ignored by Git. The deployed Runtime requires
+the manifest; local development can run without it.
 
 ### 3. Set the SearchAPI Secret
 
@@ -155,10 +171,14 @@ TYPESAFE_API_KEY=your-typesafe-api-key
 
 The TypeSafe key is used by the local Jev router. Keep it in the ignored `.env` file and never commit it. For the deployed Runtime, also copy it to the `restaurantFinder/jev-router-key` Secrets Manager secret created by CDK.
 
+For local AWS CLI-based development, install optional CRT support with
+`uv sync --extra local-aws`. The API `.env.example` leaves remote observability
+off for local runs; CDK enables it for the deployed Runtime.
+
 Install dependencies and start the local server:
 
 ```bash
-uv sync
+uv sync --extra local-aws
 agentcore dev
 ```
 
@@ -169,7 +189,7 @@ The API server starts on `http://localhost:8080`.
 ```bash
 cd restaurant-finder-ui
 cp .env.example .env
-uv sync
+uv sync --extra local-aws
 chainlit run app.py
 ```
 
@@ -207,9 +227,15 @@ Push to `main` with changes in `restaurant-finder-api/` — the `deploy-image.ym
 ```bash
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_URI="$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent"
+TAG=$(date -u +%Y%m%d%H%M%S)
 aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com"
-docker build --platform linux/arm64 -t "$ECR_URI:latest" ./restaurant-finder-api
-docker push "$ECR_URI:latest"
+cd restaurant-finder-api
+uv sync --extra local-aws
+python -m src.deployment.sync_prompts --profile default --region us-east-2
+python -m src.deployment.validate_prompts
+cd ..
+docker build --platform linux/arm64 -t "$ECR_URI:$TAG" ./restaurant-finder-api
+docker push "$ECR_URI:$TAG"
 ```
 
 ### 3. Deploy the AgentCore Stack
@@ -218,7 +244,7 @@ After the initial container image is available in ECR, deploy the stack that cre
 
 ```bash
 cd restaurant-finder-infra
-npx cdk deploy restaurantFinder-AgentCoreStack
+npx cdk deploy restaurantFinder-AgentCoreStack -c "imageUri=$ECR_URI:$TAG"
 ```
 
 ### 4. Set the SearchAPI Secret
@@ -246,16 +272,57 @@ Edit `.env`:
 AGENT_CONNECTION_MODE=aws
 AGENT_RUNTIME_ARN=arn:aws:bedrock-agentcore:us-east-2:<ACCOUNT_ID>:runtime/<RUNTIME_ID>
 AWS_REGION=us-east-2
+AWS_PROFILE=default
+# Optional: keep dining preferences across chats on your own local UI.
+# Use an identity unique to you. A shared UI requires authenticated identities.
+MEMORY_ACTOR_ID=local:your-user-name
 ```
 
 ```bash
-uv sync
-chainlit run app.py
+uv sync --locked --extra local-aws
+uv run --no-sync chainlit run app.py --host 127.0.0.1
 ```
+
+On Windows, open PowerShell in `restaurant-finder-ui`. If AWS reports expired
+credentials, run `aws login --profile default` there and then start the UI with
+the command above. Chainlit reads `.env` from the current directory. Open
+`http://localhost:8000` after the server starts. An empty `MEMORY_ACTOR_ID`
+isolates anonymous memory to each conversation.
+
+### Monitoring prerequisites
+
+The Runtime exports traces to the X-Ray OTLP endpoint and logs to the dedicated
+telemetry log group. AWS requires Transaction Search to be enabled in the target
+account and region for this trace endpoint. An `ACTIVE` X-Ray destination alone
+does not satisfy that requirement; trace export can fail with HTTP 400 even when
+application requests and log delivery work. See the
+[AWS ADOT setup prerequisites](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-OTLP-UsingADOT.html).
+Enabling Transaction Search changes the regional trace destination and introduces
+CloudWatch span ingestion charges, so review existing tracing consumers and costs
+before enabling it. Instrumentation startup messages do not prove successful
+trace or metric delivery.
+
+### Development checkpoint — October 7, 2026
+
+The deployed ARM64 image is tagged `jev-router-20261007-112930-arm64`.
+Manual verification confirmed three local router classifications using real Jev
+calls and a real Claude Haiku 4.5 fallback after a locally simulated Jev timeout.
+The deployed Runtime saved a synthetic user's vegan, Thai, and under-$25
+preferences, then recalled all three for a restaurant recommendation in a new
+session. CloudWatch received memory operation logs, save/retrieve counters, and
+duration histograms through OTLP. All 11 existing unit tests passed.
+
+Known gaps: a memory-only question was classified as `simple`, whose response
+chain has no memory tool, and incorrectly said there was no previous history.
+An instruction-style memory test was blocked by the prompt-attack guardrail;
+the UI currently ignores `blocked` SSE events and displays "No response received."
+Trace batches are rejected with HTTP 400 while the regional destination remains
+`XRay`; Transaction Search has not been enabled. These checks establish a
+development checkpoint, not routing accuracy, performance, or cost benchmarks.
 
 ## CI/CD Pipelines
 
-GitHub Actions are disabled for this development repository so the inherited deploy workflows cannot change AWS resources when code is pushed. Enable Actions in repository settings only when you are ready to configure deployment credentials and use those workflows.
+The workflows in this repository can change AWS resources when they run. Whether Actions are enabled is controlled by the GitHub repository settings, so verify that setting before pushing deployment-related changes. Keep deployment credentials out of the repository and enable these workflows only when you are ready to use them.
 
 | Workflow            | Trigger                                  | Action                                           |
 | ------------------- | ---------------------------------------- | ------------------------------------------------ |
@@ -288,8 +355,9 @@ GitHub Actions are disabled for this development repository so the inherited dep
 | `RUNTIME_ID`                  | No       | -                         | Runtime ID (needed for evaluation only) |
 | `ENABLE_BROWSER_TOOLS`        | No       | `true`                    | Enable browser-based agent tools        |
 | `GUARDRAIL_ENABLED`           | No       | `true`                    | Enable Bedrock content guardrails       |
-| `AGENT_OBSERVABILITY_ENABLED` | No       | `true`                    | Enable OpenTelemetry tracing            |
+| `AGENT_OBSERVABILITY_ENABLED` | No       | `false`                   | Enable OpenTelemetry tracing; enabled by CDK in the deployed Runtime |
 | `OTEL_SERVICE_NAME`           | No       | `restaurant-finder-agent` | Service name for traces                 |
+| `REQUIRE_PROMPT_MANIFEST`     | No       | `false`                   | Require the generated immutable prompt manifest; CDK sets true in AWS |
 
 ### UI Environment Variables (`restaurant-finder-ui/.env`)
 
@@ -299,6 +367,8 @@ GitHub Actions are disabled for this development repository so the inherited dep
 | `AGENTCORE_API_URL`     | No          | `http://localhost:8080/invocations` | Local API endpoint       |
 | `AGENT_RUNTIME_ARN`     | If aws mode | -                                   | Runtime ARN (CDK output) |
 | `AWS_REGION`            | No          | `us-east-2`                         | AWS region               |
+| `AWS_PROFILE`           | No          | default profile                     | AWS CLI login profile used by the local UI |
+| `MEMORY_ACTOR_ID`       | No          | unset                               | Optional stable identity for local single-user memory; production identity must be set server-side from authentication |
 
 ## Evaluation
 

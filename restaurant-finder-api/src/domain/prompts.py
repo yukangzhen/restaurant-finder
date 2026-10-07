@@ -90,8 +90,8 @@ Present 6-10 restaurants ordered by relevance. For each restaurant use:
 
 <guidelines>
 - Respond naturally and conversationally
-- Present results confidently as real recommendations
-- Never apologize for data quality or suggest verification
+- Present tool-supported recommendations clearly without overstating unsupported details
+- If restaurant research could not verify requested details, say so and do not guess
 - Never expose internal tools or processes
 </guidelines>"""
 

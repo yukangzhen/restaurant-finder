@@ -1,4 +1,10 @@
+"""Explicit deployment-time synchronization for Bedrock managed prompts."""
+
+from __future__ import annotations
+
+import hashlib
 import re
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -8,78 +14,46 @@ from src.config import settings
 
 
 class Prompt:
-    """
-    A prompt template with Bedrock synchronization.
-
-    Wraps a prompt text template with automatic syncing to AWS Bedrock
-    Prompt Management using CHAT template type for proper system/user
-    role separation.
-
-    The prompt text is stored as the system message, with a generic
-    user message placeholder for Bedrock's template representation.
-    At runtime, actual user messages are assembled by the calling code
-    via LangChain's ChatPromptTemplate.
-    """
+    """Local prompt text with optional immutable Bedrock version metadata."""
 
     def __init__(self, name: str, prompt: str) -> None:
         self.name = name
         self.__prompt_text = prompt
         self.__variables = self._extract_variables(prompt)
 
-        try:
-            # Register/sync with Bedrock for version management
-            self.__bedrock_metadata = PromptManager().get_or_create_prompt(
-                name=name, prompt_text=prompt
-            )
-            logger.info(f"Prompt '{name}' synced with Bedrock: {self.__bedrock_metadata.get('id')}")
-        except Exception as e:
-            logger.warning(f"Failed to sync prompt '{self.name}' with Bedrock: {e}")
-            self.__bedrock_metadata = None
+        # Import lazily: prompt definitions are imported by the sync command too.
+        from src.infrastructure.prompt_metadata import get_prompt_metadata
+
+        self.__bedrock_metadata = get_prompt_metadata(name, prompt)
 
     @staticmethod
     def _extract_variables(prompt_text: str) -> list[str]:
-        """Extract variable names from {{variable}} syntax."""
-        pattern = r'\{\{(\w+)\}\}'
-        matches = re.findall(pattern, prompt_text)
-        # Remove duplicates while preserving order
-        seen = set()
-        return [v for v in matches if not (v in seen or seen.add(v))]
+        seen: set[str] = set()
+        return [
+            name
+            for name in re.findall(r"\{\{(\w+)\}\}", prompt_text)
+            if not (name in seen or seen.add(name))
+        ]
 
     @property
     def prompt(self) -> str:
-        """Return the actual prompt text (template with {{variables}})."""
         return self.__prompt_text
 
     @property
     def variables(self) -> list[str]:
-        """Return list of variable names in this prompt."""
         return self.__variables
 
     @property
-    def bedrock_metadata(self) -> dict | None:
-        """Return Bedrock metadata if available."""
+    def bedrock_metadata(self) -> dict[str, Any] | None:
         return self.__bedrock_metadata
 
-    def format(self, **kwargs) -> str:
-        """
-        Format the prompt by substituting {{variable}} placeholders with values.
-
-        Args:
-            **kwargs: Variable names and their values.
-
-        Returns:
-            The formatted prompt string.
-
-        Raises:
-            ValueError: If required variables are missing.
-        """
-        missing = set(self.__variables) - set(kwargs.keys())
+    def format(self, **kwargs: Any) -> str:
+        missing = set(self.__variables) - set(kwargs)
         if missing:
             raise ValueError(f"Missing required variables: {missing}")
-
         result = self.__prompt_text
-        for var_name, value in kwargs.items():
-            result = result.replace(f"{{{{{var_name}}}}}", str(value))
+        for name, value in kwargs.items():
+            result = result.replace(f"{{{{{name}}}}}", str(value))
         return result
 
     def __str__(self) -> str:
@@ -90,315 +64,180 @@ class Prompt:
 
 
 class PromptManager:
-    """
-    Manages prompts in AWS Bedrock using CHAT template type.
+    """Sync prompt definitions and publish immutable versions explicitly.
 
-    Uses CHAT template type for proper system/user role separation:
-    - System message: Contains the prompt instructions with XML tags
-    - User message: Placeholder for runtime user input
-
-    Operations:
-    - Creates new prompts if they don't exist
-    - Returns existing prompts if unchanged
-    - Creates new versions if prompt content has changed
+    This manager is used by a deployment command, never by application import
+    or request handling. It deliberately does not delete old prompt versions.
     """
 
-    def __init__(self):
-        self.bedrock_client = boto3.client(
-            service_name='bedrock-agent',
-            region_name=settings.AWS_REGION
+    def __init__(self, bedrock_client=None) -> None:
+        self.bedrock_client = bedrock_client or boto3.client(
+            "bedrock-agent", region_name=settings.AWS_REGION
         )
 
-    def get_or_create_prompt(self, name: str, prompt_text: str, description: str = "") -> dict:
-        """
-        Get an existing prompt or create a new one.
-        If the prompt exists but content has changed, creates a new version.
-
-        Args:
-            name: Unique name for the prompt
-            prompt_text: The prompt template text (used as system message)
-            description: Optional description for the prompt
-
-        Returns:
-            dict with prompt details (id, arn, version, name)
-        """
-        existing_prompt = self._find_prompt_by_name(name)
-
-        if existing_prompt is None:
-            # Prompt doesn't exist, create it
-            logger.info(f"Prompt '{name}' not found. Creating new prompt.")
-            return self._create_prompt(name, prompt_text, description)
-
-        # Prompt exists, check if content has changed
-        prompt_id = existing_prompt['id']
-        current_content = self._get_prompt_content(prompt_id)
-
-        if current_content != prompt_text:
-            # Content changed, create new version
-            logger.info(f"Prompt '{name}' content changed. Creating new version.")
-            return self._create_new_version(prompt_id, prompt_text, description)
-
-        # Content unchanged, return existing prompt with variables
-        logger.info(f"Prompt '{name}' unchanged. Returning existing prompt.")
-        input_variables = self.extract_variables(prompt_text)
-        existing_prompt['variables'] = [v['name'] for v in input_variables]
-        return existing_prompt
+    @staticmethod
+    def extract_variables(prompt_text: str) -> list[dict[str, str]]:
+        seen: set[str] = set()
+        names = [
+            name
+            for name in re.findall(r"\{\{(\w+)\}\}", prompt_text)
+            if not (name in seen or seen.add(name))
+        ]
+        if "user_input" not in seen:
+            names.append("user_input")
+        return [{"name": name} for name in names]
 
     @staticmethod
-    def extract_variables(prompt_text: str) -> list[dict]:
-        """
-        Extract variables from prompt text using {{variable}} syntax.
+    def content_hash(prompt_text: str) -> str:
+        return hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
 
-        Returns:
-            List of dicts with 'name' key for each variable found.
-        """
-        pattern = r'\{\{(\w+)\}\}'
-        matches = re.findall(pattern, prompt_text)
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_vars = []
-        for var in matches:
-            if var not in seen:
-                seen.add(var)
-                unique_vars.append({'name': var})
-        return unique_vars
-
-    def _build_chat_template_config(self, prompt_text: str) -> dict:
-        """
-        Build a CHAT template configuration for Bedrock Prompt Management.
-
-        Structures the prompt as:
-        - system: The prompt text with XML-tagged instructions
-        - messages: A user message placeholder with {{user_input}}
-
-        Args:
-            prompt_text: The system prompt text.
-
-        Returns:
-            Template configuration dict for CHAT type.
-        """
-        # Extract variables from the system prompt text
-        input_variables = self.extract_variables(prompt_text)
-
-        # Add user_input variable for the user message placeholder
-        var_names = {v['name'] for v in input_variables}
-        if 'user_input' not in var_names:
-            input_variables.append({'name': 'user_input'})
-
-        chat_config = {
-            'system': [{'text': prompt_text}],
-            'messages': [
-                {
-                    'role': 'user',
-                    'content': [{'text': '{{user_input}}'}],
-                }
-            ],
-        }
-
-        if input_variables:
-            chat_config['inputVariables'] = input_variables
-
-        return chat_config
-
-    def _find_prompt_by_name(self, name: str) -> dict | None:
-        """Find a prompt by its name."""
-        try:
-            paginator = self.bedrock_client.get_paginator('list_prompts')
-            for page in paginator.paginate():
-                for prompt in page.get('promptSummaries', []):
-                    if prompt.get('name') == name:
-                        return {
-                            'id': prompt['id'],
-                            'arn': prompt['arn'],
-                            'version': prompt.get('version', 'DRAFT'),
-                            'name': prompt['name']
-                        }
-        except ClientError as e:
-            logger.error(f"Error listing prompts: {e}")
-            raise
-        return None
-
-    def _get_prompt_content(self, prompt_id: str) -> str | None:
-        """
-        Get the current system prompt content from a Bedrock prompt.
-
-        Handles both CHAT and TEXT template types for backwards compatibility.
-        """
-        try:
-            response = self.bedrock_client.get_prompt(promptIdentifier=prompt_id)
-            variants = response.get('variants', [])
-            if variants:
-                template_config = variants[0].get('templateConfiguration', {})
-
-                # Try CHAT format first (new format with system/user separation)
-                chat_config = template_config.get('chat', {})
-                if chat_config:
-                    system_messages = chat_config.get('system', [])
-                    if system_messages:
-                        return system_messages[0].get('text')
-
-                # Fall back to TEXT format (legacy prompts)
-                text_config = template_config.get('text', {})
-                return text_config.get('text')
-        except ClientError as e:
-            logger.error(f"Error getting prompt content: {e}")
-            raise
-        return None
-
-    def _create_prompt(self, name: str, prompt_text: str, description: str) -> dict:
-        """Create a new prompt using CHAT template type."""
-        try:
-            chat_config = self._build_chat_template_config(prompt_text)
-            input_variables = self.extract_variables(prompt_text)
-
+    def get_or_create_prompt(
+        self, name: str, prompt_text: str, description: str = ""
+    ) -> dict[str, Any]:
+        """Create or update the draft, then return a verified immutable version."""
+        existing = self._find_prompt_by_name(name)
+        if existing is None:
             response = self.bedrock_client.create_prompt(
                 name=name,
-                description=description or f"Prompt: {name}",
-                variants=[
-                    {
-                        'name': 'default',
-                        'templateType': 'CHAT',
-                        'templateConfiguration': {
-                            'chat': chat_config,
-                        },
-                    }
-                ],
-                defaultVariant='default'
+                description=description or f"Prompt managed by deployment: {name}",
+                variants=self._build_variants(prompt_text),
+                defaultVariant="default",
+            )
+            prompt_id = response["id"]
+            prompt_arn = response["arn"]
+        else:
+            prompt_id = existing["id"]
+            prompt_arn = existing["arn"]
+
+        for version in reversed(self._list_prompt_versions(prompt_id)):
+            version_number = version["version"]
+            current = self.bedrock_client.get_prompt(
+                promptIdentifier=prompt_id,
+                promptVersion=version_number,
+            )
+            if self._matches_definition(current, prompt_text):
+                logger.info("Reusing immutable Bedrock prompt {} version {}", name, version_number)
+                return self._metadata(current, prompt_text)
+
+        draft = self.bedrock_client.get_prompt(promptIdentifier=prompt_id)
+        if not self._matches_definition(draft, prompt_text):
+            self.bedrock_client.update_prompt(
+                promptIdentifier=prompt_id,
+                name=name,
+                description=description or f"Prompt managed by deployment: {name}",
+                variants=self._build_variants(prompt_text),
+                defaultVariant="default",
             )
 
-            prompt_id = response['id']
-            prompt_arn = response['arn']
-
-            # Create an initial version to make the prompt usable
+        try:
             version_response = self.bedrock_client.create_prompt_version(
                 promptIdentifier=prompt_id,
-                description=f"Initial version of {name}"
+                description=f"Deployment sync {self.content_hash(prompt_text)[:12]}",
             )
+        except ClientError as error:
+            message = str(error)
+            if "max-number-versions-per-prompt" in message:
+                raise RuntimeError(
+                    f"Bedrock prompt {name!r} reached its immutable-version limit. "
+                    "No versions were deleted. Review the prompt history and AWS quota "
+                    "before changing it."
+                ) from error
+            raise
 
-            return {
-                'id': prompt_id,
-                'arn': prompt_arn,
-                'version': version_response.get('version', 'DRAFT'),
-                'name': name,
-                'variables': [v['name'] for v in input_variables]
+        immutable = self.bedrock_client.get_prompt(
+            promptIdentifier=prompt_id,
+            promptVersion=version_response["version"],
+        )
+        if not self._matches_definition(immutable, prompt_text):
+            raise RuntimeError(
+                f"Bedrock prompt {name!r} version {version_response['version']} "
+                "did not match the local definition after read-back."
+            )
+        immutable.setdefault("id", prompt_id)
+        immutable.setdefault("arn", version_response.get("arn", prompt_arn))
+        immutable.setdefault("name", name)
+        logger.info("Created immutable Bedrock prompt {} version {}", name, immutable["version"])
+        return self._metadata(immutable, prompt_text)
+
+    def _build_variants(self, prompt_text: str) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "default",
+                "templateType": "CHAT",
+                "templateConfiguration": {
+                    "chat": {
+                        "system": [{"text": prompt_text}],
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [{"text": "{{user_input}}"}],
+                            }
+                        ],
+                        "inputVariables": self.extract_variables(prompt_text),
+                    }
+                },
             }
+        ]
 
-        except ClientError as e:
-            logger.error(f"Error creating prompt: {e}")
-            raise
+    def _matches_definition(self, prompt: dict[str, Any], prompt_text: str) -> bool:
+        variants = prompt.get("variants", [])
+        default_variant = prompt.get("defaultVariant", "default")
+        variant = next((v for v in variants if v.get("name") == default_variant), None)
+        if not variant or variant.get("templateType") != "CHAT":
+            return False
+        chat = variant.get("templateConfiguration", {}).get("chat", {})
+        system = chat.get("system", [])
+        messages = chat.get("messages", [])
+        system_text = system[0].get("text") if system else None
+        user_text = None
+        user_role = None
+        if messages:
+            user_role = messages[0].get("role")
+            content = messages[0].get("content", [])
+            user_text = content[0].get("text") if content else None
+        input_names = {item.get("name") for item in chat.get("inputVariables", [])}
+        expected_names = {item["name"] for item in self.extract_variables(prompt_text)}
+        return (
+            system_text == prompt_text
+            and user_role == "user"
+            and user_text == "{{user_input}}"
+            and input_names == expected_names
+        )
 
-    def _create_new_version(self, prompt_id: str, prompt_text: str, description: str) -> dict:
-        """Update prompt draft with CHAT template and create a new version."""
-        chat_config = self._build_chat_template_config(prompt_text)
-        input_variables = self.extract_variables(prompt_text)
+    def _find_prompt_by_name(self, name: str) -> dict[str, Any] | None:
+        paginator = self.bedrock_client.get_paginator("list_prompts")
+        for page in paginator.paginate():
+            for prompt in page.get("promptSummaries", []):
+                if prompt.get("name") == name:
+                    return prompt
+        return None
 
-        # First, update the DRAFT with new content
-        try:
-            update_response = self.bedrock_client.update_prompt(
-                promptIdentifier=prompt_id,
-                name=self._get_prompt_name(prompt_id),
-                description=description or "Updated prompt",
-                variants=[
-                    {
-                        'name': 'default',
-                        'templateType': 'CHAT',
-                        'templateConfiguration': {
-                            'chat': chat_config,
-                        },
-                    }
-                ],
-                defaultVariant='default'
+    def _list_prompt_versions(self, prompt_id: str) -> list[dict[str, Any]]:
+        """Use ListPrompts filtered by identifier; there is no versions paginator."""
+        versions: list[dict[str, Any]] = []
+        paginator = self.bedrock_client.get_paginator("list_prompts")
+        for page in paginator.paginate(promptIdentifier=prompt_id):
+            versions.extend(
+                summary
+                for summary in page.get("promptSummaries", [])
+                if summary.get("version") not in (None, "DRAFT")
             )
-        except ClientError as e:
-            logger.error(f"Error updating prompt draft: {e}")
-            raise
+        return sorted(versions, key=lambda item: int(item["version"]))
 
-        # Then create a new version from the updated draft
-        try:
-            version_response = self.bedrock_client.create_prompt_version(
-                promptIdentifier=prompt_id,
-                description=description or "New version with updated content"
-            )
-        except ClientError as e:
-            # Check if we hit the max versions limit
-            if e.response.get('Error', {}).get('Code') == 'ValidationException' and 'max-number-versions-per-prompt' in str(e):
-                logger.warning(f"Max version limit reached for prompt {prompt_id}. Deleting oldest version.")
-                self._delete_oldest_version(prompt_id)
-                # Retry creating the version
-                version_response = self.bedrock_client.create_prompt_version(
-                    promptIdentifier=prompt_id,
-                    description=description or "New version with updated content"
-                )
-            else:
-                logger.error(f"Error creating new version: {e}")
-                raise
-
+    def _metadata(self, prompt_response: dict[str, Any], prompt_text: str) -> dict[str, Any]:
         return {
-            'id': prompt_id,
-            'arn': update_response['arn'],
-            'version': version_response.get('version'),
-            'name': update_response['name'],
-            'variables': [v['name'] for v in input_variables]
+            "id": prompt_response["id"],
+            "arn": prompt_response["arn"],
+            "version": str(prompt_response["version"]),
+            "name": prompt_response["name"],
+            "variables": [
+                item["name"]
+                for item in self.extract_variables(prompt_text)
+                if item["name"] != "user_input"
+            ],
+            "content_hash": self.content_hash(prompt_text),
         }
 
-    def _list_prompt_versions(self, prompt_id: str) -> list[dict]:
-        """List all versions of a prompt, sorted by version number."""
-        try:
-            versions = []
-            paginator = self.bedrock_client.get_paginator('list_prompt_versions')
-            for page in paginator.paginate(promptIdentifier=prompt_id):
-                for version in page.get('promptSummaries', []):
-                    # Skip DRAFT version
-                    if version.get('version') != 'DRAFT':
-                        versions.append({
-                            'version': version.get('version'),
-                            'arn': version.get('arn'),
-                            'createdAt': version.get('createdAt'),
-                        })
-            # Sort by version number (ascending, so oldest first)
-            versions.sort(key=lambda v: int(v['version']))
-            return versions
-        except ClientError as e:
-            logger.error(f"Error listing prompt versions: {e}")
-            raise
-
-    def _delete_oldest_version(self, prompt_id: str) -> None:
-        """Delete the oldest version of a prompt to make room for a new one."""
-        versions = self._list_prompt_versions(prompt_id)
-        if not versions:
-            logger.warning(f"No versions found to delete for prompt {prompt_id}")
-            return
-
-        oldest_version = versions[0]['version']
-        try:
-            self.bedrock_client.delete_prompt(
-                promptIdentifier=prompt_id,
-                promptVersion=oldest_version
-            )
-            logger.info(f"Deleted oldest version {oldest_version} of prompt {prompt_id}")
-        except ClientError as e:
-            logger.error(f"Error deleting prompt version {oldest_version}: {e}")
-            raise
-
-    def _get_prompt_name(self, prompt_id: str) -> str:
-        """Get the name of a prompt by its ID."""
-        try:
-            response = self.bedrock_client.get_prompt(promptIdentifier=prompt_id)
-            return response['name']
-        except ClientError as e:
-            logger.error(f"Error getting prompt name: {e}")
-            raise
-
-    def get_prompt(self, name: str) -> dict | None:
-        """Get a prompt by name without creating it."""
+    def get_prompt(self, name: str) -> dict[str, Any] | None:
+        """Return the prompt summary by name without creating or modifying it."""
         return self._find_prompt_by_name(name)
-
-    def delete_prompt(self, prompt_id: str) -> bool:
-        """Delete a prompt by its ID."""
-        try:
-            self.bedrock_client.delete_prompt(promptIdentifier=prompt_id)
-            logger.info(f"Prompt {prompt_id} deleted successfully.")
-            return True
-        except ClientError as e:
-            logger.error(f"Error deleting prompt: {e}")
-            raise

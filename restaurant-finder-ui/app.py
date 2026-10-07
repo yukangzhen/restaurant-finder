@@ -18,6 +18,9 @@ AGENTCORE_API_URL = os.environ.get("AGENTCORE_API_URL", "http://localhost:8080/i
 # AWS mode settings
 AGENT_RUNTIME_ARN = os.environ.get("AGENT_RUNTIME_ARN", "")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-2")
+# Optional single-user identity for local development. In production, actor IDs
+# must come from authenticated server-side identity, not a client-controlled value.
+MEMORY_ACTOR_ID = os.environ.get("MEMORY_ACTOR_ID", "").strip()
 
 # Lazily initialized boto3 client for AWS mode
 _agentcore_client = None
@@ -141,6 +144,8 @@ async def _invoke_agent(
         "customer_name": customer_name,
         "conversation_id": conversation_id,
     }
+    if MEMORY_ACTOR_ID:
+        payload["actor_id"] = MEMORY_ACTOR_ID
 
     full_response = ""
 

@@ -156,17 +156,25 @@ async def search_restaurant_details(
                 config=config,
             )
 
-            # Extract content
+            # Keep only actual page text; errors and empty pages are not research evidence.
             page_text = await tools["extract_text"].ainvoke({}, config=config)
-            results.append(f"=== Search: {query} ===\n{str(page_text)}")
+            page_content = str(page_text).strip()
+            if not page_content:
+                logger.warning(f"Search returned no page text for '{query}'")
+                continue
 
-            # Extract links for reference
-            links = await tools["extract_hyperlinks"].ainvoke({}, config=config)
-            results.append(f"Links: {links}")
+            search_result = f"=== Search: {query} ===\n{page_content}"
+            try:
+                # Links improve traceability but are optional when page text is available.
+                links = await tools["extract_hyperlinks"].ainvoke({}, config=config)
+                search_result += f"\nLinks: {links}"
+            except Exception as e:
+                logger.warning(f"Hyperlink extraction failed for '{query}': {e}")
+
+            results.append(search_result)
 
         except Exception as e:
             logger.warning(f"Search failed for '{query}': {e}")
-            results.append(f"=== Search failed: {query} ===\nError: {e}")
 
     return "\n\n".join(results)
 
@@ -213,6 +221,21 @@ async def run_restaurant_research(
             config=config,
         )
         logger.info(f"Web research completed, content length: {len(raw_content)}")
+
+        if not raw_content.strip():
+            logger.warning("No usable browser results were retrieved; skipping LLM extraction")
+            return {
+                "restaurant_name": restaurant_name,
+                "location": {"city": location},
+                "research_topics": research_topics or ["general"],
+                "data_source": "web_research",
+                "sources": [],
+                "error": "No usable browser search results were retrieved.",
+                "research_summary": (
+                    "I couldn't verify additional details from web search results. "
+                    "No sourced details are available."
+                ),
+            }
 
         # Step 2: Extract structured data using LLM
         research_data = await extract_research_from_text(

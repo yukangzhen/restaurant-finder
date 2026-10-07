@@ -36,6 +36,21 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.15"
+
+      - name: Sync and validate immutable Bedrock prompts
+        working-directory: restaurant-finder-api
+        run: |
+          uv sync --locked --extra local-aws
+          uv run --no-sync python -m src.deployment.sync_prompts --region "$AWS_REGION"
+          uv run --no-sync python -m src.deployment.validate_prompts
+
       - uses: aws-actions/amazon-ecr-login@v2
         id: ecr
 

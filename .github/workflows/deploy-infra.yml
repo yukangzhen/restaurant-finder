@@ -90,14 +90,44 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Resolve runtime image URI
+        id: image
+        env:
+          IMAGE_URI_INPUT: ${{ github.event.inputs.image_uri }}
+          NEEDS_BOOTSTRAP: ${{ steps.ecr-check.outputs.needs_bootstrap }}
+          ECR_REGISTRY: ${{ steps.ecr-check.outputs.ecr_registry }}
+        run: |
+          if [ -n "$IMAGE_URI_INPUT" ]; then
+            IMAGE_URI="$IMAGE_URI_INPUT"
+          elif [ "$NEEDS_BOOTSTRAP" = "true" ]; then
+            IMAGE_URI="$ECR_REGISTRY/${{ env.ECR_REPO_NAME }}:${{ github.sha }}"
+          else
+            RUNTIME_ID=$(aws cloudformation describe-stacks \
+              --stack-name restaurantFinder-AgentCoreStack \
+              --query "Stacks[0].Outputs[?OutputKey=='RuntimeId'].OutputValue | [0]" \
+              --output text 2>/dev/null || true)
+            if [ -z "$RUNTIME_ID" ] || [ "$RUNTIME_ID" = "None" ]; then
+              echo "No deployed runtime was found. Supply image_uri when dispatching this workflow." >&2
+              exit 1
+            fi
+            IMAGE_URI=$(aws bedrock-agentcore-control get-agent-runtime \
+              --agent-runtime-id "$RUNTIME_ID" \
+              --query 'agentRuntimeArtifact.containerConfiguration.containerUri' \
+              --output text)
+          fi
+
+          if [[ ! "$IMAGE_URI" =~ ^[0-9]{12}\.dkr\.ecr\.us-east-2\.amazonaws\.com/${{ env.ECR_REPO_NAME }}:[A-Za-z0-9_][A-Za-z0-9._-]*$ ]]; then
+            echo "Invalid ECR image URI: $IMAGE_URI" >&2
+            exit 1
+          fi
+          echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
       - name: Deploy AgentCore stack
         working-directory: restaurant-finder-infra
         run: |
-          ARGS="--require-approval never"
-          if [ -n "${{ github.event.inputs.image_uri }}" ]; then
-            ARGS="$ARGS -c imageUri=${{ github.event.inputs.image_uri }}"
-          fi
-          npx cdk deploy restaurantFinder-AgentCoreStack $ARGS
+          npx cdk deploy restaurantFinder-AgentCoreStack \
+            --require-approval never \
+            -c "imageUri=${{ steps.image.outputs.image_uri }}"
 
       - name: Print stack outputs
         if: always()

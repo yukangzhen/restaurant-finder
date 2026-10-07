@@ -1,3 +1,6 @@
+import asyncio
+from datetime import datetime, timezone
+import hashlib
 import time
 from typing import cast
 from langchain_core.messages import HumanMessage, AIMessage
@@ -51,8 +54,6 @@ async def search_agent_node(
 
     configurable = config.get("configurable", {})
     customer_name = configurable.get("customer_name", "Guest")
-    session_id = configurable.get("thread_id", "unknown")
-    actor_id = configurable.get("actor_id", "unknown")
     tool_call_count = state.get("tool_call_count", 0)
     react_iteration = tool_call_count + 1  # Track which ReAct loop iteration
 
@@ -69,10 +70,6 @@ async def search_agent_node(
 
     # Build comprehensive span attributes for observability
     span_attributes = {
-        # Customer/session context
-        "customer.name": customer_name,
-        "session.id": session_id,
-        "actor.id": actor_id,
         # Prompt metadata (for prompt version tracking)
         "prompt.name": prompt_meta.name,
         "prompt.version": prompt_meta.version or "unknown",
@@ -267,7 +264,6 @@ async def simple_response_node(
     with observability.create_span(
         "simple_response.generate",
         attributes={
-            "customer.name": customer_name,
             "intent": intent,
         },
     ):
@@ -318,23 +314,25 @@ async def memory_post_hook(
 
     messages = state.get("messages", [])
 
-    # Find the latest user input and agent response
-    user_input = ""
-    agent_response = ""
+    latest_user_index = next(
+        (index for index in range(len(messages) - 1, -1, -1)
+         if isinstance(messages[index], HumanMessage)),
+        None,
+    )
+    latest_user = messages[latest_user_index] if latest_user_index is not None else None
+    final_assistant = next(
+        (
+            msg
+            for msg in reversed(messages[latest_user_index + 1 :])
+            if isinstance(msg, AIMessage) and msg.content and not msg.tool_calls
+        ),
+        None,
+    ) if latest_user_index is not None else None
 
-    for msg in reversed(messages):
-        if isinstance(msg, AIMessage) and not agent_response:
-            # Skip tool calls, get the actual response
-            if msg.content and not msg.tool_calls:
-                # Extract text from content (handles both string and list formats)
-                agent_response = _extract_text_content(msg.content)
-        elif isinstance(msg, HumanMessage) and not user_input:
-            user_input = _extract_text_content(msg.content)
+    user_input = _extract_text_content(latest_user.content) if latest_user else ""
+    agent_response = _extract_text_content(final_assistant.content) if final_assistant else ""
 
-        if user_input and agent_response:
-            break
-
-    if not user_input or not agent_response:
+    if not user_input or not agent_response or latest_user is None or final_assistant is None:
         logger.debug("Missing user input or agent response, skipping memory save")
         observability.add_span_event(
             "memory.skipped",
@@ -343,44 +341,59 @@ async def memory_post_hook(
         return {}
 
     memory = get_memory_instance()
+    event_time_text = latest_user.additional_kwargs.get("agentcore_event_timestamp")
+    try:
+        event_timestamp = (
+            datetime.fromisoformat(event_time_text.replace("Z", "+00:00"))
+            if isinstance(event_time_text, str)
+            else datetime.now(timezone.utc)
+        )
+    except ValueError:
+        event_timestamp = datetime.now(timezone.utc)
+
+    user_message_id = latest_user.id or ""
+    assistant_message_id = final_assistant.id or ""
+    if not user_message_id:
+        user_message_id = hashlib.sha256(user_input.encode("utf-8")).hexdigest()
+    if not assistant_message_id:
+        assistant_message_id = hashlib.sha256(agent_response.encode("utf-8")).hexdigest()
 
     try:
-        with observability.create_span(
-            "memory.process_turn",
-            attributes={
-                "actor.id": actor_id,
-                "session.id": session_id,
-            }
-        ):
-            result = memory.process_turn(
+        with observability.create_span("memory.save"):
+            result = await asyncio.to_thread(
+                memory.process_turn,
                 actor_id=actor_id,
                 session_id=session_id,
                 user_input=user_input,
                 agent_response=agent_response,
+                user_message_id=user_message_id,
+                assistant_message_id=assistant_message_id,
+                event_timestamp=event_timestamp,
             )
 
+        duration_ms = (time.time() - start_time) * 1000
         if result.get("success"):
-            logger.info(f"Saved conversation turn to memory for actor={actor_id}")
-            duration_ms = (time.time() - start_time) * 1000
+            observability.record_memory_operation("save", success=True, duration_ms=duration_ms)
             observability.record_workflow_step(
                 step_name="memory_post_hook",
                 step_type="node",
                 duration_ms=duration_ms,
                 success=True,
-                metadata={"actor_id": actor_id, "session_id": session_id}
             )
         else:
-            logger.warning(f"Memory save returned error: {result.get('error')}")
+            observability.record_memory_operation("save", success=False, duration_ms=duration_ms)
             observability.add_span_event(
                 "memory.error",
-                attributes={"error": result.get("error", "unknown")}
+                attributes={"error.type": result.get("error", "MemorySaveFailed")}
             )
 
     except Exception as e:
-        logger.error(f"Memory post-hook failed: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        observability.record_memory_operation("save", success=False, duration_ms=duration_ms)
+        logger.error(f"Memory post-hook failed: {type(e).__name__}")
         observability.add_span_event(
             "memory.exception",
-            attributes={"error.type": type(e).__name__, "error.message": str(e)}
+            attributes={"error.type": type(e).__name__}
         )
 
     return {}

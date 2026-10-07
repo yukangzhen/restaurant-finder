@@ -143,20 +143,24 @@ async def classify_with_jev(messages: list[BaseMessage]) -> JevClassification:
         questions={
             "intent": Choice(
                 instructions=(
-                    "Classify the intent of the latest user message. Use earlier messages only "
-                    "to understand references or follow-ups. Do not classify based only on an "
-                    "earlier message. If the latest user message mentions food, eating, dining, "
-                    "or restaurants in any way, or may relate to dining, choose restaurant_search."
+                    "Classify only the latest user message. Use earlier messages only to resolve "
+                    "references or follow-ups. A greeting, thanks, acknowledgment, goodbye, or "
+                    "question about the assistant's capabilities is simple, even if it mentions "
+                    "restaurants, food, or cuisine. Choose restaurant_search only when the user "
+                    "wants actual restaurant results, recommendations, or details about a "
+                    "specific restaurant. Choose off_topic for unrelated requests."
                 ),
                 criteria={
                     "restaurant_search": (
-                        "The user wants to find, search, or get recommendations or information "
-                        "about restaurants, food, or dining. Includes restaurant names, cuisine, "
-                        "meals, hunger, and dietary options."
+                        "The user wants actual restaurant results, recommendations, or details "
+                        "about a specific restaurant, meal, cuisine, or dietary option. This "
+                        "includes follow-up questions about a restaurant already discussed."
                     ),
                     "simple": (
                         "A greeting, thanks, acknowledgment, goodbye, or a question about the "
-                        "assistant and its capabilities."
+                        "assistant and its capabilities, such as 'What kinds of restaurants can "
+                        "you help me find?' This remains simple even when it mentions restaurants "
+                        "or food."
                     ),
                     "off_topic": (
                         "A request unrelated to restaurants, food, dining, or the assistant's "

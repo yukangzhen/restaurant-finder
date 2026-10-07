@@ -11,10 +11,14 @@ Memory strategies are defined in the CDK stack:
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+import hashlib
+import json
 from typing import Any
 
+import boto3
 from langgraph_checkpoint_aws import AgentCoreMemorySaver
-from bedrock_agentcore.memory import MemoryClient
 from loguru import logger
 
 from src.config import settings
@@ -22,6 +26,12 @@ from src.config import settings
 
 # Singleton instance for application-wide use
 _memory_instance: "ShortTermMemory | None" = None
+@dataclass
+class MemoryRetrievalResult:
+    """Memory records and per-category failures from a retrieval attempt."""
+
+    memories: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    errors: dict[str, str] = field(default_factory=dict)
 
 
 def get_memory_instance() -> "ShortTermMemory":
@@ -48,7 +58,9 @@ class ShortTermMemory:
             )
 
         self._memory_id = settings.MEMORY_ID
-        self._client = MemoryClient(region_name=settings.AWS_REGION)
+        self._client = boto3.client(
+            "bedrock-agentcore", region_name=settings.AWS_REGION
+        )
         logger.info(f"Using MEMORY_ID from environment: {self._memory_id}")
 
     @property
@@ -67,24 +79,22 @@ class ShortTermMemory:
         self,
         namespace: str,
         query: str,
-        actor_id: str,
         top_k: int,
         category: str,
-    ) -> tuple[str, list[dict[str, Any]]]:
+    ) -> tuple[str, list[dict[str, Any]], str | None]:
         """Helper to retrieve memories from a single namespace."""
         try:
-            results = self._client.retrieve_memories(
-                memory_id=self._memory_id,
+            response = self._client.retrieve_memory_records(
+                memoryId=self._memory_id,
                 namespace=namespace,
-                query=query,
-                actor_id=actor_id,
-                top_k=top_k,
+                searchCriteria={"searchQuery": query, "topK": top_k},
             )
+            results = response.get("memoryRecordSummaries", [])
             logger.debug(f"Retrieved {len(results)} {category}")
-            return category, results
+            return category, results, None
         except Exception as e:
-            logger.warning(f"Failed to retrieve {category}: {e}")
-            return category, []
+            logger.warning(f"Failed to retrieve memory category {category}: {type(e).__name__}")
+            return category, [], type(e).__name__
 
     def retrieve_memories(
         self,
@@ -92,7 +102,7 @@ class ShortTermMemory:
         actor_id: str,
         session_id: str,
         top_k: int = 5,
-    ) -> dict[str, list[dict[str, Any]]]:
+    ) -> MemoryRetrievalResult:
         """
         Retrieve all memory types before processing user input.
 
@@ -108,7 +118,7 @@ class ShortTermMemory:
             top_k: Number of results to retrieve per namespace
 
         Returns:
-            Dictionary with retrieved memories by category
+            Memory records plus explicit per-category errors.
         """
         return self.retrieve_specific_memories(
             query=query,
@@ -125,7 +135,7 @@ class ShortTermMemory:
         session_id: str,
         memory_types: list[str],
         top_k: int = 5,
-    ) -> dict[str, list[dict[str, Any]]]:
+    ) -> MemoryRetrievalResult:
         """
         Retrieve specific memory types in parallel.
 
@@ -145,9 +155,9 @@ class ShortTermMemory:
             top_k: Number of results to retrieve per namespace
 
         Returns:
-            Dictionary with retrieved memories by category
+            Memory records plus explicit per-category errors.
         """
-        retrieved = {}
+        retrieved = MemoryRetrievalResult()
 
         # Map memory types to their namespaces
         type_to_namespace = {
@@ -174,7 +184,6 @@ class ShortTermMemory:
                     self._retrieve_from_namespace,
                     namespace,
                     query,
-                    actor_id,
                     top_k,
                     category,
                 ): category
@@ -183,12 +192,17 @@ class ShortTermMemory:
 
             for future in as_completed(futures):
                 try:
-                    category, results = future.result()
-                    retrieved[category] = results
+                    category, results, error = future.result()
+                    retrieved.memories[category] = results
+                    if error:
+                        retrieved.errors[category] = error
                 except Exception as e:
                     category = futures[future]
-                    logger.warning(f"Parallel retrieval failed for {category}: {e}")
-                    retrieved[category] = []
+                    logger.warning(
+                        f"Parallel memory retrieval failed for {category}: {type(e).__name__}"
+                    )
+                    retrieved.memories[category] = []
+                    retrieved.errors[category] = type(e).__name__
 
         return retrieved
 
@@ -198,6 +212,9 @@ class ShortTermMemory:
         session_id: str,
         user_input: str,
         agent_response: str,
+        user_message_id: str,
+        assistant_message_id: str,
+        event_timestamp: datetime,
     ) -> dict[str, Any]:
         """
         Post-hook: Process and save the conversation turn to memory.
@@ -217,22 +234,46 @@ class ShortTermMemory:
             Dictionary with processing results
         """
         try:
-            retrieved_memories, event_info = self._client.process_turn(
-                memory_id=self._memory_id,
-                actor_id=actor_id,
-                session_id=session_id,
-                user_input=user_input,
-                agent_response=agent_response,
+            if event_timestamp.tzinfo is None:
+                event_timestamp = event_timestamp.replace(tzinfo=timezone.utc)
+            event_timestamp = event_timestamp.astimezone(timezone.utc)
+            idempotency_material = json.dumps(
+                [actor_id, session_id, user_message_id, assistant_message_id],
+                ensure_ascii=False,
+                separators=(",", ":"),
             )
-            logger.info(f"Processed conversation turn for actor={actor_id}, session={session_id}")
+            client_token = hashlib.sha256(idempotency_material.encode("utf-8")).hexdigest()
+
+            event_info = self._client.create_event(
+                memoryId=self._memory_id,
+                actorId=actor_id,
+                sessionId=session_id,
+                eventTimestamp=event_timestamp,
+                clientToken=client_token,
+                payload=[
+                    {
+                        "conversational": {
+                            "role": "USER",
+                            "content": {"text": user_input},
+                        }
+                    },
+                    {
+                        "conversational": {
+                            "role": "ASSISTANT",
+                            "content": {"text": agent_response},
+                        }
+                    },
+                ],
+            )
+            logger.info("Saved completed conversation turn to AgentCore Memory")
             return {
                 "success": True,
-                "retrieved_memories": retrieved_memories,
+                "retrieved_memories": [],
                 "event_info": event_info,
             }
         except Exception as e:
-            logger.error(f"Failed to process conversation turn: {e}")
+            logger.error(f"Failed to save conversation turn: {type(e).__name__}")
             return {
                 "success": False,
-                "error": str(e),
+                "error": f"AgentCore Memory event creation failed ({type(e).__name__}).",
             }

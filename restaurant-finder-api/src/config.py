@@ -94,7 +94,7 @@ class Settings(BaseSettings):
 
     # --- Observability configurations ---
     AGENT_OBSERVABILITY_ENABLED: bool = Field(
-        default=True,
+        default=False,
         description="Enable OpenTelemetry-based observability for CloudWatch GenAI Observability.",
     )
     OTEL_SERVICE_NAME: str = Field(

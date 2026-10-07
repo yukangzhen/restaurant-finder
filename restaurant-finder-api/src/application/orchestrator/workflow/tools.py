@@ -1,6 +1,8 @@
+import asyncio
 import json
+import time
 import uuid
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool, InjectedToolArg
@@ -18,6 +20,7 @@ from src.application.orchestrator.workflow.agents.restaurant_research_agent impo
 from src.config import settings
 from src.domain.models import RestaurantSearchResult
 from src.infrastructure.memory import get_memory_instance
+from src.infrastructure.observability import get_observability_manager
 
 
 @tool
@@ -116,11 +119,14 @@ async def memory_retrieval_tool(
     actor_id = configurable.get("actor_id", "user:default")
     session_id = configurable.get("thread_id", "default_session")
 
-    logger.debug(f"Memory retrieval: query='{query}', types={memory_types}, actor={actor_id}")
+    logger.debug(f"Memory retrieval requested for categories={memory_types}")
 
+    observability = get_observability_manager()
+    start_time = time.monotonic()
     try:
         memory = get_memory_instance()
-        retrieved = memory.retrieve_specific_memories(
+        retrieved = await asyncio.to_thread(
+            memory.retrieve_specific_memories,
             query=query,
             actor_id=actor_id,
             session_id=session_id,
@@ -128,13 +134,19 @@ async def memory_retrieval_tool(
             top_k=5,
         )
 
-        # Format results for the agent
-        formatted_results = {}
-        for mem_type, items in retrieved.items():
-            formatted_results[mem_type] = [
-                item.get("content", str(item)) for item in items
-            ]
-            logger.debug(f"Retrieved {len(items)} items for '{mem_type}'")
+        formatted_results: dict[str, Any] = {}
+        for mem_type, items in retrieved.memories.items():
+            formatted_results[mem_type] = [_memory_record_text(item) for item in items]
+            observability.record_memory_operation(
+                "retrieve",
+                success=mem_type not in retrieved.errors,
+                duration_ms=(time.monotonic() - start_time) * 1000,
+                category=mem_type,
+            )
+        for mem_type in memory_types:
+            formatted_results.setdefault(mem_type, [])
+        if retrieved.errors:
+            formatted_results["errors"] = retrieved.errors
 
         result_json = json.dumps(formatted_results, indent=2)
 
@@ -142,8 +154,31 @@ async def memory_retrieval_tool(
         return result_json
 
     except Exception as e:
-        logger.error(f"Memory retrieval failed: {e}")
-        return json.dumps({"error": str(e), "preferences": [], "facts": [], "summaries": []})
+        logger.error(f"Memory retrieval failed: {type(e).__name__}")
+        observability.record_memory_operation(
+            "retrieve", success=False,
+            duration_ms=(time.monotonic() - start_time) * 1000,
+        )
+        return json.dumps(
+            {
+                "errors": {"request": type(e).__name__},
+                "preferences": [],
+                "facts": [],
+                "summaries": [],
+            }
+        )
+
+
+def _memory_record_text(record: dict[str, Any]) -> str:
+    """Return the human-readable text from an AgentCore memory record."""
+    content = record.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, dict):
+        text = content.get("text")
+        if isinstance(text, str):
+            return text
+    return ""
 
 
 @tool

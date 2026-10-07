@@ -11,11 +11,14 @@ We use event tags to decide what to stream — tags carry the originating node n
 """
 
 import re
+import uuid
+from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from loguru import logger
 
+from src.application.orchestrator.identity import resolve_request_identity
 from src.application.orchestrator.workflow.graph import create_orchestrator_graph
 from src.infrastructure.model import extract_text_content
 
@@ -46,6 +49,7 @@ async def get_streaming_response(
     messages: str | list[str],
     customer_name: str = "Guest",
     conversation_id: str | None = None,
+    actor_id: str | None = None,
     enable_true_streaming: bool = True,
 ) -> AsyncGenerator[str, None]:
     """
@@ -63,14 +67,13 @@ async def get_streaming_response(
     graph = create_orchestrator_graph()
 
     try:
-        thread_id = conversation_id or "default-thread"
-        actor_id = _sanitize_actor_id(customer_name)
+        identity = resolve_request_identity(conversation_id, actor_id)
 
         config = {
             "configurable": {
-                "thread_id": thread_id,
+                "thread_id": identity.conversation_id,
                 "customer_name": customer_name,
-                "actor_id": actor_id,
+                "actor_id": identity.actor_id,
             }
         }
 
@@ -79,7 +82,10 @@ async def get_streaming_response(
             "customer_name": customer_name,
         }
 
-        logger.info(f"Starting workflow execution (thread_id={thread_id}, streaming={enable_true_streaming})")
+        logger.info(
+            "Starting workflow execution "
+            f"(conversation_id={identity.conversation_id}, streaming={enable_true_streaming})"
+        )
 
         streamer = _stream_with_events if enable_true_streaming else _stream_buffered
         async for chunk in streamer(graph, input_data, config):
@@ -218,19 +224,12 @@ def _strip_thinking_tags(text: str) -> str:
     return re.sub(r'<thinking>.*?</thinking>\s*', '', text, flags=re.DOTALL)
 
 
-def _sanitize_actor_id(name: str) -> str:
-    """Format a customer name into an AgentCore actor ID (e.g. 'user:john-doe')."""
-    sanitized = re.sub(r'[^a-zA-Z0-9\-_ ]', '', name)
-    sanitized = sanitized.replace(' ', '-').lower()
-    return f"user:{sanitized or 'guest'}"
-
-
 def _format_messages(
     messages: str | list[dict[str, Any]],
 ) -> list[HumanMessage | AIMessage]:
     """Convert string / list / dict messages into LangChain message objects."""
     if isinstance(messages, str):
-        return [HumanMessage(content=messages)]
+        return [_new_human_message(messages)]
 
     if isinstance(messages, list):
         if not messages:
@@ -239,10 +238,21 @@ def _format_messages(
             result = []
             for msg in messages:
                 if msg["role"] == "user":
-                    result.append(HumanMessage(content=msg["content"]))
+                    result.append(_new_human_message(msg["content"]))
                 elif msg["role"] == "assistant":
                     result.append(AIMessage(content=msg["content"]))
             return result
-        return [HumanMessage(content=m) for m in messages]
+        return [_new_human_message(m) for m in messages]
 
     return []
+
+
+def _new_human_message(content: str) -> HumanMessage:
+    """Assign turn metadata before LangGraph checkpoints this request."""
+    return HumanMessage(
+        content=content,
+        id=str(uuid.uuid4()),
+        additional_kwargs={
+            "agentcore_event_timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
