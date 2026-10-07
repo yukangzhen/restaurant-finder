@@ -13,7 +13,7 @@ Deliver a verified development version of Restaurant Finder that:
 
 This is for the project owner and the next implementation agent. The owner is learning software development; explain results with concrete examples and distinguish passing checks from remaining limitations.
 
-**Status: proposed, awaiting explicit implementation approval.** The request to create this PRD authorizes this document and read-only investigation. It does not authorize implementing this new scope, enabling Transaction Search, publishing the document, or running new paid checks. After the owner explicitly approves this PRD, proceed through its authorized steps without repeatedly requesting the same permission. Ask again only for a material expansion, unexpected replacement/deletion, new account/region, or a rollback that affects other regional tracing users.
+**Status: owner-approved for execution on October 7, 2026.** The owner explicitly directed that every step in this PRD be executed. That approval covers the scoped implementation, live provider checks, prompt sync, versioned ARM64 image, reviewed AgentCore-only deployment, regional trace setup, synthetic memory checks, README update, secret scan, and feature-branch push described here. Do not ask for the same approval again. A material scope expansion, unexpected replacement/deletion, new account/region, or regional tracing rollback remains outside the approval.
 
 The completion criteria in section 4 are the definition of done. Do not mark the work complete using narrower criteria.
 
@@ -52,15 +52,16 @@ The baseline commit is already pushed. The baseline contains the AWS integration
 | Runtime network | `PUBLIC` |
 | Memory ID | `restaurantFinder_Memory-n0qbbA8z4Y` |
 | ECR repository | `447393541969.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent` |
-| Deployed tag | `jev-router-20261007-112930-arm64` |
-| Deployed digest recorded during prior deployment | `sha256:a3c50c5bb0fd77170f9011f0dcb801b21b264e2fca469a68abc69a95a573e99e` |
+| Deployed tag | `memory-ui-tracing-8685344-20261007-143849-arm64` |
+| Deployed digest | `sha256:b05d66c817047d09a93b4633831a470cea588f270abdd933f92d5e581690d6a3` |
 | Telemetry log group | `/aws/vendedlogs/bedrock-agentcore/restaurantFinder-telemetry` |
 | Telemetry stream | `agentcore` |
 | Runtime log group | `/aws/bedrock-agentcore/runtimes/restaurantFinder_Agent-Ha58oX5Psu-DEFAULT` |
-| Trace destination | `XRay`, status `ACTIVE` |
-| Default trace indexing | `DesiredSamplingPercentage: 0.0` |
-| `aws/spans` log group | Not present at the latest inspection |
-| Existing X-Ray logs policy, inspected earlier this session | `restaurantFinder-XRayCloudWatchLogsAccess`; permits X-Ray writes to `aws/spans`; re-read before deciding whether additional policy is needed |
+| Trace destination | `CloudWatchLogs`, status `ACTIVE` |
+| Default trace indexing | `DesiredSamplingPercentage: 0.0` (restored after AWS changed it during activation) |
+| `aws/spans` log group | AWS-managed; created after activation, 30-day retention |
+| Existing X-Ray logs policy | `restaurantFinder-XRayCloudWatchLogsAccess`; retained unchanged, but AWS rejected it during destination validation |
+| Added scoped X-Ray logs policy | `restaurantFinder-TransactionSearchAccess` |
 
 The Runtime was rechecked while drafting this PRD: `READY` on the deployed tag above. Revalidate all live values before making writes; a historical snapshot is not deployment authority.
 
@@ -112,7 +113,7 @@ Required behavior: show the server's readable block message, use a safe fallback
 
 ### C. The regional trace prerequisite is missing
 
-The Runtime uses the X-Ray OTLP trace endpoint. AWS documents Transaction Search as a prerequisite for sending spans to that endpoint. This region is currently configured for `XRay`, not `CloudWatchLogs`, and trace batches are rejected.
+The Runtime uses the X-Ray OTLP trace endpoint. AWS documents Transaction Search as a prerequisite for sending spans to that endpoint. At preflight, this region was configured for `XRay`, not `CloudWatchLogs`, and trace batches were rejected.
 
 Required behavior: after explicit approval, enable the documented CloudWatch Logs trace destination in this account and region, then verify actual request spans. This affects regional account tracing beyond this single application. Logs and metrics already work and should continue to work.
 
@@ -129,7 +130,7 @@ Required behavior: after explicit approval, enable the documented CloudWatch Log
 | U1 | Both direct and nested blocked SSE fixtures show the server message and retain it after `done`; missing/blank/non-string messages show the defined fallback. |
 | U2 | Normal token streaming, error display, and the empty-response fallback still work. |
 | T1 | Destination reports `CloudWatchLogs` and `ACTIVE`; the existing 0% indexing setting is preserved unless the owner separately approves a change. |
-| T2 | Fresh `workflow.execution`, `router.classify`, and `router.jev` spans arrive in `aws/spans` for an identified synthetic request. Router span attributes identify provider and intent. |
+| T2 | Fresh `workflow.execution`, `router.classify`, `router.jev`, and `execute_tool memory_retrieval_tool` spans arrive in `aws/spans` within one identified synthetic request trace. Router span attributes identify provider and intent. |
 | T3 | No fresh trace HTTP 400/403 errors occur for the validated request window. Logs and the three memory metrics still arrive. |
 | V1 | Existing tests and new focused regressions pass; the packaged prompt manifest matches the new prompt text; the new image is ARM64. |
 | D1 | Runtime is `READY` on the new versioned image; AgentCore stack is stable; ECR stack and repository resources were not redeployed as a dependency. |
@@ -153,7 +154,7 @@ If a live routing example fails, refine the approved prompt definitions and reru
 
 Use the existing three intents and existing graph. `state.py`, `edges.py`, and `graph.py` should not need changes. `restaurant_search` is an internal name for the tool-capable route; document that it also handles dining memory.
 
-Expected AWS writes after approval: deployment-time immutable prompt synchronization, one new versioned ECR image, AgentCore Runtime image deployment through its stack, the regional trace destination change, conditional creation of `aws/spans` with 30-day retention if absent, and a conditional dedicated X-Ray ingestion resource policy if the existing policies are insufficient. Synthetic live requests create isolated test memory and incur service usage.
+Expected AWS writes for the approved plan: deployment-time immutable prompt synchronization, one new versioned ECR image, AgentCore Runtime image deployment through its stack, the regional trace destination change, AWS-managed creation of `aws/spans` with 30-day retention if absent, and a dedicated X-Ray ingestion resource policy only if existing policies are insufficient. Synthetic live requests create isolated test memory and incur service usage.
 
 Preserve the current 0% trace indexing. It is separate from SDK span sampling: 0% indexing does not make span ingestion free and does not prevent stored spans from being inspected through CloudWatch Logs. Do not change the application's sampling rate or promise a specific bill.
 
@@ -413,22 +414,17 @@ Known Windows blocker: the normal credential helper previously failed with `The 
 
 Do not treat a successful login as evidence that the push succeeded.
 
-### Step 11 — Enable the regional trace destination after approval
+### Step 11 — Enable the regional trace destination
 
 Re-read the snapshots immediately before this step. If the destination is already `CloudWatchLogs/ACTIVE`, do not switch it again. If other changes occurred, reconcile them with the owner before changing account settings.
 
-1. If `aws/spans` is absent, create it and apply 30-day retention. If present, preserve its current class/retention.
+1. Treat `aws/spans` as an AWS-managed group. AWS reserves the `aws/` prefix; a manual `create-log-group` call is rejected. Enabling the destination causes AWS to create the group. If it already exists, preserve its current class and retention.
 2. Check whether existing resource policies grant `xray.amazonaws.com` the required `logs:PutLogEvents` access. Preserve existing policies and statements.
-3. If additional access is needed, use a dedicated policy named `restaurantFinder-TransactionSearchAccess` with the scoped document below. Do not overwrite a preexisting policy with that name without inspecting and reconciling it.
+3. If destination validation shows additional access is needed, use a dedicated policy named `restaurantFinder-TransactionSearchAccess` with the scoped document below. Do not overwrite a preexisting policy with that name without inspecting and reconciling it.
 4. Change only the regional trace destination to `CloudWatchLogs`.
-5. Re-read destination/status and indexing. Preserve the preflight Default rule (currently 0%). Do not enable Application Signals discovery or change sampling/indexing to make a sparse check easier.
+5. Wait for `ACTIVE`, then re-read destination, `aws/spans` retention, and indexing. Preserve the preflight Default rule (currently 0%). AWS may change the rule during activation; restore the recorded 0% value after the destination is active. Do not enable Application Signals discovery or raise sampling/indexing to make a sparse check easier.
 
-Conditional new group commands:
-
-```powershell
-aws logs create-log-group --profile default --region us-east-2 --log-group-name aws/spans
-aws logs put-retention-policy --profile default --region us-east-2 --log-group-name aws/spans --retention-in-days 30
-```
+Observed in this execution: the existing policy did not pass AWS destination validation, so the dedicated scoped policy was added without modifying the old policy. AWS created `aws/spans` with 30-day retention after the destination change. AWS temporarily changed Default indexing to 1%; after activation it was restored to 0% and verified. The failed manual group-creation attempt made no resource change.
 
 Conditional policy document, saved with a structured JSON serializer to an ignored UTF-8 file:
 
@@ -593,3 +589,19 @@ Primary references, retrieved while drafting:
 - [Docker login credential handling](https://docs.docker.com/reference/cli/docker/login/): Windows helper behavior and temporary configuration considerations.
 
 The deployment flags `--exclusively` and `--method prepare-change-set` were confirmed in the installed local CDK CLI help. Recheck if the CLI changes. Use primary documentation for uncertain API behavior; never invent success evidence.
+
+## 9. Execution record — October 7, 2026
+
+**Code and tests.** Commit `86853448349507a03ae3a69bbe5af5c4d4757111` (`Fix memory recall routing and blocked UI messages`) updates Jev routing for dining-memory questions, aligns Bedrock fallback prompts, adds sanitized router trace attributes, and renders direct or nested blocked SSE messages in Chainlit. It adds 8 API router tests and 6 UI SSE tests. The API suite passed 18 tests, the UI suite passed 6 tests, `compileall` passed for the API, and UI `py_compile` passed. `git diff --check` is part of final pre-push review.
+
+**Provider and prompt checks.** Eleven live Jev classification cases passed, including the unqualified question “What preferences have I told you before?” Three live Claude Haiku 4.5 fallback cases passed. Prompt Management synchronized `ROUTER_PROMPT` and `SEARCH_AGENT_PROMPT` to version 2 and reused version 1 for the other four prompts. The generated manifest hashes were validated and packaged into the image.
+
+**Image and deployment.** The immutable ARM64 image is tag `memory-ui-tracing-8685344-20261007-143849-arm64`, digest `sha256:b05d66c817047d09a93b4633831a470cea588f270abdd933f92d5e581690d6a3`. The reviewed AgentCore-only CloudFormation change set modified only the Runtime image URI, with no resource additions, removals, replacements, or IAM changes. The AgentCore stack is `UPDATE_COMPLETE`; Runtime `restaurantFinder_Agent-Ha58oX5Psu` is `READY` on this tag. The ECR stack was not redeployed.
+
+**Memory and UI.** The deployed Runtime saved synthetic vegan, Thai, and under-$25 preferences. A second session, whose request contained none of those facts, recalled all three. A second synthetic actor returned zero preference records. The local browser showed a greeting and successful preference recall. Deterministic fixtures verified direct and nested blocked SSE messages as well as ordinary streaming. Browser console messages were not captured. Synthetic memory records remain by design; no production identity-isolation claim is made.
+
+**Tracing and metrics.** A fresh `aws/spans` query found two synthetic request traces. One trace contains `workflow.execution`, `router.classify`, `router.jev`, and `execute_tool memory_retrieval_tool`; the router attributes show provider `jev`, model `jev-1.13.0`, and intent `restaurant_search`. CloudWatch telemetry logs contain successful `memory.save` and `memory.retrieve` records. Signed PromQL queries returned fresh save-count, retrieve-count, and operation-duration samples. No fresh trace/log exporter 400 or 403 errors were found in the Runtime or telemetry logs.
+
+**Account-level trace configuration.** In account `447393541969`, region `us-east-2`, the trace destination is `CloudWatchLogs/ACTIVE`; AWS-managed `aws/spans` has 30-day retention. Default indexing is restored to 0%. The old policy `restaurantFinder-XRayCloudWatchLogsAccess` remains unchanged. The new scoped policy `restaurantFinder-TransactionSearchAccess` was required by AWS destination validation. The temporary AWS-generated sampling change to 1% was returned to the preflight 0% value. Transaction Search remains a regional account setting outside the CDK stack and can affect other workloads.
+
+**Repository handoff.** The README has the current development checkpoint and AWS setup. The secret scan found no configured TypeSafe key or credential-pattern matches in 95 Git candidate files; `.env` and the generated prompt manifest remain ignored. Temporary scripts, logs, evidence, browser fixture tab, and fixture server were removed after recording their results. The normal local UI is running at `http://127.0.0.1:8000/` with its saved `.env` identity, not the synthetic test actor. Deployment workflows were rechecked: pushes deploy only from `main`, and destroy is manual. The authorized GitHub change is limited to pushing `feat/jev-router`; do not merge, dispatch a workflow, or deploy `main`. A separate latency/cost benchmark was not run, so no performance or savings claim is supported.

@@ -289,36 +289,62 @@ the command above. Chainlit reads `.env` from the current directory. Open
 `http://localhost:8000` after the server starts. An empty `MEMORY_ACTOR_ID`
 isolates anonymous memory to each conversation.
 
-### Monitoring prerequisites
+If `uv run` cannot access its local cache but the UI virtual environment is
+already installed, start Chainlit directly from the UI directory with
+`.\.venv\Scripts\chainlit.exe run app.py --host 127.0.0.1 --port 8000`.
 
-The Runtime exports traces to the X-Ray OTLP endpoint and logs to the dedicated
-telemetry log group. AWS requires Transaction Search to be enabled in the target
-account and region for this trace endpoint. An `ACTIVE` X-Ray destination alone
-does not satisfy that requirement; trace export can fail with HTTP 400 even when
-application requests and log delivery work. See the
-[AWS ADOT setup prerequisites](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-OTLP-UsingADOT.html).
-Enabling Transaction Search changes the regional trace destination and introduces
-CloudWatch span ingestion charges, so review existing tracing consumers and costs
-before enabling it. Instrumentation startup messages do not prove successful
-trace or metric delivery.
+### Monitoring and regional trace destination
+
+The Runtime sends OpenTelemetry traces to the X-Ray OTLP endpoint and logs and
+metrics to CloudWatch. Transaction Search is enabled in `us-east-2` for this
+development account, and the trace destination is `CloudWatchLogs` with status
+`ACTIVE`. AWS manages the `aws/spans` log group; it appeared after the destination
+was enabled and has 30-day retention. The account's Default trace indexing rule is
+kept at 0%. This regional setting is outside the CDK stacks and applies to other
+tracing workloads in the account as well.
+
+The regional setup uses the scoped CloudWatch resource policy
+`restaurantFinder-TransactionSearchAccess`. The existing
+`restaurantFinder-XRayCloudWatchLogsAccess` policy was left unchanged. See
+[AWS ADOT setup prerequisites](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-OTLP-UsingADOT.html)
+and [Enable Transaction Search](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Enable-TransactionSearch.html).
+Instrumentation startup messages alone do not prove delivery; check recent span,
+log, and metric data. Trace ingestion can incur charges even when indexing is 0%.
 
 ### Development checkpoint — October 7, 2026
 
-The deployed ARM64 image is tagged `jev-router-20261007-112930-arm64`.
-Manual verification confirmed three local router classifications using real Jev
-calls and a real Claude Haiku 4.5 fallback after a locally simulated Jev timeout.
-The deployed Runtime saved a synthetic user's vegan, Thai, and under-$25
-preferences, then recalled all three for a restaurant recommendation in a new
-session. CloudWatch received memory operation logs, save/retrieve counters, and
-duration histograms through OTLP. All 11 existing unit tests passed.
+Branch `feat/jev-router` contains commit `8685344` (`Fix memory recall routing
+and blocked UI messages`). The deployed ARM64 image is
+`memory-ui-tracing-8685344-20261007-143849-arm64`, digest
+`sha256:b05d66c817047d09a93b4633831a470cea588f270abdd933f92d5e581690d6a3`.
+The AgentCore stack is `UPDATE_COMPLETE`; Runtime
+`restaurantFinder_Agent-Ha58oX5Psu` is `READY` on this image. Prompt Management
+updated `ROUTER_PROMPT` and `SEARCH_AGENT_PROMPT` to version 2; the other four
+prompts reused their existing version 1.
 
-Known gaps: a memory-only question was classified as `simple`, whose response
-chain has no memory tool, and incorrectly said there was no previous history.
-An instruction-style memory test was blocked by the prompt-attack guardrail;
-the UI currently ignores `blocked` SSE events and displays "No response received."
-Trace batches are rejected with HTTP 400 while the regional destination remains
-`XRay`; Transaction Search has not been enabled. These checks establish a
-development checkpoint, not routing accuracy, performance, or cost benchmarks.
+Verification completed:
+
+- API tests: 18 passed; UI SSE tests: 6 passed; API compile and UI syntax checks
+  passed.
+- Real local provider checks: 11/11 Jev cases passed; 3/3 Claude Haiku 4.5
+  fallback cases passed.
+- Runtime memory check: the synthetic actor saved vegan, Thai, and under-$25
+  preferences; a different session recalled all three from memory without
+  receiving them in the question. A second synthetic actor had no preference
+  records.
+- Browser check: greeting and memory recall worked in the local UI. Direct and
+  nested `blocked` SSE fixtures rendered their explanatory messages, and normal
+  fixture streaming still worked.
+- CloudWatch check: correlated traces included `workflow.execution`,
+  `router.classify`, `router.jev`, and `execute_tool memory_retrieval_tool`.
+  Router attributes identified Jev and `restaurant_search`. Fresh successful
+  memory save/retrieve logs and save/retrieve counters and duration histogram
+  metrics were present; no fresh trace/log exporter 400/403 errors were found.
+
+Known limits: these are smoke checks, not a performance or cost benchmark, and
+they do not establish production identity isolation. The synthetic memory records
+were retained. Browser console messages were not captured in this run. Do not
+claim a latency or cost improvement without a separate benchmark.
 
 ## CI/CD Pipelines
 
