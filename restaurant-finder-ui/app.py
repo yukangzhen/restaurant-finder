@@ -168,6 +168,14 @@ async def _invoke_agent(
                     data = json.loads(data[6:].strip())
 
                 if isinstance(data, dict):
+                    if data.get("blocked") is True:
+                        blocked_message = data.get("message")
+                        if not isinstance(blocked_message, str) or not blocked_message.strip():
+                            blocked_message = "I couldn't process that request. Please try a restaurant-related question."
+                        msg.content = blocked_message
+                        await msg.update()
+                        return
+
                     if "chunk" in data:
                         chunk = data["chunk"]
                         await msg.stream_token(chunk)

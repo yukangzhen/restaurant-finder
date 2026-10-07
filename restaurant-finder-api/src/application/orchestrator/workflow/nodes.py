@@ -158,7 +158,7 @@ async def router_node(
     with observability.create_span(
         "router.classify",
         attributes={"message.count": len(messages)},
-    ):
+    ) as router_span:
         provider = "jev"
         model = settings.JEV_ROUTER_MODEL
         confidence = None
@@ -201,11 +201,17 @@ async def router_node(
             elif "off_topic" in response_text:
                 intent = "off_topic"
             else:
-                logger.warning(
-                    "Unclear Bedrock fallback intent: {}; defaulting to restaurant_search",
-                    response_text,
-                )
+                logger.warning("Unclear Bedrock fallback intent; defaulting to restaurant_search")
                 intent = "restaurant_search"
+
+        if router_span is not None:
+            router_span.set_attribute("router.intent", intent)
+            router_span.set_attribute("router.provider", provider)
+            router_span.set_attribute("router.model", model)
+            if confidence is not None:
+                router_span.set_attribute("router.confidence", confidence)
+            if fallback_reason is not None:
+                router_span.set_attribute("router.fallback.reason", fallback_reason)
 
     duration_ms = (time.time() - start_time) * 1000
     observability.record_workflow_step(
@@ -222,7 +228,13 @@ async def router_node(
         },
     )
 
-    logger.info(f"Router classified intent: {intent}")
+    logger.info(
+        "Router classified intent={} provider={} model={} fallback_reason={}",
+        intent,
+        provider,
+        model,
+        fallback_reason or "none",
+    )
 
     return {"intent": intent}
 

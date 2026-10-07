@@ -144,16 +144,26 @@ async def classify_with_jev(messages: list[BaseMessage]) -> JevClassification:
             "intent": Choice(
                 instructions=(
                     "Classify only the latest user message. Use earlier messages only to resolve "
-                    "references or follow-ups. A greeting, thanks, acknowledgment, goodbye, or "
+                    "references or follow-ups. Choose restaurant_search both when the user wants "
+                    "actual restaurant results, recommendations, or details and when they ask "
+                    "to recall dining preferences, past restaurant recommendations, or dining "
+                    "facts from memory. In this restaurant-finder conversation, an unqualified "
+                    "question such as 'What preferences have I told you before?' means dining "
+                    "preferences and is a memory request. A memory request does not require a "
+                    "location or a request for new restaurant results. A greeting, thanks, "
+                    "acknowledgment, goodbye, or "
                     "question about the assistant's capabilities is simple, even if it mentions "
-                    "restaurants, food, or cuisine. Choose restaurant_search only when the user "
-                    "wants actual restaurant results, recommendations, or details about a "
-                    "specific restaurant. Choose off_topic for unrelated requests."
+                    "restaurants, food, or cuisine. Choose off_topic for unrelated requests."
                 ),
                 criteria={
                     "restaurant_search": (
                         "The user wants actual restaurant results, recommendations, or details "
-                        "about a specific restaurant, meal, cuisine, or dietary option. This "
+                        "about a specific restaurant, meal, cuisine, or dietary option; OR wants "
+                        "to recall their own dining preferences, restaurant recommendations, or "
+                        "dining facts from earlier conversations. Memory recall is in scope even "
+                        "without a location or a request for new restaurant results. In this "
+                        "restaurant-finder conversation, an unqualified question such as 'What "
+                        "preferences have I told you before?' means dining preferences. This also "
                         "includes follow-up questions about a restaurant already discussed."
                     ),
                     "simple": (
