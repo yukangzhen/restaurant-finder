@@ -1,0 +1,161 @@
+name: Offline quality checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  AWS_EC2_METADATA_DISABLED: "true"
+  AWS_REGION: us-east-2
+  PROMPT_SYNC_MODE: "false"
+  REQUIRE_PROMPT_MANIFEST: "false"
+  PROMPT_MANIFEST_PATH: /tmp/restaurant-finder-offline-no-manifest.json
+  AGENT_OBSERVABILITY_ENABLED: "false"
+  EVALUATION_ENABLED: "false"
+  LOGURU_LEVEL: ERROR
+
+jobs:
+  api:
+    name: API and document RAG
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: restaurant-finder-api
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.15"
+          enable-cache: true
+          cache-dependency-glob: restaurant-finder-api/uv.lock
+          cache-suffix: api
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Run API regression tests
+        run: uv run --no-sync python -m unittest discover -s tests -q 2>&1 | tee api-tests.log
+      - name: Evaluate document RAG with simulated dependencies
+        run: uv run --no-sync python -m src.evaluation.rag --offline --output .generated/evaluation/document-rag.json
+      - name: Publish readable RAG summary
+        if: always()
+        run: |
+          if [ -f .generated/evaluation/document-rag.md ]; then
+            cat .generated/evaluation/document-rag.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'RAG report was not produced; inspect the failing step.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save fictional RAG report and test log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: offline-rag-and-api
+          path: |
+            restaurant-finder-api/.generated/evaluation/document-rag.json
+            restaurant-finder-api/.generated/evaluation/document-rag.md
+            restaurant-finder-api/api-tests.log
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+
+  ui:
+    name: UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: restaurant-finder-ui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.15"
+          enable-cache: true
+          cache-dependency-glob: restaurant-finder-ui/uv.lock
+          cache-suffix: ui
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Run UI regression tests
+        run: uv run --no-sync python -m unittest discover -s tests -q 2>&1 | tee ui-tests.log
+      - name: Save UI test log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: offline-ui
+          path: restaurant-finder-ui/ui-tests.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  infrastructure:
+    name: Infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CDK_DEFAULT_ACCOUNT: "123456789012"
+      CDK_DEFAULT_REGION: us-east-2
+    defaults:
+      run:
+        working-directory: restaurant-finder-infra
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: restaurant-finder-infra/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Compile infrastructure
+        run: npm run build
+      - name: Run infrastructure regression tests
+        run: npm test -- --runInBand 2>&1 | tee infrastructure-tests.log
+      - name: Synthesize with dummy context and no lookups
+        run: npx --no-install cdk synth --all --no-lookups -c imageUri=123456789012.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:offline-ci --output cdk.out/ci > synthesis.log
+      - name: Save infrastructure test log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: offline-infrastructure
+          path: restaurant-finder-infra/infrastructure-tests.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  quality:
+    name: Quality checks
+    if: always()
+    needs: [api, ui, infrastructure]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every job to pass
+        env:
+          API_RESULT: ${{ needs.api.result }}
+          UI_RESULT: ${{ needs.ui.result }}
+          INFRA_RESULT: ${{ needs.infrastructure.result }}
+        run: |
+          printf 'API: %s; UI: %s; infrastructure: %s\n' "$API_RESULT" "$UI_RESULT" "$INFRA_RESULT" >> "$GITHUB_STEP_SUMMARY"
+          test "$API_RESULT" = success
+          test "$UI_RESULT" = success
+          test "$INFRA_RESULT" = success

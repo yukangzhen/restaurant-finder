@@ -4,6 +4,8 @@ An AI engineering portfolio demo built with **AWS Bedrock AgentCore**, **LangGra
 
 Adapted from [Joud Awad's original restaurant finder](https://github.com/JoudAwad97/agentic-ai-langgraph-and-aws-agentcore). This fork adds Jev routing with a Bedrock fallback, integration/correctness repairs, and a custom versioned document RAG pipeline with inspectable original-source citations.
 
+Offline GitHub checks cover the API, UI and infrastructure. A 16-case document RAG dataset checks extractive answers, pinned source citations and safe failure/scope behavior with explicitly simulated model dependencies. See [automated checks and RAG evaluation](docs/CI_AND_RAG_EVALUATION.md) for commands, report interpretation and the distinction between offline regression and measured live model quality.
+
 ## Architecture
 
 The document RAG extension is described in the [engineering guide](docs/DOCUMENT_RAG.md), with deployment evidence and rollback in the [approved handoff](docs/HANDOFF_PRD_DOCUMENT_RAG.md). The 2026-10-08 rollout verified scoped menu/policy retrieval, exact citations, an RM28-to-RM32 corpus update, Chainlit delivery, and fresh CloudWatch RAG spans. This is a controlled fictional corpus demo.

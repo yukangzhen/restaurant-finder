@@ -37,6 +37,8 @@ Use `sample_documents/corpus-v2.json` for the controlled RM28-to-RM32 Harbor pri
 
 ## Question answering
 
+The [document evaluation guide](CI_AND_RAG_EVALUATION.md) describes 16 source-grounded cases, deterministic answer/provenance checks and the credential-free CI workflow. Offline regression reports identify simulated dependencies; they do not claim live model or vector-ranking accuracy.
+
 ```mermaid
 flowchart TD
   User[Current user question] --> Router[Jev or Haiku routing fallback]

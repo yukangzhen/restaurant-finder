@@ -1,0 +1,597 @@
+{
+  "schema_version": 1,
+  "name": "fictional-document-rag",
+  "cases": [
+    {
+      "id": "harbor_price_v2",
+      "category": "price",
+      "corpus": "corpus-v2.json",
+      "question": "According to Harbor Pasta Lab menu, how much is mushroom pasta?",
+      "approved_scope": null,
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-harbor-pasta",
+        "document_type": "menu",
+        "quotes": [
+          {
+            "document_id": "harbor-menu",
+            "version": "v2",
+            "quote": "Mushroom pasta - RM32 per serving.",
+            "page": 1
+          }
+        ],
+        "forbidden_phrases": [
+          "RM28",
+          "RM36"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "harbor-menu",
+            "quote": "Mushroom pasta - RM32 per serving."
+          }
+        ],
+        "rewrite": null
+      }
+    },
+    {
+      "id": "harbor_price_v1",
+      "category": "price",
+      "corpus": "corpus.json",
+      "question": "According to Harbor Pasta Lab menu, how much is mushroom pasta?",
+      "approved_scope": null,
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-harbor-pasta",
+        "document_type": "menu",
+        "quotes": [
+          {
+            "document_id": "harbor-menu",
+            "version": "v1",
+            "quote": "Mushroom pasta - RM28 per serving.",
+            "page": 1
+          }
+        ],
+        "forbidden_phrases": [
+          "RM32",
+          "RM36"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "harbor-menu",
+            "quote": "Mushroom pasta - RM28 per serving."
+          }
+        ],
+        "rewrite": null
+      }
+    },
+    {
+      "id": "sakura_price",
+      "category": "price",
+      "corpus": "corpus-v2.json",
+      "question": "According to Sakura Table Lab menu, how much is mushroom pasta?",
+      "approved_scope": null,
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-sakura-table",
+        "document_type": "menu",
+        "quotes": [
+          {
+            "document_id": "sakura-menu",
+            "version": "v1",
+            "quote": "Mushroom pasta - RM36 per serving.",
+            "section": "Main dishes",
+            "line_start": 5,
+            "line_end": 11
+          }
+        ],
+        "forbidden_phrases": [
+          "RM28",
+          "RM32"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "sakura-menu",
+            "quote": "Mushroom pasta - RM36 per serving."
+          }
+        ],
+        "rewrite": null
+      }
+    },
+    {
+      "id": "spice_price",
+      "category": "price",
+      "corpus": "corpus-v2.json",
+      "question": "According to Spice Garden Lab menu, how much is chickpea curry?",
+      "approved_scope": null,
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-spice-garden",
+        "document_type": "menu",
+        "quotes": [
+          {
+            "document_id": "spice-menu",
+            "version": "v1",
+            "quote": "Chickpea curry - RM22 per serving.",
+            "section": "Main dishes",
+            "line_start": 5,
+            "line_end": 11
+          }
+        ],
+        "forbidden_phrases": [
+          "RM26"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "spice-menu",
+            "quote": "Chickpea curry - RM22 per serving."
+          }
+        ],
+        "rewrite": null
+      }
+    },
+    {
+      "id": "harbor_fee",
+      "category": "policy",
+      "corpus": "corpus-v2.json",
+      "question": "According to Harbor Pasta Lab policy, what is the cancellation fee?",
+      "approved_scope": null,
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-harbor-pasta",
+        "document_type": null,
+        "quotes": [
+          {
+            "document_id": "harbor-policy",
+            "version": "v1",
+            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
+            "section": "Reservations and cancellation",
+            "line_start": 5,
+            "line_end": 8
+          }
+        ],
+        "forbidden_phrases": [
+          "RM15",
+          "RM10"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "harbor-policy",
+            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking."
+          }
+        ],
+        "rewrite": null
+      }
+    },
+    {
+      "id": "sakura_fee",
+      "category": "policy",
+      "corpus": "corpus-v2.json",
+      "question": "According to Sakura Table Lab policy, what is the cancellation fee?",
+      "approved_scope": null,
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-sakura-table",
+        "document_type": "policy",
+        "quotes": [
+          {
+            "document_id": "sakura-policy",
+            "version": "v1",
+            "quote": "Later cancellations incur a RM15 fee per booking.",
+            "section": "Reservations and cancellation",
+            "line_start": 5,
+            "line_end": 8
+          }
+        ],
+        "forbidden_phrases": [
+          "RM20",
+          "RM10"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "sakura-policy",
+            "quote": "Later cancellations incur a RM15 fee per booking."
+          }
+        ],
+        "rewrite": null
+      }
+    },
+    {
+      "id": "spice_fee",
+      "category": "policy",
+      "corpus": "corpus-v2.json",
+      "question": "According to Spice Garden Lab policy, what is the cancellation fee?",
+      "approved_scope": null,
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-spice-garden",
+        "document_type": "policy",
+        "quotes": [
+          {
+            "document_id": "spice-policy",
+            "version": "v1",
+            "quote": "Later cancellations incur a RM10 fee per booking.",
+            "section": "Reservations and cancellation",
+            "line_start": 5,
+            "line_end": 8
+          }
+        ],
+        "forbidden_phrases": [
+          "RM20",
+          "RM15"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "spice-policy",
+            "quote": "Later cancellations incur a RM10 fee per booking."
+          }
+        ],
+        "rewrite": null
+      }
+    },
+    {
+      "id": "missing_parking",
+      "category": "insufficient_evidence",
+      "corpus": "corpus-v2.json",
+      "question": "According to Harbor policy, does it offer valet parking?",
+      "approved_scope": null,
+      "expected": {
+        "status": "insufficient_evidence",
+        "restaurant_id": "demo-harbor-pasta",
+        "document_type": "policy",
+        "text": "The active documents do not contain enough evidence to answer that question.",
+        "forbidden_phrases": [
+          "offers valet parking",
+          "does not offer valet parking",
+          "RM999"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "insufficient_evidence",
+        "selections": []
+      }
+    },
+    {
+      "id": "missing_restaurant",
+      "category": "clarify",
+      "corpus": "corpus-v2.json",
+      "question": "What does the uploaded menu say about pasta?",
+      "approved_scope": null,
+      "expected": {
+        "status": "clarify",
+        "restaurant_id": null,
+        "document_type": null,
+        "text": "Which fictional restaurant's documents should I use: Harbor Pasta Lab, Sakura Table Lab, Spice Garden Lab?",
+        "forbidden_phrases": [
+          "offers valet parking",
+          "does not offer valet parking",
+          "RM999"
+        ],
+        "calls": {
+          "embedding": 0,
+          "retrieval": 0,
+          "selector": 0,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "insufficient_evidence",
+        "selections": []
+      }
+    },
+    {
+      "id": "unknown_restaurant",
+      "category": "clarify",
+      "corpus": "corpus-v2.json",
+      "question": "And what about the menu at Unknown Bistro?",
+      "approved_scope": "demo-harbor-pasta",
+      "expected": {
+        "status": "clarify",
+        "restaurant_id": null,
+        "document_type": null,
+        "text": "Which fictional restaurant's documents should I use: Harbor Pasta Lab, Sakura Table Lab, Spice Garden Lab?",
+        "forbidden_phrases": [
+          "offers valet parking",
+          "does not offer valet parking",
+          "RM999"
+        ],
+        "calls": {
+          "embedding": 0,
+          "retrieval": 0,
+          "selector": 0,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "insufficient_evidence",
+        "selections": []
+      }
+    },
+    {
+      "id": "multiple_restaurants",
+      "category": "clarify",
+      "corpus": "corpus-v2.json",
+      "question": "Compare Harbor and Sakura menus",
+      "approved_scope": null,
+      "expected": {
+        "status": "clarify",
+        "restaurant_id": null,
+        "document_type": null,
+        "text": "Please choose one fictional restaurant for this document question.",
+        "forbidden_phrases": [
+          "offers valet parking",
+          "does not offer valet parking",
+          "RM999"
+        ],
+        "calls": {
+          "embedding": 0,
+          "retrieval": 0,
+          "selector": 0,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "insufficient_evidence",
+        "selections": []
+      }
+    },
+    {
+      "id": "harbor_followup",
+      "category": "follow_up",
+      "corpus": "corpus-v2.json",
+      "question": "And what about its cancellation fee?",
+      "approved_scope": "demo-harbor-pasta",
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-harbor-pasta",
+        "document_type": "policy",
+        "quotes": [
+          {
+            "document_id": "harbor-policy",
+            "version": "v1",
+            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
+            "section": "Reservations and cancellation",
+            "line_start": 5,
+            "line_end": 8
+          }
+        ],
+        "forbidden_phrases": [
+          "RM15"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 1
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "harbor-policy",
+            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking."
+          }
+        ],
+        "rewrite": "Harbor Pasta Lab cancellation fee"
+      }
+    },
+    {
+      "id": "explicit_scope_override",
+      "category": "scope_override",
+      "corpus": "corpus-v2.json",
+      "question": "According to Sakura menu, what is the mushroom pasta price?",
+      "approved_scope": "demo-harbor-pasta",
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-sakura-table",
+        "document_type": "menu",
+        "quotes": [
+          {
+            "document_id": "sakura-menu",
+            "version": "v1",
+            "quote": "Mushroom pasta - RM36 per serving.",
+            "section": "Main dishes",
+            "line_start": 5,
+            "line_end": 11
+          }
+        ],
+        "forbidden_phrases": [
+          "RM28",
+          "RM32"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "sakura-menu",
+            "quote": "Mushroom pasta - RM36 per serving."
+          }
+        ],
+        "rewrite": null
+      }
+    },
+    {
+      "id": "forged_selector",
+      "category": "invalid_answer",
+      "corpus": "corpus-v2.json",
+      "question": "According to Harbor menu, what is the mushroom pasta price?",
+      "approved_scope": null,
+      "expected": {
+        "status": "invalid_answer",
+        "restaurant_id": "demo-harbor-pasta",
+        "document_type": "menu",
+        "text": "I couldn't validate a document answer. Please rephrase your question.",
+        "forbidden_phrases": [
+          "offers valet parking",
+          "does not offer valet parking",
+          "RM999"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "harbor-menu",
+            "quote": "Mushroom pasta - RM999 per serving.",
+            "chunk_id_override": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      }
+    },
+    {
+      "id": "changed_quote",
+      "category": "invalid_answer",
+      "corpus": "corpus-v2.json",
+      "question": "According to Harbor menu, what is the mushroom pasta price?",
+      "approved_scope": null,
+      "expected": {
+        "status": "invalid_answer",
+        "restaurant_id": "demo-harbor-pasta",
+        "document_type": "menu",
+        "text": "I couldn't validate a document answer. Please rephrase your question.",
+        "forbidden_phrases": [
+          "offers valet parking",
+          "does not offer valet parking",
+          "RM999"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "harbor-menu",
+            "quote": "Mushroom pasta - RM999 per serving."
+          }
+        ]
+      }
+    },
+    {
+      "id": "harbor_fee_alias",
+      "category": "policy_scope",
+      "corpus": "corpus-v2.json",
+      "question": "According to Harbor policy, what is the cancellation fee?",
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-harbor-pasta",
+        "document_type": "policy",
+        "quotes": [
+          {
+            "document_id": "harbor-policy",
+            "version": "v1",
+            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
+            "section": "Reservations and cancellation",
+            "line_start": 5,
+            "line_end": 8
+          }
+        ],
+        "forbidden_phrases": [
+          "RM15",
+          "RM10"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "harbor-policy",
+            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking."
+          }
+        ]
+      }
+    }
+  ]
+}
