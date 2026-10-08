@@ -86,6 +86,10 @@ uv run python -m src.deployment.ingest_documents --publish --rollback-generation
 
 Runtime rollback uses the recorded prior image/environment through a reviewed AgentCore change set with RAG disabled. Retain the RAG stack and its data. Rollback does not reverse charges or remove prompt versions.
 
+The completed rollout saved an ignored `restaurant-finder-api/.generated/rag/runtime-rollback.template.json`. It restores the prior runtime image/environment with RAG disabled and keeps the current scoped IAM and new stack intact. From `restaurant-finder-api`, prepare a CloudFormation UPDATE change set using that file and the existing CDK execution role recorded in `.generated/rag/baseline-stack.json`. Inspect the change set: only the Runtime image/environment should change, with no replacement. Execute only after reviewing it, then wait for UPDATE_COMPLETE/READY. No rollback was performed during verification.
+
+The prior image is `correctness-f9dcf56-20261007135110-arm64`, verified digest `sha256:0614966b8424edbeba937ca6f4014d492ccc624d347ecc2ec4f14c35fbcc23c2`. The retained initial corpus generation is `a68dcd7921d2f96d67de441961f55c972ad5af8072eb26f5841f8d7588ef3ab3`.
+
 Safe RAG spans cover scope, embeddings, retrieval, answer selection and validation. They record generation, restaurant IDs, counts/token usage and safe error types; raw queries, passages, embeddings and provider exception payloads are excluded. Enabled but unconfigured/unpublished retrieval returns unavailable. Failure never silently falls back to web search or dining memory.
 
 Offline checks (use an absent manifest path until deployment prompt synchronization):

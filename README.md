@@ -2,7 +2,11 @@
 
 An AI engineering portfolio demo built with **AWS Bedrock AgentCore**, **LangGraph**, and **Chainlit**. It searches for restaurants, remembers dining preferences, and answers questions from controlled documents with verified quotations. It demonstrates deployment, retrieval, tracing and safety patterns; it is not operated as a production service.
 
+Adapted from [Joud Awad's original restaurant finder](https://github.com/JoudAwad97/agentic-ai-langgraph-and-aws-agentcore). This fork adds Jev routing with a Bedrock fallback, integration/correctness repairs, and a custom versioned document RAG pipeline.
+
 ## Architecture
+
+The document RAG extension is described in the [engineering guide](docs/DOCUMENT_RAG.md), with deployment evidence and rollback in the [approved handoff](docs/HANDOFF_PRD_DOCUMENT_RAG.md). The 2026-10-08 rollout verified scoped menu/policy retrieval, exact citations, an RM28-to-RM32 corpus update, Chainlit delivery, and fresh CloudWatch RAG spans. This is a controlled fictional corpus demo.
 
 ### Key Components
 

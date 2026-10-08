@@ -1,6 +1,6 @@
 # Handoff PRD: Custom Document RAG for Restaurant Menus and Policies
 
-**Status:** Approved by the owner on 2026-10-08; implementation and bounded rollout in progress.
+**Status:** Implemented and deployed on 2026-10-08. All planned local/live scenarios verified within the approved caps; trace coverage limitations are recorded below.
 
 **Prepared:** October 8, 2026.
 
@@ -678,7 +678,7 @@ Implementation must use the installed SDK/CDK capabilities and recheck primary d
 
 ## 15. Execution record
 
-Implementation in progress (2026-10-08).
+Execution completed (2026-10-08). Evidence files and rollback template are retained locally under ignored `restaurant-finder-api/.generated/rag/`; no credentials are included in source publication.
 
 - Baseline: feat/jev-router at 7ba4643c3b1b200074372e2c01f325104b099dac; only this PRD was untracked before implementation.
 - AWS identity freshly verified: account 447393541969, IAM user kangzhen, explicit us-east-2.
@@ -688,4 +688,79 @@ Implementation in progress (2026-10-08).
 - Final local API regression run before packaging: 94 tests passed; UI: 10 passed; TypeScript build and three CDK tests passed. CDK synth succeeded. Diff whitespace check passed. Scanned tracked/untracked publishable text for AWS/GitHub key patterns/private keys: no matching files.
 - Current deterministic initial generation: a68dcd7921d2f96d67de441961f55c972ad5af8072eb26f5841f8d7588ef3ab3. The extractor fingerprint now includes the locked pypdf version.
 - Local synthesized AgentCore template compared with deployed baseline: no added/removed logical resources. Only RuntimeRole Policies and Runtime EnvironmentVariables changed (same prior image). Expected new-image artifact change will be reviewed in the rollout change set. New stack has private/versioned/TLS corpus storage and retained vector bucket/index.
-- Steps 1-11 complete locally. Step 12 tiny Titan invocation passed: one attempt, 512 dimensions, 9 input tokens. No provisioning, corpus publication or new image publication yet.
+- Before-rollout checkpoint: steps 1-11 complete locally; step 12 tiny Titan invocation passed with one attempt, 512 dimensions and 9 input tokens. Deployment results follow below.
+
+### Deployment and publication
+
+- Implementation source commit: `47a7ddb38b72fb6265bbc0d39a3dae18cb13972f` on `feat/jev-router`. Subsequent changes contain evidence/docs and three additional offline tests; application code in the deployed image is unchanged.
+- Final offline results: **97 API tests, 10 UI tests, 3 CDK tests passed**. TypeScript build, synth, prompt validation, staged whitespace checks and secret-pattern scan passed. PDF bytes in the Git index matched the working files after adding binary Git attributes.
+- Eight prompt versions validated locally and inside the ARM64 image: RAG_QUERY 1, RAG_ANSWER 1, ROUTER 3, SEARCH_AGENT 3, RESTAURANT_EXPLORER 2, SIMPLE_RESPONSE 1, RESTAURANT_EXTRACTION 2, RESEARCH_EXTRACTION 1.
+- Image: `447393541969.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:document-rag-47a7ddb-20261008040245-arm64`.
+- ECR digest: `sha256:70bb7c82728901c6a02dc6b7c4f88caf74ba7855b494694aec5dd9228021f009`. Inspection confirmed linux/arm64, unprivileged user, eight valid prompts, bundled name/alias catalog, and exclusion of .env, sample sources and RAG reports.
+- `restaurantFinder-RagStack` CREATE_COMPLETE. Reviewed change set added corpus bucket, TLS bucket policy, vector bucket/index and CDK metadata only. Storage/index retained on deletion/replacement; no public access or lifecycle deletion.
+- `restaurantFinder-AgentCoreStack` UPDATE_COMPLETE. Reviewed change set modified only RuntimeRole and Runtime, both Replacement=False. Local/deployed baseline comparison limited properties to IAM Policies and Runtime image/environment. ECR, Lambda, Gateway, Memory, guardrails and tracing resources were unchanged.
+- Runtime `restaurantFinder_Agent-Ha58oX5Psu`: READY **version 10**, RAG enabled.
+
+| New output | Actual value |
+| --- | --- |
+| Document bucket | restaurantfinder-ragstack-documentbucketae41e5a9-vqrmcnuycjq5 |
+| Vector bucket ARN | arn:aws:s3vectors:us-east-2:447393541969:bucket/restaurantfinder-rag-447393541969-us-east-2 |
+| Vector index ARN | arn:aws:s3vectors:us-east-2:447393541969:bucket/restaurantfinder-rag-447393541969-us-east-2/index/documents-titan-v2-512 |
+| Active pointer | rag/active.json |
+
+### Corpus and bounded live checks
+
+- Initial complete generation `a68dcd7921d2f96d67de441961f55c972ad5af8072eb26f5841f8d7588ef3ab3`: six sources, 14 chunks/vectors, 14 embedding attempts, 515 input tokens, one PutVectors attempt. Filtered readiness and chunk/vector/hash checks passed before pointer publication.
+- Repeating initial publication returned unchanged: **zero embedding attempts, zero vector writes**.
+- Active updated generation `29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a`: six sources, 14 chunks/vectors, **13 compatible cache hits, one embedding attempt**, 77 input tokens, one PutVectors attempt. Initial generation retained.
+- Totals: two generations, 28 distinct vector records, two PutVectors attempts. Six query embedding spans directly observed; with the seven successful document retrieval checks and one-attempt/no-retry adapter, direct Titan attempts are bounded at **23/128**. Of these, 22 were directly recorded in ingestion/preflight reports or spans. Recorded preflight/ingestion tokens: 601; traced query tokens: 102. Missing updated-price query trace prevents a complete token total; no billing/cost estimate is claimed.
+- **12/12 Runtime invocation allowance used**, including one blocked request. No live benchmark or global Jev-disable test was run.
+
+| Actual attempt | Scenario | Observed result |
+| --- | --- | --- |
+| 1 | Greeting | Friendly final response |
+| 2 | Search with tool-control wording | Blocked; no final answer leaked |
+| 3 (spare) | Plain Thai restaurant search in Kuala Lumpur | Two restaurant results returned |
+| 4 | Harbor v1 price plus synthetic dining preferences | RM28 quotation, harbor-menu, page 1, v1, initial generation |
+| 5 | Harbor cancellation | 24-hour cutoff and RM20 fee, policy section/lines, v1 |
+| 6 | Sakura similar dish | RM36 quotation from sakura-menu, correct restaurant/section |
+| 7 | Follow-up in Sakura conversation | RM15 fee quotation from sakura-policy |
+| 8 | Missing valet information | Insufficient evidence; no negative parking claim |
+| 9 | Ambiguous uploaded-menu question | Restaurant clarification |
+| 10 | Isolated synthetic dining-memory recall | Thai, vegetarian, below RM50 per person recovered |
+| 11 | Harbor after updated generation publication | RM32 quotation, page 1, v2, updated generation |
+| 12 | Normal Chainlit browser question | RM32 quoted answer and page/version citation visibly rendered |
+
+The spare was consumed by the search diagnostic. Preferences were saved in the already planned Harbor test turn rather than using a separate seed invocation. Memory recall used a different conversation with the same isolated synthetic actor. Follow-up used the same Sakura conversation. UI used the normal app in AWS mode at `http://localhost:8010/`; port 8000 was already occupied. No extra invocation was made after attempt 12.
+
+### Telemetry and acceptance evidence
+
+Fresh CloudWatch `aws/spans` records contain rag.scope, rag.embed, rag.vector_query, rag.retrieve, rag.answer_select and rag.validate, correlated with six synthetic conversation IDs. Example Harbor v1 trace `6ac7195827a314691a6324673cf9e823`, session `91dfc122-045f-478d-a838-0f12045d43e2`, initial generation and one 349-character passage. UI trace `6ac71a975dc365ed702c506f114d8946`, session `00d99c7a-467b-44eb-a421-4188c60554a2`, updated generation. Runtime logs show Jev routing both document_qa and restaurant_search.
+
+Read-only tracing inspection found no X-Ray GetTraceSummaries results in this window; CloudWatch span delivery was verified directly. The updated-price CLI turn had application logs and a correct answer but no custom RAG spans found. The cause was not established; tracing/indexing settings were not changed. O2 is satisfied by fresh correlated CloudWatch RAG spans, with per-turn coverage incomplete. Disabled/unavailable/invalid-answer/prompt-injection and guardrail-error cases were verified offline, not with additional live calls.
+
+| Criterion | Evidence |
+| --- | --- |
+| I1-I3 | No-client offline dry-run; stable fingerprints; real PDF extraction/page 1 and visual inspection; intact records, unsupported/empty/no-text PDFs, page limits and unsafe paths tested |
+| I4 | Live unchanged publication report shows zero embeddings/vector writes |
+| I5-I6 | Offline embedding/vector failure and CAS-conflict tests preserve prior pointer; immutable-content mismatch rejected |
+| I7 | Live second generation, 13 reused embeddings, new RM32 answer and retained initial generation |
+| R1-R4 | Server filter stubs, pinned-generation/restaurant/hash tests, incompatible manifest/index tests; live Harbor/Sakura isolation |
+| A1-A2 | Live known prices/policy with citations; valet insufficient-evidence response |
+| A3-A4 | Offline forged IDs, altered quotes, extra fields and instruction-like quotes rejected; document graph has no executable external tools |
+| G1 | Live Jev document routing; locally injected Jev failure routes Bedrock document_qa once; legacy routing regression suite passed |
+| G2-G3 | Offline zero-embedding clarification and explicit-scope override; live clarification/Sakura follow-up |
+| G4-G5 | Guardrail scope, masked/blocked text, graph order and transient reset tests; single graph execution preserved |
+| U1 | Direct/nested SSE citation/error fixtures and visible normal Chainlit RM32 citation; screenshot retained locally |
+| O1-O2 | Safe-error/count/token span fixtures plus fresh correlated CloudWatch RAG spans; partial coverage limitation above |
+| D1-D3 | CDK assertions, exact read IAM, eight validated prompts, ARM64 inspection and reviewed two-stack change sets |
+| D4 | Final 97 API / 10 UI / 3 CDK tests passed, build/synth successful |
+| H1 | Source/image/generation evidence here; engineering diagrams, limitations and rollback in DOCUMENT_RAG.md |
+
+### Rollback and remaining limits
+
+Previous Runtime image/digest verified in ECR: `correctness-f9dcf56-20261007135110-arm64`, `sha256:0614966b8424edbeba937ca6f4014d492ccc624d347ecc2ec4f14c35fbcc23c2`. Prepared local `runtime-rollback.template.json` restores its image/environment and disables RAG, preserving the current scoped IAM/new RAG stack. Prepare/review an AgentCore UPDATE change set from that file; verify Runtime-only modification/no replacement, then execute and check readiness. Corpus rollback CLI verifies the retained initial generation and conditionally switches the pointer; it is tested offline and was not executed live.
+
+Limits remain the agreed demo scope: fictional controlled documents, extractive quotes, no public upload/auth, OCR, broad retrieval benchmark, calibrated distance cutoff or production readiness claim. Exact provenance checks do not prove semantic relevance for every possible question. Some selected quotes may benefit from wider surrounding policy context.
+
+Implementation, rollout and verification followed steps 1-17 within the approved scope. Final source publication targets `origin/feat/jev-router`; no main merge, workflow dispatch or PR creation is part of this rollout. The final agent response reports the actual push result separately.

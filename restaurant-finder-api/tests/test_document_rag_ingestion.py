@@ -162,6 +162,16 @@ class IngestionTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.publish(manifest, sources)
         self.assertEqual(self.store.pointer, old)
+
+    def test_embedding_failure_keeps_old_pointer_without_vector_write(self):
+        self.publish()
+        old = self.store.pointer
+        manifest,sources = self.updated()
+        with patch.object(self.embeddings,"embed",side_effect=RuntimeError("fixture embedding failure")):
+            with self.assertRaises(RuntimeError):
+                self.publish(manifest,sources)
+        self.assertEqual(self.store.pointer,old)
+        self.assertEqual(self.vectors.put_attempts,1)
     def test_concurrent_conflict_does_not_overwrite(self):
         self.store.conflict = True
         with self.assertRaisesRegex(RuntimeError, "conflict"):
@@ -216,6 +226,24 @@ class IngestionTests(unittest.TestCase):
 
 
 class AdapterTests(unittest.TestCase):
+    def test_immutable_write_never_overwrites_different_bytes(self):
+        client=Mock()
+        client.put_object.side_effect=ClientError({"Error":{"Code":"PreconditionFailed"}},"PutObject")
+        client.get_object.return_value={"Body":io.BytesIO(b"old")}
+        store=DocumentStore("corpus","us-east-2",client=client)
+        with self.assertRaisesRegex(ValueError,"Immutable"):
+            store.write_bytes("rag/generations/g/source.md",b"new","text/markdown")
+        self.assertEqual(client.put_object.call_args.kwargs["IfNoneMatch"],"*")
+        self.assertEqual(client.put_object.call_count,1)
+
+    def test_incompatible_index_rejected_before_query(self):
+        client=Mock()
+        for dimension,metric in [(256,"cosine"),(512,"euclidean")]:
+            client.get_index.return_value={"index":{"dimension":dimension,"distanceMetric":metric,"dataType":"float32"}}
+            with self.assertRaisesRegex(ValueError,"incompatible"):
+                VectorStore("index-arn","us-east-2",client=client).validate_index()
+        client.query_vectors.assert_not_called()
+
     def test_pointer_conditional_write_parameters(self):
         client = Mock()
         store = DocumentStore("corpus", "us-east-2", client=client)
