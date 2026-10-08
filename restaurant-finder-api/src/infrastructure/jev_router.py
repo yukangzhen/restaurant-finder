@@ -25,7 +25,7 @@ class JevRouterUnavailable(RuntimeError):
     """Raised when Jev cannot provide a valid routing answer."""
 
 
-_VALID_INTENTS: set[str] = {"restaurant_search", "simple", "off_topic"}
+_VALID_INTENTS: set[str] = {"restaurant_search", "document_qa", "simple", "off_topic"}
 _jev_client: AsyncTypeSafeClient | None = None
 
 
@@ -66,7 +66,10 @@ def _message_for_jev(message: BaseMessage) -> dict:
     else:
         role = message.type
 
-    item = {"role": role, "content": extract_text_content(message.content)}
+    content = extract_text_content(message.content)
+    if message.additional_kwargs.get("document_rag_response"):
+        content = "Previous document response; restaurant scope is supplied in trusted routing context."
+    item = {"role": role, "content": content}
 
     if isinstance(message, AIMessage) and message.tool_calls:
         item["tool_calls"] = [
@@ -78,6 +81,17 @@ def _message_for_jev(message: BaseMessage) -> dict:
         item["tool_call_id"] = message.tool_call_id
 
     return item
+
+
+def bedrock_routing_messages(messages):
+    """Classification needs conversational text, without tool payloads or corpus passages."""
+    output = []
+    for message in messages[-8:]:
+        if not isinstance(message,(HumanMessage,AIMessage)) or getattr(message,"tool_calls",None):
+            continue
+        content = _message_for_jev(message)["content"]
+        output.append(type(message)(content=content[:2000]))
+    return output
 
 
 async def initialize_jev_router() -> bool:
@@ -133,18 +147,24 @@ async def close_jev_router() -> None:
         logger.warning("Could not close Jev router client (error_type={})", type(error).__name__)
 
 
-async def classify_with_jev(messages: list[BaseMessage]) -> JevClassification:
+async def classify_with_jev(messages: list[BaseMessage], approved_document_scope: str | None = None) -> JevClassification:
     """Classify the latest user message while preserving the conversation context."""
     if _jev_client is None:
         raise JevRouterUnavailable("Jev router client is not initialized")
 
+    from src.application.document_rag.retrieval import router_catalog
     response = await _jev_client.system_one(
-        state={"messages": [_message_for_jev(message) for message in messages]},
+        state={"messages": [_message_for_jev(message) for message in messages[-8:]],
+               "fictional_document_catalog": router_catalog(), "approved_document_scope": approved_document_scope},
         questions={
             "intent": Choice(
                 instructions=(
                     "Classify only the latest user message. Use earlier messages only to resolve "
-                    "references or follow-ups. Choose restaurant_search both when the user wants "
+                    "references or follow-ups. Choose document_qa for questions about controlled "
+                    "menus, policies or uploaded documents; questions about the fictional catalog; "
+                    "and document follow-ups when approved_document_scope is present. Missing "
+                    "scope is clarified by document_qa. This takes priority over restaurant_search. "
+                    "Greetings/thanks remain simple. Choose restaurant_search both when the user wants "
                     "actual restaurant results, recommendations, or details and when they ask "
                     "to recall dining preferences, past restaurant recommendations, or dining "
                     "facts from memory. In this restaurant-finder conversation, an unqualified "
@@ -156,6 +176,12 @@ async def classify_with_jev(messages: list[BaseMessage]) -> JevClassification:
                     "restaurants, food, or cuisine. Choose off_topic for unrelated requests."
                 ),
                 criteria={
+                    "document_qa": (
+                        "The user asks what controlled/uploaded documents, menus or policies say; "
+                        "asks specific menu/price/policy details for Harbor Pasta Lab, Sakura Table Lab "
+                        "or Spice Garden Lab; or follows up on an approved document answer. "
+                        "Document questions lacking a restaurant still use this route for clarification."
+                    ),
                     "restaurant_search": (
                         "The user wants actual restaurant results, recommendations, or details "
                         "about a specific restaurant, meal, cuisine, or dietary option; OR wants "

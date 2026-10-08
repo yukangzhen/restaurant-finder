@@ -11,6 +11,9 @@ import * as fs from "fs";
 
 export interface AgentCoreStackProps extends BaseStackProps {
   imageUri: string;
+  ragDocumentBucketName: string;
+  ragDocumentBucketArn: string;
+  ragVectorIndexArn: string;
 }
 
 export class AgentCoreStack extends cdk.Stack {
@@ -381,32 +384,35 @@ export class AgentCoreStack extends cdk.Stack {
           ],
           resources: [`arn:aws:bedrock-agentcore:${region}:aws:browser/*`],
         }),
-        // S3 Vector Store operations
+        // Dedicated read-only RAG index. Filtering/metadata also require GetVectors.
         new iam.PolicyStatement({
-          sid: "S3VectorStoreAccess",
+          sid: "DocumentRagVectorRead",
           effect: iam.Effect.ALLOW,
           actions: [
             "s3vectors:QueryVectors",
-            "s3vectors:PutVectors",
             "s3vectors:GetVectors",
-            "s3vectors:DeleteVectors",
+            "s3vectors:GetIndex",
           ],
-          resources: [`arn:aws:s3vectors:${region}:${accountId}:bucket/*`],
+          resources: [props.ragVectorIndexArn],
         }),
-        // S3 bucket access for documents and vectors
+        // Runtime cannot read originals/cache or write the corpus/active pointer.
         new iam.PolicyStatement({
-          sid: "S3BucketAccess",
+          sid: "DocumentRagObjectRead",
           effect: iam.Effect.ALLOW,
           actions: [
             "s3:GetObject",
-            "s3:PutObject",
-            "s3:DeleteObject",
-            "s3:ListBucket",
           ],
           resources: [
-            `arn:aws:s3:::${props.appName.toLowerCase()}-*`,
-            `arn:aws:s3:::${props.appName.toLowerCase()}-*/*`,
+            `${props.ragDocumentBucketArn}/rag/active.json`,
+            `${props.ragDocumentBucketArn}/rag/generations/*/manifest.json`,
+            `${props.ragDocumentBucketArn}/rag/generations/*/chunks/*`,
           ],
+        }),
+        new iam.PolicyStatement({
+          sid: "DocumentRagEmbeddingInvocation",
+          effect: iam.Effect.ALLOW,
+          actions: ["bedrock:InvokeModel"],
+          resources: [`arn:aws:bedrock:${region}::foundation-model/amazon.titan-embed-text-v2:0`],
         }),
       ],
     });
@@ -451,6 +457,15 @@ export class AgentCoreStack extends cdk.Stack {
 
           // Require the generated immutable Bedrock prompt manifest at runtime.
           REQUIRE_PROMPT_MANIFEST: "true",
+          DOCUMENT_RAG_ENABLED: "true",
+          RAG_DOCUMENT_BUCKET: props.ragDocumentBucketName,
+          RAG_VECTOR_INDEX_ARN: props.ragVectorIndexArn,
+          RAG_ACTIVE_MANIFEST_KEY: "rag/active.json",
+          RAG_EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
+          RAG_EMBEDDING_DIMENSIONS: "512",
+          RAG_TOP_K: "5",
+          RAG_MAX_CONTEXT_CHARACTERS: "9000",
+          RAG_REQUEST_TIMEOUT_SECONDS: "60",
 
           // Feature Flags
           ENABLE_BROWSER_TOOLS: "true",

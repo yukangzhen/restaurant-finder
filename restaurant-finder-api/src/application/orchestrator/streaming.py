@@ -47,6 +47,10 @@ async def run_orchestrator_turn(
         "tool_call_count": 0,
         "made_tool_calls": False,
         "response_status": "pending",
+        "rag_status": None,
+        "rag_generation": None,
+        "rag_pending_scope": None,
+        "rag_retrieval_count": 0,
     }
 
     logger.info("Starting one workflow turn (conversation_id={})", identity.conversation_id)

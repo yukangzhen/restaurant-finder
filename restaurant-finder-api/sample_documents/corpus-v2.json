@@ -1,0 +1,76 @@
+{
+  "fictional": true,
+  "restaurants": [
+    {
+      "restaurant_id": "demo-harbor-pasta",
+      "name": "Harbor Pasta Lab (fictional demo)",
+      "aliases": [
+        "Harbor Pasta Lab",
+        "Harbor Pasta",
+        "Harbor"
+      ]
+    },
+    {
+      "restaurant_id": "demo-sakura-table",
+      "name": "Sakura Table Lab (fictional demo)",
+      "aliases": [
+        "Sakura Table Lab",
+        "Sakura Table",
+        "Sakura"
+      ]
+    },
+    {
+      "restaurant_id": "demo-spice-garden",
+      "name": "Spice Garden Lab (fictional demo)",
+      "aliases": [
+        "Spice Garden Lab",
+        "Spice Garden",
+        "Spice"
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "document_id": "harbor-menu",
+      "restaurant_id": "demo-harbor-pasta",
+      "path": "harbor-menu-v2.pdf",
+      "document_type": "menu",
+      "version": "v2"
+    },
+    {
+      "document_id": "harbor-policy",
+      "restaurant_id": "demo-harbor-pasta",
+      "path": "harbor-policy.md",
+      "document_type": "policy",
+      "version": "v1"
+    },
+    {
+      "document_id": "sakura-menu",
+      "restaurant_id": "demo-sakura-table",
+      "path": "sakura-menu.md",
+      "document_type": "menu",
+      "version": "v1"
+    },
+    {
+      "document_id": "sakura-policy",
+      "restaurant_id": "demo-sakura-table",
+      "path": "sakura-policy.md",
+      "document_type": "policy",
+      "version": "v1"
+    },
+    {
+      "document_id": "spice-menu",
+      "restaurant_id": "demo-spice-garden",
+      "path": "spice-menu.md",
+      "document_type": "menu",
+      "version": "v1"
+    },
+    {
+      "document_id": "spice-policy",
+      "restaurant_id": "demo-spice-garden",
+      "path": "spice-policy.md",
+      "document_type": "policy",
+      "version": "v1"
+    }
+  ]
+}

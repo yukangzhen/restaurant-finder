@@ -1,6 +1,6 @@
 # Restaurant Finder - Agentic AI with AWS Bedrock AgentCore
 
-An AI-powered restaurant finder built with **AWS Bedrock AgentCore**, **LangGraph**, and **Chainlit**. This project demonstrates a production-grade multi-agent system that searches for restaurants, researches detailed information, remembers user preferences, and applies content guardrails — all deployed as a containerized runtime on AWS.
+An AI engineering portfolio demo built with **AWS Bedrock AgentCore**, **LangGraph**, and **Chainlit**. It searches for restaurants, remembers dining preferences, and answers questions from controlled documents with verified quotations. It demonstrates deployment, retrieval, tracing and safety patterns; it is not operated as a production service.
 
 ## Architecture
 
@@ -12,6 +12,7 @@ An AI-powered restaurant finder built with **AWS Bedrock AgentCore**, **LangGrap
 | **Runtime**              | Bedrock AgentCore          | Containerized Python app with auto-scaling               |
 | **Tool Routing**         | MCP Gateway + Lambda       | Restaurant search via SearchAPI                          |
 | **Memory**               | AgentCore Memory           | User preferences, semantic facts, conversation summaries |
+| **Document RAG**         | Titan V2 + S3 Vectors + S3  | Versioned fictional menus/policies, scoped retrieval and exact-quote citations |
 | **Prompt versions**      | Bedrock Prompt Management  | Explicitly synchronized, immutable prompt versions      |
 | **Guardrails**           | Bedrock Guardrails         | Content filtering, PII protection, topic control         |
 | **Observability**        | OpenTelemetry + CloudWatch | Distributed tracing, GenAI Observability dashboard       |

@@ -76,6 +76,20 @@ class UIStreamResponseTests(unittest.TestCase):
 
         self.assertEqual(message.content, "Error: Runtime failed.")
 
+    def test_document_citations_survive_direct_and_nested_complete_chunks(self):
+        text = 'According to the fictional demo documents:\n\n> "Mushroom pasta - RM28."\n\nSource: harbor-menu; page 1; version v1'
+        event = "data: " + json.dumps({"chunk":text})
+        for line in [event, "data: "+json.dumps(event)]:
+            with self.subTest(line=line):
+                message = self.invoke([line, 'data: {"done":true}'])
+                self.assertEqual(message.content,text)
+                self.assertEqual(message.streamed,[text])
+
+    def test_document_disabled_and_unavailable_responses_are_readable(self):
+        for text in ["Document answering is currently disabled.", "Document retrieval is temporarily unavailable. Please try again later."]:
+            message = self.invoke(["data: "+json.dumps({"chunk":text}), 'data: {"done":true}'])
+            self.assertEqual(message.content,text)
+
     def test_malformed_line_is_ignored_and_empty_stream_stays_explicit(self):
         message = self.invoke(["data: {malformed", 'data: {"done": true}'])
 

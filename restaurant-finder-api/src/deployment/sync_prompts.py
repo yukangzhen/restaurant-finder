@@ -57,6 +57,8 @@ def main() -> int:
     from src.infrastructure.prompt_manager import PromptManager
     from src.infrastructure.prompt_metadata import default_manifest_path
     from src.domain.prompts import (
+        RAG_QUERY_PROMPT,
+        RAG_ANSWER_PROMPT,
         RESEARCH_EXTRACTION_PROMPT,
         RESTAURANT_EXPLORER_PROMPT,
         RESTAURANT_EXTRACTION_PROMPT,
@@ -71,6 +73,8 @@ def main() -> int:
     manager = PromptManager(bedrock_client=session.client("bedrock-agent"))
 
     prompts = (
+        RAG_QUERY_PROMPT,
+        RAG_ANSWER_PROMPT,
         SEARCH_AGENT_PROMPT,
         RESTAURANT_EXPLORER_PROMPT,
         ROUTER_PROMPT,

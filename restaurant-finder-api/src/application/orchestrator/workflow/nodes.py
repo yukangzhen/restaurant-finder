@@ -19,7 +19,8 @@ from src.config import settings
 from src.infrastructure.model import extract_text_content as _extract_text_content
 from src.infrastructure.memory import get_memory_instance
 from src.infrastructure.observability import get_observability_manager
-from src.infrastructure.jev_router import classify_with_jev
+from src.infrastructure.jev_router import classify_with_jev, bedrock_routing_messages
+from src.application.document_rag.retrieval import router_catalog
 from src.infrastructure.guardrails import (
     apply_output_guardrail,
     get_blocked_output_message,
@@ -200,9 +201,16 @@ async def output_guardrail_node(
 
     replacement = AIMessage(
         content=approved_text,
+        additional_kwargs=(final_message.additional_kwargs if final_message else {}),
         id=(final_message.id if final_message and final_message.id else str(uuid.uuid4())),
     )
-    return {"messages": replacement, "response_status": response_status}
+    update = {"messages": replacement, "response_status": response_status}
+    if response_status == "approved":
+        update["last_approved_intent"] = state.get("intent")
+    # Only an approved document turn advances scope. All per-turn fields reset upstream.
+    if response_status == "approved" and state.get("rag_pending_scope"):
+        update["rag_approved_scope"] = state["rag_pending_scope"]
+    return update
 
 
 async def router_node(
@@ -243,7 +251,7 @@ async def router_node(
                 "router.jev",
                 attributes={"router.model": model},
             ):
-                classification = await classify_with_jev(messages)
+                classification = await classify_with_jev(messages, approved_document_scope=(state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None))
             intent = cast(IntentType, classification.intent)
             confidence = classification.confidence
         except Exception as error:
@@ -263,12 +271,14 @@ async def router_node(
                 },
             ):
                 response = await get_router_chain().ainvoke(
-                    {"messages": messages},
+                    {"messages": bedrock_routing_messages(messages), "router_context": str({"fictional_catalog": router_catalog(), "approved_document_scope": (state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None)})},
                     config,
                 )
 
             response_text = _extract_text_content(response.content).strip().lower()
-            if "restaurant_search" in response_text:
+            if response_text == "document_qa":
+                intent = "document_qa"
+            elif "restaurant_search" in response_text:
                 intent = "restaurant_search"
             elif "simple" in response_text:
                 intent = "simple"

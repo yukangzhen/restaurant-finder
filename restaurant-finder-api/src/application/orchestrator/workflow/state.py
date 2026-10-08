@@ -5,7 +5,7 @@ from langchain_core.messages import BaseMessage
 
 
 # Intent types for routing decisions
-IntentType = Literal["restaurant_search", "simple", "off_topic"]
+IntentType = Literal["restaurant_search", "document_qa", "simple", "off_topic"]
 
 
 class OrchestratorState(TypedDict):
@@ -39,3 +39,9 @@ class OrchestratorState(TypedDict):
 
     # Final response state set only after the output guardrail approves/blocks.
     response_status: Literal["pending", "approved", "blocked"]
+    rag_status: str | None
+    rag_generation: str | None
+    rag_pending_scope: str | None
+    rag_approved_scope: str | None
+    rag_retrieval_count: int
+    last_approved_intent: IntentType | None

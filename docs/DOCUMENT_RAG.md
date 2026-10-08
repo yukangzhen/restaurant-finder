@@ -1,0 +1,100 @@
+# Document RAG engineering guide
+
+## What this adds
+
+The upstream agent used web/browser tools and conversational memory. This fork adds a separate, controlled document retrieval path. Jev classifies `document_qa` alongside the three existing intents; Haiku remains the routing fallback. Menus and policies live in S3, their Titan V2 embeddings in S3 Vectors. Conversation memory remains separate from the document corpus.
+
+The sample venues are fictional: Harbor Pasta Lab, Sakura Table Lab, and Spice Garden Lab. Six English documents include a text-based PDF. They are engineering fixtures, not real restaurant recommendations.
+
+## Ingestion
+
+```mermaid
+flowchart LR
+  Catalog[Corpus catalog and source bytes] --> Parse[Bounded PDF/Markdown extraction]
+  Parse --> Chunk[Whole records with stable hashes]
+  Chunk --> Plan[Offline generation plan]
+  Plan --> Cache[Compatible embedding cache]
+  Cache --> Titan[Titan V2: 512 normalized floats]
+  Titan --> Stage[Stage complete S3 generation and vectors]
+  Stage --> Verify[Verify chunks, vectors and filtered query readiness]
+  Verify --> Pointer[Conditional active pointer publication]
+```
+
+Run from `restaurant-finder-api` after `uv sync --extra local-aws`:
+
+```powershell
+uv run python -m src.deployment.ingest_documents --dry-run --corpus sample_documents/corpus.json
+uv run python -m src.deployment.ingest_documents --publish --corpus sample_documents/corpus.json --profile default --region us-east-2 --bucket <DocumentBucketName> --index-arn <VectorIndexArn> --max-embedding-attempts 48 --report .generated/rag/initial.json
+```
+
+Dry-run constructs no AWS client. Publish is explicit and verifies identity/account/region. A repeated complete active generation creates zero embeddings and writes zero vectors. Cache compatibility covers canonical text, model, dimensions and normalization. Source/version/config changes create a new generation; unchanged text can reuse cached embeddings.
+
+Each document is limited to 5 MiB, 10 PDF pages, and 100,000 extracted characters. A generation has at most six documents and 48 chunks. Records cannot exceed 1,800 characters; overlap retains a complete preceding record of at most 200 characters within the same page or section. Empty/image-only PDFs, unsupported inputs, unsafe paths and oversize records fail explicitly. OCR and complex table reconstruction are outside v1.
+
+All source/chunk/manifest/cache writes are conditional and preserve existing content. The versioned active pointer is published last with the observed ETag (`IfMatch`), or `IfNoneMatch` for first publication. A conflict leaves the staged generation inactive. This provides safe publication across services, not an atomic cross-service transaction. Retained generations support in-flight requests and rollback; nothing is automatically deleted.
+
+Use `sample_documents/corpus-v2.json` for the controlled RM28-to-RM32 Harbor price update. Verify the first price before publishing v2. This fixture changes the complete generation while reusing unchanged text embeddings.
+
+## Question answering
+
+```mermaid
+flowchart TD
+  User[Current user question] --> Router[Jev or Haiku routing fallback]
+  Router --> Scope[document_qa: pin active generation and resolve one restaurant]
+  Scope --> Clarify[Ask clarification if scope is missing/ambiguous]
+  Scope --> Rewrite[Optional single follow-up rewrite]
+  Rewrite --> Embed[One Titan query embedding]
+  Embed --> Retrieve[Query filtered by generation, restaurant and optional document type]
+  Retrieve --> Validate[Verify chunk ID, metadata, text hash and source location]
+  Validate --> Select[Haiku selects at most three exact quotes]
+  Select --> Render[Validate selections and render trusted citations]
+  Clarify --> Moderate[Existing output guardrail]
+  Render --> Moderate
+  Moderate --> Memory[Save approved complete answer]
+  Memory --> UI[One complete SSE chunk shown in Chainlit]
+```
+
+Examples:
+
+- “According to Harbor Pasta Lab's menu, how much is mushroom pasta?” -> supporting RM28/RM32 quote with page 1, document ID and version.
+- “What does Sakura Table Lab's menu say mushroom pasta costs?” -> RM36 from Sakura, regardless of Harbor's similar dish name.
+- “And what about its cancellation fee?” -> previous approved document scope, one query rewrite, policy retrieval.
+- “According to Harbor's documents, does it offer valet parking?” -> insufficient evidence. Missing policy is not a negative parking claim.
+- “What does the uploaded menu say mushroom pasta costs?” -> restaurant clarification, no embedding/vector query.
+
+Only server code creates filters and resolves manifest keys. The model selects supplied IDs and exact contiguous quotes; it cannot supply source URLs, restaurant filters or S3 paths. At most five complete passages / 9,000 characters reach the answer selector. Distances are retrieval ordering, not calibrated confidence. Invalid citations, changed quotes, malformed structured answers and instruction-like selections produce a safe failure. No automatic model/graph replay occurs.
+
+Extractive answers intentionally sacrifice conversational paraphrasing for inspectable evidence. Exact matching validates quotation provenance, not universal factual correctness or semantic relevance. Source quality and the answer selector still matter. Retrieved text is treated as untrusted data; the document model has no executable browser, memory or ingestion tools. The normal guardrail can anonymize or block the final cited answer before UI delivery and memory storage.
+
+## Configuration and infrastructure
+
+`DOCUMENT_RAG_ENABLED=false` locally avoids RAG client initialization. For enabled mode set `RAG_DOCUMENT_BUCKET` and `RAG_VECTOR_INDEX_ARN` from `restaurantFinder-RagStack`. Titan V2, 512 dimensions, cosine index distance and normalized float vectors are fixed in v1. Model/dimension changes require a new reviewed index/generation.
+
+The new stack creates a private, versioned, TLS-only ordinary S3 bucket and an S3 vector bucket/index. All are retained on deletion/replacement and use S3-managed encryption. AgentCore depends on this stack and receives exact read permissions for the active pointer, generation manifests/chunks and vector index, plus Titan invocation. Runtime cannot publish/delete corpus data or read embedding caches/original PDFs. Existing unrelated permissions remain unchanged.
+
+The owner's ingestion identity needs `s3:GetObject` and `s3:PutObject` on `rag/*` in the new bucket; `s3vectors:GetIndex`, `GetVectors`, `PutVectors`, `QueryVectors` on the new index; `bedrock:InvokeModel` on `arn:aws:bedrock:us-east-2::foundation-model/amazon.titan-embed-text-v2:0`; and `sts:GetCallerIdentity`. No automatic broad grants or new credentials are created.
+
+Initial rollout: review and deploy RagStack, synchronize/validate all eight prompts, publish a unique ARM64 image, then review and execute the AgentCore-only change set. Supply a specific image URI to CDK. Preserve the existing ECR stack and Lambda/Gateway/Memory/guardrails/tracing configuration. Feature-branch pushes do not trigger the workflows restricted to `main`.
+
+## Rollback and diagnosis
+
+Corpus rollback is explicit and read-validates the retained manifest, chunks, vector set and query readiness before conditional pointer publication:
+
+```powershell
+uv run python -m src.deployment.ingest_documents --publish --rollback-generation <previous-generation-hash> --profile default --region us-east-2 --bucket <DocumentBucketName> --index-arn <VectorIndexArn> --report .generated/rag/rollback.json
+```
+
+Runtime rollback uses the recorded prior image/environment through a reviewed AgentCore change set with RAG disabled. Retain the RAG stack and its data. Rollback does not reverse charges or remove prompt versions.
+
+Safe RAG spans cover scope, embeddings, retrieval, answer selection and validation. They record generation, restaurant IDs, counts/token usage and safe error types; raw queries, passages, embeddings and provider exception payloads are excluded. Enabled but unconfigured/unpublished retrieval returns unavailable. Failure never silently falls back to web search or dining memory.
+
+Offline checks (use an absent manifest path until deployment prompt synchronization):
+
+```powershell
+$env:PROMPT_SYNC_MODE='false'
+$env:PROMPT_MANIFEST_PATH=(Join-Path (Get-Location) '.generated/offline-no-manifest.json')
+$env:REQUIRE_PROMPT_MANIFEST='false'
+.venv/Scripts/python.exe -m unittest discover -s tests -q
+```
+
+Run UI tests from `restaurant-finder-ui`; run `npm run build`, `npm test -- --runInBand`, and CDK synth from `restaurant-finder-infra`. Deployment/live evidence and unmet acceptance criteria are recorded in `HANDOFF_PRD_DOCUMENT_RAG.md`.

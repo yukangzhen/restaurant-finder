@@ -42,6 +42,17 @@ class Settings(BaseSettings):
         description="Maximum time allowed for a Jev routing request before Bedrock fallback.",
     )
 
+    # --- Controlled document RAG (runtime reads only) ---
+    DOCUMENT_RAG_ENABLED: bool = False
+    RAG_DOCUMENT_BUCKET: str = ""
+    RAG_VECTOR_INDEX_ARN: str = ""
+    RAG_ACTIVE_MANIFEST_KEY: str = "rag/active.json"
+    RAG_EMBEDDING_MODEL_ID: str = "amazon.titan-embed-text-v2:0"
+    RAG_EMBEDDING_DIMENSIONS: int = 512
+    RAG_TOP_K: int = Field(default=5, ge=1, le=10)
+    RAG_MAX_CONTEXT_CHARACTERS: int = Field(default=9000, ge=1800, le=9000)
+    RAG_REQUEST_TIMEOUT_SECONDS: float = Field(default=60, gt=0, le=60)
+
     # --- Browser Tools Configuration ---
     ENABLE_BROWSER_TOOLS: bool = Field(
         default=True,

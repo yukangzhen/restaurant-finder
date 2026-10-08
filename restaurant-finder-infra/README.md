@@ -84,3 +84,8 @@ The two easiest ways to invoke your runtime after deploying:
    ```
    {"prompt": "what can you do?"}
    ```
+# Document RAG infrastructure
+
+`restaurantFinder-RagStack` creates a retained private/versioned S3 corpus bucket, retained S3 vector bucket, and retained float32/512/cosine index. Outputs supply document bucket name, vector bucket/index ARNs and active pointer key. AgentCore declares a dependency and receives exact read IAM plus Titan V2 invocation; ingestion remains an explicit owner CLI operation.
+
+For the initial manual rollout, review/deploy the RAG stack first, then review/deploy AgentCore with a unique validated ARM64 image. Do not redeploy ECR or change existing Lambda/Gateway/Memory/guardrails/tracing. See [the RAG guide](../docs/DOCUMENT_RAG.md) and [approved handoff](../docs/HANDOFF_PRD_DOCUMENT_RAG.md) for bounds and rollback.

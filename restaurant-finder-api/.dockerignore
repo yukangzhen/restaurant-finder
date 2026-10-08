@@ -23,3 +23,9 @@ dist/
 *.egg-info/
 logs/
 *.log
+sample_documents/
+tests/
+tmp/
+.generated/uv-cache/
+.generated/uv-python/
+.generated/rag/

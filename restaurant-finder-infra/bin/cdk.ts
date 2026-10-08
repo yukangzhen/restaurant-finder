@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
 import { BaseStackProps } from "../lib/types";
-import { EcrStack, AgentCoreStack } from "../lib/stacks";
+import { EcrStack, AgentCoreStack, RagStack } from "../lib/stacks";
 
 const app = new cdk.App();
 
@@ -37,13 +37,18 @@ if (existingImageUri) {
   console.log(`Using default ECR image URI: ${imageUri}`);
 }
 
+const ragStack = new RagStack(app, "restaurantFinder-RagStack", deploymentProps);
 const agentCoreStack = new AgentCoreStack(
   app,
   `restaurantFinder-AgentCoreStack`,
   {
     ...deploymentProps,
     imageUri: imageUri,
+    ragDocumentBucketName: ragStack.documentBucket.bucketName,
+    ragDocumentBucketArn: ragStack.documentBucket.bucketArn,
+    ragVectorIndexArn: ragStack.vectorIndex.attrIndexArn,
   },
 );
 
 agentCoreStack.addDependency(ecrStack);
+agentCoreStack.addDependency(ragStack);

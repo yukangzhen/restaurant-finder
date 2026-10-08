@@ -163,11 +163,12 @@ def get_router_chain() -> Runnable:
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system_message),
+            ("system", "Trusted routing context: {router_context}"),
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
 
-    return prompt | model
+    return prompt.partial(router_context="No previously approved document scope.") | model
 
 
 def get_simple_response_chain(customer_name: str = "Guest") -> Runnable:
