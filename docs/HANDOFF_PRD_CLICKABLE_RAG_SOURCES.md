@@ -1,6 +1,6 @@
 # PRD: Clickable document citations
 
-**Status:** Approved by the owner's explicit `proceed`; implementation and verification complete, feature-branch publication pending.
+**Status:** Complete. Approved by the owner's explicit `proceed`; implementation, verification, deployment and feature-branch publication completed.
 **Prepared:** 2026-10-08.
 **Project:** Restaurant Finder portfolio demo, `origin/feat/jev-router`.
 
@@ -279,7 +279,7 @@ An offline regression checks distinct names across answers. The fourth and last 
 8. Ran the final API and UI offline suites: **105 API tests passed** and **26 UI tests passed**. Logs from deliberately failing fixtures are expected. Validated the existing eight deployment prompt versions without creating new versions.
 9. Published one ARM64 API image, reviewed and executed the existing stack's Runtime-only change set, and configured/restarted only the local port-8010 demo. Kept the unrelated port-8000 process running.
 10. Used **four of four authorized Runtime calls**. The final combined answer and both explicit source clicks passed; both original downloads matched their pinned hashes. No Runtime calls remain in this allowance.
-11. Updated documentation/config examples and reviewed the tracked diff. Final feature-branch publication is recorded below after Git verification.
+11. Updated documentation/config examples, reviewed the tracked diff and pushed the implementation to the existing feature branch. Git's remote lookup confirmed the implementation commit recorded below; the worktree was clean after that push.
 
 ### Final offline commands
 
@@ -341,10 +341,10 @@ Private AWS snapshots, downloaded originals, browser session URLs and generated 
 | C7 | Passed offline: source failures/timeouts preserve approved text and never replay the agent; duplicate failures are not retried. |
 | C8 | Passed offline: direct/nested SSE and responses without citation metadata retain compatible text behavior. |
 | C9 | Passed by inspected change set, private-bucket read checks and local session serving; no new grants or public URLs. |
-| C10 | Tests, browser evidence and deployment passed; feature-branch publication pending the final push verification. |
+| C10 | Passed: offline tests, normal browser inspection, deployment evidence and remote implementation commit verified. |
 
 Verification limits: live inspection covered the current fictional one-page menu and Markdown policy. Other PDFs/page locations and failure/moderation paths were exercised with offline fixtures, not additional live calls. This is session-scoped source inspection on a local anonymous demo; permanent historical links and public/private multi-user authorization remain outside scope.
 
 ### Git publication
 
-The implementation commit is `00a846a44d5ecac3ffc458d0331470fc9d16393d`. Final UI fixes and this execution record will be committed and pushed to the existing `origin/feat/jev-router`; record the verified remote implementation commit after publication. No PR, main merge or workflow dispatch is part of this task.
+The API implementation commit is `00a846a44d5ecac3ffc458d0331470fc9d16393d`. Final UI fixes and the execution record are in `5f70cf394474e5102935c1923eda9c525eb56871`, pushed to `origin/feat/jev-router`. A read-only `git ls-remote origin refs/heads/feat/jev-router` confirmed that exact commit against the local HEAD. This completion update is a subsequent documentation-only commit. No PR, main merge or workflow dispatch was performed.
