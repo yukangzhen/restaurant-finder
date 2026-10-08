@@ -195,12 +195,52 @@ class RagAnswerDraft(Contract):
         return self
 
 
+class DocumentCitation(Contract):
+    """A server-built reference to one immutable original, never a model URL."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+    label: Literal["Source 1", "Source 2", "Source 3"]
+    generation_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    document_id: str = Field(pattern=r"^[a-z0-9-]{1,128}$")
+    chunk_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    source_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    format: Literal["pdf", "md"]
+    filename: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.(?:pdf|md)$")
+    version: str = Field(min_length=1, max_length=64)
+    page: int | None = Field(default=None, ge=1, le=10)
+    section: str | None = Field(default=None, min_length=1, max_length=300)
+    line_start: int | None = Field(default=None, ge=1, le=100000)
+    line_end: int | None = Field(default=None, ge=1, le=100000)
+
+    @model_validator(mode="after")
+    def location_and_format(self):
+        if not self.filename.endswith("." + self.format) or ".." in self.filename:
+            raise ValueError("Invalid original filename")
+        if any(not c.isprintable() for c in self.version + (self.section or "")):
+            raise ValueError("Invalid citation display text")
+        if self.format == "pdf":
+            if self.page is None or any(v is not None for v in (self.section, self.line_start, self.line_end)):
+                raise ValueError("PDF citations require only a page location")
+        elif self.page is not None or not self.section or self.line_start is None or self.line_end is None or self.line_end < self.line_start:
+            raise ValueError("Markdown citations require a section and ordered lines")
+        return self
+
+
 class RagOutcome(Contract):
     status: Literal["answered", "clarify", "insufficient_evidence", "disabled", "unavailable", "invalid_answer"]
     text: str
     generation_id: str | None = None
     restaurant_id: str | None = None
     retrieval_count: int = 0
+    citations: list[DocumentCitation] = Field(default_factory=list, max_length=3)
+
+    @model_validator(mode="after")
+    def citation_status(self):
+        if self.citations and self.status != "answered":
+            raise ValueError("Only an answered outcome can have citations")
+        if any(c.generation_id != self.generation_id for c in self.citations):
+            raise ValueError("Citation generation differs from the answer")
+        return self
 
 
 class QueryRewrite(Contract):

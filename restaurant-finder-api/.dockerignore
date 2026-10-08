@@ -29,3 +29,4 @@ tmp/
 .generated/uv-cache/
 .generated/uv-python/
 .generated/rag/
+.generated/citations/

@@ -44,4 +44,6 @@ class OrchestratorState(TypedDict):
     rag_pending_scope: str | None
     rag_approved_scope: str | None
     rag_retrieval_count: int
+    rag_pending_citations: list[dict]
+    rag_approved_citations: list[dict]
     last_approved_intent: IntentType | None

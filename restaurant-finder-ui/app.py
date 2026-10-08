@@ -5,6 +5,7 @@ import os
 import aiohttp
 import chainlit as cl
 from chainlit.input_widget import TextInput
+from source_documents import prepare_source_elements
 
 
 # --- Connection mode configuration ---
@@ -18,6 +19,8 @@ AGENTCORE_API_URL = os.environ.get("AGENTCORE_API_URL", "http://localhost:8080/i
 # AWS mode settings
 AGENT_RUNTIME_ARN = os.environ.get("AGENT_RUNTIME_ARN", "")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-2")
+RAG_DOCUMENT_BUCKET = os.environ.get("RAG_DOCUMENT_BUCKET", "").strip()
+DOCUMENT_SOURCE_VIEWER_ENABLED = os.environ.get("DOCUMENT_SOURCE_VIEWER_ENABLED", "true").lower() == "true"
 # Optional single-user identity for local development. In production, actor IDs
 # must come from authenticated server-side identity, not a client-controlled value.
 MEMORY_ACTOR_ID = os.environ.get("MEMORY_ACTOR_ID", "").strip()
@@ -194,6 +197,10 @@ async def _invoke_agent(
 
     full_response = ""
     streamed_content = False
+    citation_metadata = None
+    citation_answer = None
+    completed = False
+    msg.elements = []
 
     try:
         if AGENT_CONNECTION_MODE == "aws":
@@ -231,16 +238,31 @@ async def _invoke_agent(
                             streamed_content = True
                         await msg.stream_token(chunk)
                         full_response += chunk
+                        # References belong to one complete approved envelope only.
+                        if "citations" in data and full_response == chunk:
+                            citation_metadata = data["citations"]
+                            citation_answer = chunk
+                        elif citation_metadata is not None:
+                            citation_answer = None
 
                     elif "error" in data:
                         msg.content = f"Error: {data['error']}"
                         await msg.update()
                         return
+                    elif data.get("done") is True:
+                        completed = True
 
             except json.JSONDecodeError:
                 continue
 
         msg.content = full_response if full_response else "No response received."
+        if (DOCUMENT_SOURCE_VIEWER_ENABLED and completed and citation_metadata
+                and citation_answer == full_response):
+            msg.elements, notice = await prepare_source_elements(
+                citation_metadata, full_response, RAG_DOCUMENT_BUCKET, AWS_REGION,
+            )
+            if notice:
+                msg.content += "\n\n" + notice
         await msg.update()
 
     except aiohttp.ClientResponseError as e:

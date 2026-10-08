@@ -2507,6 +2507,7 @@ dependencies = [
     { name = "aiohttp" },
     { name = "boto3" },
     { name = "chainlit" },
+    { name = "pydantic" },
 ]
 
 [package.optional-dependencies]
@@ -2520,6 +2521,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.42.0" },
     { name = "botocore", extras = ["crt"], marker = "extra == 'local-aws'", specifier = ">=1.42.37" },
     { name = "chainlit", specifier = ">=1.0.0" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
 ]
 provides-extras = ["local-aws"]
 

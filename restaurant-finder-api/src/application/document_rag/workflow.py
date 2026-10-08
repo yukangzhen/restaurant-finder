@@ -5,13 +5,14 @@ import html
 import json
 import re
 import time
+from pathlib import PurePosixPath
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from loguru import logger
 
 from src.config import settings
-from src.domain.document_rag import QueryRewrite, RagAnswerDraft, RagOutcome, canonical_text
+from src.domain.document_rag import DocumentCitation, QueryRewrite, RagAnswerDraft, RagOutcome, canonical_text
 from src.domain.prompts import RAG_ANSWER_PROMPT, RAG_QUERY_PROMPT
 from src.application.document_rag.retrieval import DocumentRetriever, is_followup, resolve_query
 from src.infrastructure.document_store import DocumentStore
@@ -38,7 +39,7 @@ def render_answer(draft: RagAnswerDraft, evidence: list) -> str:
         return "The active documents do not contain enough evidence to answer that question."
     by_id = {e.chunk_id: e for e in evidence}
     lines = ["According to the fictional demo documents:"]
-    for selection in draft.selections:
+    for index, selection in enumerate(draft.selections, 1):
         source = by_id.get(selection.chunk_id)
         quote = canonical_text(selection.quote)
         if source is None or not quote or quote not in source.text:
@@ -48,8 +49,39 @@ def render_answer(draft: RagAnswerDraft, evidence: list) -> str:
             raise ValueError("Instruction-like quote is not valid answer evidence")
         location = f"page {source.page}" if source.page else f"section {source.section}, lines {source.line_start}-{source.line_end}"
         citation = f"{source.restaurant_name}; {source.document_id}; {location}; version {source.version}; generation {source.generation_id[:12]}"
-        lines.extend(["", f'> "{safe_markdown(quote)}"', "", f"Source: {safe_markdown(citation)}"])
+        lines.extend(["", f'> "{safe_markdown(quote)}"', "", f"Source: Source {index} — {safe_markdown(citation)}"])
     return "\n".join(lines)
+
+
+def render_document_answer(draft, evidence, manifest):
+    """Resolve originals from the same pinned, verified provenance as the quotes."""
+    text = render_answer(draft, evidence)
+    by_id = {e.chunk_id: e for e in evidence}
+    chunks = {c.chunk_id: c for c in manifest.chunks}
+    sources = {s.document_id: s for s in manifest.sources}
+    citations = []
+    for index, selection in enumerate(draft.selections, 1):
+        item = by_id[selection.chunk_id]
+        chunk = chunks.get(item.chunk_id)
+        source = sources.get(item.document_id)
+        if chunk is None or source is None or item.generation_id != manifest.generation_id:
+            raise ValueError("Unknown citation provenance")
+        for name in ("document_id", "restaurant_id", "version", "source_hash", "text", "page", "section", "line_start", "line_end"):
+            if getattr(item, name) != getattr(chunk, name):
+                raise ValueError("Citation differs from the pinned chunk")
+        if (item.document_id, item.restaurant_id, item.version, item.source_hash) != (source.document_id, source.restaurant_id, source.version, source.source_hash):
+            raise ValueError("Citation differs from the original source")
+        filename = PurePosixPath(source.path).name
+        source_format = PurePosixPath(filename).suffix.removeprefix(".").lower()
+        if source.key != f"rag/generations/{manifest.generation_id}/sources/{source.document_id}.{source_format}":
+            raise ValueError("Invalid original source key")
+        citations.append(DocumentCitation(
+            label=f"Source {index}", generation_id=manifest.generation_id,
+            document_id=item.document_id, chunk_id=item.chunk_id, source_hash=item.source_hash,
+            format=source_format, filename=filename, version=item.version, page=item.page,
+            section=item.section, line_start=item.line_start, line_end=item.line_end,
+        ))
+    return text, citations
 
 
 def make_retriever():
@@ -98,7 +130,7 @@ async def answer_document_question(state, config, retriever=None, query_chain=No
                 {"chunk_id": e.chunk_id, "text": e.text} for e in evidence]}, ensure_ascii=False)}, config)
             draft = RagAnswerDraft.model_validate(draft)
             with rag_span("rag.validate", attributes={"rag.quote_count": len(draft.selections)}):
-                text = render_answer(draft, evidence)
+                text, citations = render_document_answer(draft, evidence, manifest)
         except asyncio.CancelledError:
             raise
         except Exception as error:
@@ -107,7 +139,7 @@ async def answer_document_question(state, config, retriever=None, query_chain=No
             return RagOutcome(status="invalid_answer", text="I couldn't validate a document answer. Please rephrase your question.",
                               generation_id=manifest.generation_id, restaurant_id=query.restaurant_id, retrieval_count=1)
     return RagOutcome(status=draft.status, text=text, generation_id=manifest.generation_id,
-                      restaurant_id=query.restaurant_id, retrieval_count=1)
+                      restaurant_id=query.restaurant_id, retrieval_count=1, citations=citations)
 
 
 async def document_qa_node(state, config):
@@ -126,4 +158,5 @@ async def document_qa_node(state, config):
         metadata={"rag.status": outcome.status, "rag.generation": outcome.generation_id or "none", "rag.retrieval_count": outcome.retrieval_count})
     return {"messages": AIMessage(content=outcome.text, additional_kwargs={"document_rag_response":True}), "rag_status": outcome.status, "rag_generation": outcome.generation_id,
             "rag_pending_scope": outcome.restaurant_id if outcome.status in {"answered", "insufficient_evidence"} else None,
-            "rag_retrieval_count": outcome.retrieval_count}
+            "rag_retrieval_count": outcome.retrieval_count,
+            "rag_pending_citations": [c.model_dump() for c in outcome.citations]}

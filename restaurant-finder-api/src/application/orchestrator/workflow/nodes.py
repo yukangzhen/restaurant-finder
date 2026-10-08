@@ -204,7 +204,15 @@ async def output_guardrail_node(
         additional_kwargs=(final_message.additional_kwargs if final_message else {}),
         id=(final_message.id if final_message and final_message.id else str(uuid.uuid4())),
     )
-    update = {"messages": replacement, "response_status": response_status}
+    update = {"messages": replacement, "response_status": response_status,
+              "rag_pending_citations": [], "rag_approved_citations": []}
+    if (response_status == "approved" and approved_text == raw_text
+            and state.get("intent") == "document_qa" and state.get("rag_status") == "answered"):
+        from src.domain.document_rag import DocumentCitation
+        pending = state.get("rag_pending_citations", [])
+        if len(pending) > 3:
+            raise ValueError("Too many pending citations")
+        update["rag_approved_citations"] = [DocumentCitation.model_validate(c).model_dump() for c in pending]
     if response_status == "approved":
         update["last_approved_intent"] = state.get("intent")
     # Only an approved document turn advances scope. All per-turn fields reset upstream.

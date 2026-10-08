@@ -73,7 +73,10 @@ async def stream_response(
             elif turn.text:
                 # A single complete chunk preserves the SSE contract while
                 # ensuring no unchecked token reaches the client.
-                yield _event({"chunk": turn.text})
+                payload = {"chunk": turn.text}
+                if turn.citations:
+                    payload["citations"] = [c.model_dump() for c in turn.citations]
+                yield _event(payload)
 
             observability.add_span_event(
                 "request.complete",
