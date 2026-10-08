@@ -1,6 +1,6 @@
 # Handoff PRD: Restaurant names must not change document-question intent
 
-**Status:** Owner approved with explicit `proceed`; implementation and verification in progress.
+**Status:** Complete for the approved local/code scope. Implementation, local checks, published feature commit, GitHub CI and artifact inspection passed on 2026-10-08. AWS Runtime rollout/live validation remain separate work.
 **Prepared:** 2026-10-08 (Asia/Kuala_Lumpur).
 **Baseline:** `feat/jev-router`, `d4c8784ef5e269670ae289692342c1511e865283`; clean worktree before creating this PRD.
 
@@ -126,11 +126,11 @@ Use existing dependencies and `unittest`. Keep implementation small; no new clas
 
 ## 9. Open questions and next phase
 
-No material design question remains for this small local fix. Owner PRD sign-off is the implementation gate required by `AGENTS.md`.
+Owner PRD sign-off was received and no material design question remains for this local fix.
 
 After completion, prepare a separately reviewable Runtime rollout and bounded live functional-validation plan, including intended requests and cost boundary, before consuming model/embedding calls or changing the deployed application. Merging into `main` is also a separate action because existing deployment workflows can trigger there.
 
-## 10. Execution evidence in progress
+## 10. Verified execution evidence — 2026-10-08
 
 The owner approved with explicit `proceed` on 2026-10-08. The new standalone `QueryScopeTests` class contains eight test methods so the existing retrieval/answer inheritance does not duplicate new cases. Before the resolver change, the focused run returned exit 1: eight tests with 23 failed assertions/subtests, reproducing name-induced type errors and unfiltered workflow evidence.
 
@@ -140,4 +140,30 @@ The workflow fixture's ingestion preparation performs six readiness queries; per
 
 After implementation, `uv run --no-sync python -m unittest discover -s tests -q` passed **135 tests** locally. The approved offline CLI returned exit **0** with **17/17 cases**, **374 measured checks**, zero failed/missing/unmeasured checks, and JSON/Markdown reports. The new evaluator regressions reject the obsolete full-name unrestricted filter, single-type mixed filters and a missing second mixed citation. Cloud-client/import guards and existing aggregate/pipeline failure checks passed in the same suite.
 
-GitHub run evidence, remote matching and final S1-S9 acceptance status will be recorded after publication and artifact inspection.
+The focused command `uv run --no-sync python -m unittest discover -s tests -p test_document_rag_retrieval.py -k QueryScopeTests -q` subsequently passed **all eight tests** with exit **0**. No test was skipped. Local checks used the sanitized environment in step 6 and the existing locked environment; no dependency/source-document changes were required.
+
+### Publication and actual CI evidence
+
+- Implementation SHA: **`ae354b09055d9a911a0567d99cf2f821ea42686d`**, message `fix: exclude restaurant names from document intent inference`, pushed to `origin/feat/jev-router`.
+- Accepted run: [Offline quality checks — 37760052664](https://github.com/yukangzhen/restaurant-finder/actions/runs/37760052664), automatically triggered by `push` for that exact SHA. **API and document RAG**, **UI**, **Infrastructure**, and **Quality checks** all completed with `success`.
+- Downloaded all three bounded artifacts: `offline-rag-and-api`, `offline-ui`, `offline-infrastructure`. Inspected actual terminal results: **135 API tests, OK**; **26 UI tests, OK**; **3 infrastructure tests passed**. TypeScript compilation and no-lookup dummy-context CDK synthesis steps also succeeded.
+- The CI RAG JSON is identical to the local JSON: **17/17**, **374 measured checks**, zero failed/missing/unmeasured checks. Its case records independently report passing expected-type checks for full-name policy, short-alias policy and mixed-document questions; its Markdown table confirms complete success.
+- `git ls-remote --heads origin feat/jev-router` matched the implementation SHA. The worktree was clean before this final documentation update. The final documentation commit is published and its remote/CI matching checked separately; a commit hash cannot be embedded in its own contents.
+- Scoped diff review confirmed no changes to the original corpus/documents, prompts, dependency locks, UI/infrastructure code or workflow configuration. No deployment, corpus publication, paid model/embedding call or demo restart was performed.
+- Ignored evidence lives under `restaurant-finder-api/.generated/evaluation/`: `query-scope-before.log`, `query-scope-after.log`, `query-scope-api-tests.log`, the JSON/Markdown evaluation reports, run metadata, downloaded artifacts and `query-scope-implementation-verification.json`. GitHub artifact retention is seven days; this document preserves the inspected results.
+
+### Acceptance results
+
+| ID | Result | Inspected evidence |
+| --- | --- | --- |
+| S1 | PASS | Case/alias/possessive resolver tests; both dataset policy cases require `policy`; menu cases retain `menu`. |
+| S2 | PASS | Neutral and mixed resolver tests plus the mixed 17th dataset case; genuine dish/price words outside names remain effective. |
+| S3 | PASS | Repeated/overlapping/reordered aliases, escaped synthetic names, case, query canonicalization/length and substring boundaries tested. |
+| S4 | PASS | Clarification/unknown/multiple-venue, approved follow-up, explicit override and model rewrite filter tests passed. |
+| S5 | PASS | Real workflow/fake retriever query uses Harbor/policy; each supplied selector chunk is verified as a Harbor policy chunk; one per-question embedding/query. |
+| S6 | PASS | 17 complete offline cases; mixed answer has Harbor menu v2 RM32/page 1 and policy v1 RM20/lines 5-8, with two trusted citations. |
+| S7 | PASS | Old `None` policy filter fails scoring; either single-type mixed filter and a missing mixed citation fail scoring. |
+| S8 | PASS | Local API/focused/CLI success and exact-SHA GitHub four-job success; actual artifacts inspected and report JSON equality asserted. |
+| S9 | PASS | Updated README/guides/historical link and this record; implementation pushed with clean worktree/remote match. Final documentation publication is verified separately. |
+
+All approved local/code criteria passed. No live model-quality claim is made. The deployed Runtime still needs a separately reviewed image rollout; the working localhost demonstration has not been restarted or changed to run this fix.
