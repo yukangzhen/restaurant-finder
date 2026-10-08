@@ -1,7 +1,7 @@
 import asyncio
 import json
+import re
 import time
-import uuid
 from typing import Annotated, Any, Literal
 
 from langchain_core.runnables import RunnableConfig
@@ -27,13 +27,13 @@ from src.infrastructure.observability import get_observability_manager
 async def restaurant_explorer_tool(
     query: str,
     config: Annotated[RunnableConfig, InjectedToolArg],
+    limit: int = 5,
 ) -> str:
     """
     BACKUP ONLY - Browser-based web search for restaurants.
 
-    WARNING: This tool is SLOW and EXPENSIVE. Only use as a LAST RESORT when:
-    1. restaurant_data_tool returned fewer than 4 results, OR
-    2. User explicitly asks for "trending", "new", or "latest" restaurants
+    This tool is SLOW. Use it only for requests about "trending", "new", or
+    "latest" restaurants. The primary search tool handles result-shortfall fallback.
 
     DO NOT use this for normal restaurant searches - use restaurant_data_tool instead.
 
@@ -43,14 +43,16 @@ async def restaurant_explorer_tool(
     Returns:
         JSON with restaurants (name, cuisine, rating, price, address, features).
     """
-    # Extract thread_id from config for browser session isolation
-    # Generate a unique UUID as fallback to avoid session conflicts
-    configurable = config.get("configurable", {}) if config else {}
-    thread_id = configurable.get("thread_id") or str(uuid.uuid4())
-
+    requested_count = _requested_result_count(query, limit)
     result: RestaurantSearchResult = await run_restaurant_explorer(
         query=query,
-        thread_id=thread_id,
+        parent_config=config,
+    )
+    result = result.model_copy(
+        update={
+            "restaurants": result.restaurants[:requested_count],
+            "total_results": min(result.total_results, requested_count),
+        }
     )
     return result.model_dump_json(indent=2)
 
@@ -58,9 +60,10 @@ async def restaurant_explorer_tool(
 @tool
 async def restaurant_data_tool(
     query: str,
+    config: Annotated[RunnableConfig, InjectedToolArg],
     cuisine: str = "",
     location: str = "",
-    price_range: str = "$$",
+    price_range: str = "",
     dietary_restrictions: list[str] = None,
     limit: int = 5,
 ) -> str:
@@ -70,8 +73,9 @@ async def restaurant_data_tool(
     Fast, reliable restaurant search via Google Local API. Returns structured
     data with ratings, reviews, addresses, phone numbers, hours, and more.
 
-    IMPORTANT: This is your go-to tool for all restaurant searches. Only use
-    browser tools (restaurant_explorer_tool) if this returns fewer than 4 results.
+    IMPORTANT: This is your go-to tool for all restaurant searches. When browser
+    tools are enabled, it automatically tries browser search only if verified
+    results fall below min(4, the requested number).
 
     Args:
         query: What restaurants to find (e.g., "best pizza near Times Square").
@@ -84,15 +88,89 @@ async def restaurant_data_tool(
     Returns:
         JSON with restaurants including ratings, addresses, hours, phone, and more.
     """
+    requested_count = _requested_result_count(query, limit)
     result: RestaurantSearchResult = await run_restaurant_data_agent(
         query=query,
         cuisine=cuisine,
         location=location,
         price_range=price_range,
         dietary_restrictions=dietary_restrictions or [],
-        limit=limit,
+        limit=requested_count,
     )
+    fallback_threshold = min(4, requested_count)
+    if settings.ENABLE_BROWSER_TOOLS and result.total_results < fallback_threshold:
+        browser_result = await run_restaurant_explorer(query=query, parent_config=config)
+        result = _merge_search_results(result, browser_result, requested_count)
     return result.model_dump_json(indent=2)
+
+
+def _requested_result_count(query: str, tool_limit: int | None) -> int:
+    """Honor an explicit count in the request; otherwise use the tool default."""
+    count = r"(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)"
+    explicit_patterns = (
+        rf"\b(?:give|show|find|recommend|suggest|list)\s+(?:me\s+)?(?:exactly\s+)?{count}\s+(?:restaurants|places|options|recommendations)\b",
+        rf"\btop\s+{count}\s+(?:restaurants|places|options|recommendations)\b",
+    )
+    words = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    }
+    for pattern in explicit_patterns:
+        match = re.search(pattern, query, re.IGNORECASE)
+        if match:
+            found = match.group(1).lower()
+            if found in words:
+                return words[found]
+            return min(max(1, int(found)), 10)
+    try:
+        return min(max(1, int(tool_limit or 5)), 10)
+    except (TypeError, ValueError):
+        return 5
+
+
+def _merge_search_results(
+    primary: RestaurantSearchResult,
+    fallback: RestaurantSearchResult,
+    requested_count: int,
+) -> RestaurantSearchResult:
+    """Combine structured results while keeping generic pages as sources."""
+    restaurants = []
+    seen = set()
+    for restaurant in [*primary.restaurants, *fallback.restaurants]:
+        identity = (restaurant.name.casefold(), (restaurant.address or "").casefold())
+        if identity not in seen:
+            seen.add(identity)
+            restaurants.append(restaurant)
+        if len(restaurants) >= requested_count:
+            break
+
+    source = primary.data_source
+    if fallback.total_results:
+        source = f"{primary.data_source}+browser"
+    if restaurants:
+        status, error_code = "success", None
+    elif primary.status == "error" and fallback.status == "error":
+        status, error_code = "error", primary.error_code or fallback.error_code
+    else:
+        status, error_code = "empty", None
+
+    notes = primary.notes
+    if fallback.total_results:
+        notes = "Structured browser results added after the primary search returned too few records."
+    elif primary.total_results < min(4, requested_count):
+        notes = "The search returned fewer verified restaurant records than requested."
+
+    return primary.model_copy(
+        update={
+            "restaurants": restaurants,
+            "total_results": len(restaurants),
+            "data_source": source,
+            "status": status,
+            "error_code": error_code,
+            "web_sources": [*primary.web_sources, *fallback.web_sources],
+            "notes": notes,
+        }
+    )
 
 
 @tool
@@ -206,10 +284,6 @@ async def restaurant_research_tool(
     Returns:
         JSON with detailed research findings.
     """
-    # Extract thread_id from config for browser session isolation
-    configurable = config.get("configurable", {}) if config else {}
-    thread_id = configurable.get("thread_id") or str(uuid.uuid4())
-
     logger.debug(f"Restaurant research: name='{restaurant_name}', location='{location}', topics={research_topics}")
 
     try:
@@ -217,19 +291,19 @@ async def restaurant_research_tool(
             restaurant_name=restaurant_name,
             location=location,
             research_topics=research_topics,
-            thread_id=thread_id,
+            parent_config=config,
         )
 
         logger.debug("Restaurant research complete")
         return json.dumps(result, indent=2)
 
-    except Exception as e:
-        logger.error(f"Restaurant research failed: {e}")
+    except Exception as error:
+        logger.error("Restaurant research failed (error_type={})", type(error).__name__)
         return json.dumps({
             "restaurant_name": restaurant_name,
-            "location": location,
-            "error": str(e),
-            "research_summary": f"Unable to research {restaurant_name}. Please try again.",
+            "error": "Research could not be completed.",
+            "error_code": "browser_research_failed",
+            "research_summary": "I couldn't verify additional details from web search results.",
         })
 
 

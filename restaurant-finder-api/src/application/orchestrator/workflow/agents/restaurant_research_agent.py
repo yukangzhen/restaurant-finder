@@ -7,13 +7,12 @@ contact info, and other specifics.
 """
 
 import json
-import uuid
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
 from src.domain.prompts import RESEARCH_EXTRACTION_PROMPT
-from src.infrastructure.browser import get_browser_tools_by_name, cleanup_browser_sessions
+from src.infrastructure.browser import create_browser_operation, close_browser_operation
 from src.infrastructure.model import get_model, ModelType, extract_text_content
 
 
@@ -74,8 +73,8 @@ async def extract_research_from_text(
             json_match = re.search(r'\{[\s\S]*\}', result_text)
             if json_match:
                 return json.loads(json_match.group())
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse research JSON: {e}")
+        except json.JSONDecodeError as error:
+            logger.warning("Failed to parse research JSON (error_type={})", type(error).__name__)
 
         # Return raw text if JSON parsing fails
         return {
@@ -85,11 +84,12 @@ async def extract_research_from_text(
             "parse_error": "Could not structure the response"
         }
 
-    except Exception as e:
-        logger.error(f"LLM research extraction failed: {e}")
+    except Exception as error:
+        logger.error("LLM research extraction failed (error_type={})", type(error).__name__)
         return {
             "restaurant_name": restaurant_name,
-            "error": str(e)
+            "error": "Research extraction could not be completed.",
+            "error_code": "extraction_failed",
         }
 
 
@@ -101,6 +101,7 @@ async def search_restaurant_details(
     restaurant_name: str,
     location: str,
     topics: list[str] | None,
+    tools: dict,
     config: dict,
 ) -> str:
     """
@@ -115,7 +116,6 @@ async def search_restaurant_details(
     Returns:
         Combined raw text from search results.
     """
-    tools = get_browser_tools_by_name()
     results = []
 
     # Build search queries based on topics
@@ -168,13 +168,16 @@ async def search_restaurant_details(
                 # Links improve traceability but are optional when page text is available.
                 links = await tools["extract_hyperlinks"].ainvoke({}, config=config)
                 search_result += f"\nLinks: {links}"
-            except Exception as e:
-                logger.warning(f"Hyperlink extraction failed for '{query}': {e}")
+            except Exception as error:
+                logger.warning(
+                    "Hyperlink extraction failed (error_type={})",
+                    type(error).__name__,
+                )
 
             results.append(search_result)
 
-        except Exception as e:
-            logger.warning(f"Search failed for '{query}': {e}")
+        except Exception as error:
+            logger.warning("Browser search failed (error_type={})", type(error).__name__)
 
     return "\n\n".join(results)
 
@@ -187,7 +190,7 @@ async def run_restaurant_research(
     restaurant_name: str,
     location: str,
     research_topics: list[str] | None = None,
-    thread_id: str | None = None,
+    parent_config: dict | None = None,
 ) -> dict:
     """
     Research detailed information about a specific restaurant.
@@ -201,13 +204,13 @@ async def run_restaurant_research(
         restaurant_name: Name of the restaurant to research.
         location: City or area where the restaurant is located.
         research_topics: Optional list of specific topics to focus on.
-        thread_id: Browser session identifier.
+        A new unique browser session is created for this research operation.
 
     Returns:
         Dictionary with detailed research findings.
     """
-    effective_thread_id = thread_id or str(uuid.uuid4())
-    config = {"configurable": {"thread_id": effective_thread_id}}
+    toolkit, tools, config = create_browser_operation(parent_config)
+    effective_thread_id = config["configurable"]["thread_id"]
 
     logger.info(f"Starting restaurant research: '{restaurant_name}' in {location}")
     logger.info(f"Research topics: {research_topics}")
@@ -218,6 +221,7 @@ async def run_restaurant_research(
             restaurant_name=restaurant_name,
             location=location,
             topics=research_topics,
+            tools=tools,
             config=config,
         )
         logger.info(f"Web research completed, content length: {len(raw_content)}")
@@ -251,18 +255,19 @@ async def run_restaurant_research(
         return research_data
 
     except Exception as e:
-        logger.error(f"Restaurant research failed: {e}")
+        logger.error("Restaurant research failed (error_type={})", type(e).__name__)
         return {
             "restaurant_name": restaurant_name,
             "location": {"city": location},
-            "error": str(e),
+            "error": "Research could not be completed.",
+            "error_code": "browser_research_failed",
             "research_summary": f"Unable to complete research for {restaurant_name}.",
         }
 
     finally:
         # Cleanup browser session
         try:
-            await cleanup_browser_sessions()
+            await close_browser_operation(toolkit)
             logger.info(f"Browser session cleaned up (thread_id={effective_thread_id})")
         except Exception as cleanup_error:
             logger.warning(f"Browser cleanup failed: {cleanup_error}")

@@ -36,3 +36,6 @@ class OrchestratorState(TypedDict):
     # Tool call tracking (for efficiency limits)
     tool_call_count: int  # Number of tool calls in current turn
     made_tool_calls: bool  # Whether any tool calls were made this turn
+
+    # Final response state set only after the output guardrail approves/blocks.
+    response_status: Literal["pending", "approved", "blocked"]

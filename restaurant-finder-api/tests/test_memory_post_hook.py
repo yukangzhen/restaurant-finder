@@ -70,7 +70,7 @@ class MemoryPostHookTests(unittest.TestCase):
                 return_value=_Observability(),
             ),
         ):
-            asyncio.run(memory_post_hook({"messages": messages}, config))
+            asyncio.run(memory_post_hook({"messages": messages, "response_status": "approved"}, config))
 
         self.assertEqual(memory.saved["user_input"], "Latest request")
         self.assertEqual(memory.saved["agent_response"], "Latest answer")

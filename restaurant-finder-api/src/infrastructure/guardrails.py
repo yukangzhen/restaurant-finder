@@ -309,143 +309,89 @@ class GuardrailResult:
         return f"GuardrailResult(allowed={self.allowed}, action={self.action})"
 
 
-def apply_input_guardrail(text: str) -> GuardrailResult:
-    """
-    Apply guardrail to user input at graph entry.
+class GuardrailUnavailableError(RuntimeError):
+    """An enabled guardrail could not be applied; request processing must stop."""
 
-    Uses the ApplyGuardrail API to check content independently of model calls.
-    This is more efficient than applying guardrails at each model invocation.
 
-    Args:
-        text: The user input text to check.
+def _assessment_actions(value) -> set[str]:
+    actions: set[str] = set()
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "action" and isinstance(item, str):
+                actions.add(item.upper())
+            else:
+                actions.update(_assessment_actions(item))
+    elif isinstance(value, list):
+        for item in value:
+            actions.update(_assessment_actions(item))
+    return actions
 
-    Returns:
-        GuardrailResult with allowed status and potentially modified output.
-    """
+
+def _apply_guardrail(text: str, source: str) -> GuardrailResult:
     if not settings.GUARDRAIL_ENABLED:
         return GuardrailResult(allowed=True, output=text, action="NONE")
 
-    manager = get_guardrail_manager()
-    if not manager.guardrail_id:
-        logger.warning("Guardrail not initialized, skipping input check")
-        return GuardrailResult(allowed=True, output=text, action="NONE")
-
     try:
-        # Use bedrock-runtime for ApplyGuardrail
-        runtime_client = boto3.client(
-            "bedrock-runtime",
-            region_name=settings.AWS_REGION,
-        )
+        manager = get_guardrail_manager()
+        if not manager.guardrail_id:
+            raise GuardrailUnavailableError("configured guardrail is unavailable")
 
+        runtime_client = boto3.client("bedrock-runtime", region_name=settings.AWS_REGION)
         response = runtime_client.apply_guardrail(
             guardrailIdentifier=manager.guardrail_id,
             guardrailVersion=manager.guardrail_version or "DRAFT",
-            source="INPUT",
+            source=source,
             content=[{"text": {"text": text}}],
         )
-
-        action = response.get("action", "NONE")
+        action = str(response.get("action", "NONE")).upper()
         outputs = response.get("outputs", [])
         assessments = response.get("assessments", [])
+        has_output = bool(outputs) and all(
+            isinstance(item, dict) and isinstance(item.get("text"), str)
+            for item in outputs
+        )
+        output_text = "".join(item["text"] for item in outputs) if has_output else text
+        assessment_actions = _assessment_actions(assessments)
+        explicitly_blocked = "BLOCKED" in assessment_actions
+        anonymized = "ANONYMIZED" in assessment_actions
 
-        # Get the output text (may be modified/blocked)
-        if outputs:
-            output_text = outputs[0].get("text", text)
-        else:
-            output_text = text
-
-        allowed = action != "GUARDRAIL_INTERVENED"
-
+        # ApplyGuardrail's top-level intervention includes both redaction and
+        # blocking. Allow only an explicit anonymization assessment with the
+        # returned transformed text; block all other interventions.
+        allowed = not explicitly_blocked and (
+            action == "NONE" or (action == "GUARDRAIL_INTERVENED" and anonymized and has_output)
+        )
         if not allowed:
-            logger.info(f"Input guardrail blocked content: action={action}")
-            # Log detailed assessment info for debugging
-            for assessment in assessments:
-                if assessment.get("topicPolicy"):
-                    topics = assessment["topicPolicy"].get("topics", [])
-                    for topic in topics:
-                        if topic.get("action") == "BLOCKED":
-                            logger.warning(f"  Blocked by topic: {topic.get('name')} - {topic.get('type')}")
-                if assessment.get("contentPolicy"):
-                    filters = assessment["contentPolicy"].get("filters", [])
-                    for f in filters:
-                        if f.get("action") == "BLOCKED":
-                            logger.warning(f"  Blocked by content filter: {f.get('type')} (confidence: {f.get('confidence')})")
-                if assessment.get("wordPolicy"):
-                    words = assessment["wordPolicy"].get("customWords", []) + assessment["wordPolicy"].get("managedWordLists", [])
-                    for w in words:
-                        if w.get("action") == "BLOCKED":
-                            logger.warning(f"  Blocked by word policy: {w.get('match', w.get('type'))}")
+            output_text = text
+            logger.info("Guardrail blocked {} content (action={})", source.lower(), action)
+        elif anonymized:
+            logger.info("Guardrail anonymized {} content", source.lower())
 
         return GuardrailResult(
             allowed=allowed,
             output=output_text,
             action=action,
-            assessments=assessments,
+            assessments=assessments if isinstance(assessments, list) else [],
         )
+    except GuardrailUnavailableError:
+        raise
+    except Exception as error:
+        logger.error(
+            "Guardrail application failed for {} (error_type={})",
+            source.lower(),
+            type(error).__name__,
+        )
+        raise GuardrailUnavailableError("configured guardrail could not be applied") from error
 
-    except ClientError as e:
-        logger.error(f"Error applying input guardrail: {e}")
-        # Fail open - allow the request but log the error
-        return GuardrailResult(allowed=True, output=text, action="ERROR")
+
+def apply_input_guardrail(text: str) -> GuardrailResult:
+    """Check input before routing, returning anonymized text when approved."""
+    return _apply_guardrail(text, "INPUT")
 
 
 def apply_output_guardrail(text: str) -> GuardrailResult:
-    """
-    Apply guardrail to model output at graph exit.
-
-    Uses the ApplyGuardrail API to check content independently of model calls.
-
-    Args:
-        text: The model output text to check.
-
-    Returns:
-        GuardrailResult with allowed status and potentially modified output.
-    """
-    if not settings.GUARDRAIL_ENABLED:
-        return GuardrailResult(allowed=True, output=text, action="NONE")
-
-    manager = get_guardrail_manager()
-    if not manager.guardrail_id:
-        logger.warning("Guardrail not initialized, skipping output check")
-        return GuardrailResult(allowed=True, output=text, action="NONE")
-
-    try:
-        runtime_client = boto3.client(
-            "bedrock-runtime",
-            region_name=settings.AWS_REGION,
-        )
-
-        response = runtime_client.apply_guardrail(
-            guardrailIdentifier=manager.guardrail_id,
-            guardrailVersion=manager.guardrail_version or "DRAFT",
-            source="OUTPUT",
-            content=[{"text": {"text": text}}],
-        )
-
-        action = response.get("action", "NONE")
-        outputs = response.get("outputs", [])
-        assessments = response.get("assessments", [])
-
-        if outputs:
-            output_text = outputs[0].get("text", text)
-        else:
-            output_text = text
-
-        allowed = action != "GUARDRAIL_INTERVENED"
-
-        if not allowed:
-            logger.info(f"Output guardrail modified content: action={action}")
-
-        return GuardrailResult(
-            allowed=allowed,
-            output=output_text,
-            action=action,
-            assessments=assessments,
-        )
-
-    except ClientError as e:
-        logger.error(f"Error applying output guardrail: {e}")
-        return GuardrailResult(allowed=True, output=text, action="ERROR")
+    """Check the complete final answer before display or memory persistence."""
+    return _apply_guardrail(text, "OUTPUT")
 
 
 def get_blocked_input_message() -> str:

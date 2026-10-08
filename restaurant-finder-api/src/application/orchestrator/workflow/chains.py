@@ -67,6 +67,7 @@ def get_search_agent_prompt_metadata() -> PromptMetadata:
 def get_search_agent_chain(
     customer_name: str = "Guest",
     include_browser_tools: bool | None = None,
+    allow_tool_calls: bool = True,
 ) -> SearchAgentChainResult:
     """
     Create the search agent chain with bound tools for restaurant searching.
@@ -103,11 +104,12 @@ def get_search_agent_chain(
     model = get_model(temperature=0.5, model_type=ModelType.ORCHESTRATOR)
 
     # Get the appropriate tools based on config
-    tools = get_orchestrator_tools(include_browser_tools=use_browser)
+    tools = get_orchestrator_tools(include_browser_tools=use_browser) if allow_tool_calls else []
     tool_names = [t.name for t in tools]
 
     # Bind the tools to the model
-    model = model.bind_tools(tools)
+    if tools:
+        model = model.bind_tools(tools)
 
     # Escape braces in dynamic content to prevent ChatPromptTemplate from
     # interpreting them as template variables

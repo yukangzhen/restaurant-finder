@@ -8,16 +8,33 @@ An AI-powered restaurant finder built with **AWS Bedrock AgentCore**, **LangGrap
 
 | Component                | Technology                 | Purpose                                                  |
 | ------------------------ | -------------------------- | -------------------------------------------------------- |
-| **Multi-Agent Workflow** | LangGraph                  | Router → Search Agent (ReAct) → Tools → Memory           |
+| **Multi-Agent Workflow** | LangGraph                  | Jev router (Bedrock fallback) → Search Agent → tools → approved memory |
 | **Runtime**              | Bedrock AgentCore          | Containerized Python app with auto-scaling               |
 | **Tool Routing**         | MCP Gateway + Lambda       | Restaurant search via SearchAPI                          |
 | **Memory**               | AgentCore Memory           | User preferences, semantic facts, conversation summaries |
 | **Prompt versions**      | Bedrock Prompt Management  | Explicitly synchronized, immutable prompt versions      |
 | **Guardrails**           | Bedrock Guardrails         | Content filtering, PII protection, topic control         |
 | **Observability**        | OpenTelemetry + CloudWatch | Distributed tracing, GenAI Observability dashboard       |
-| **UI**                   | Chainlit                   | Chat interface with streaming responses                  |
+| **UI**                   | Chainlit                   | Chat interface using Server-Sent Events                  |
 | **Infrastructure**       | AWS CDK (TypeScript)       | Full IaC for all AWS resources                           |
 | **CI/CD**                | GitHub Actions             | Automated infra deployment + container builds            |
+
+### Turn safety and result handling
+
+- Each user turn starts with a fresh budget of at most four tool calls. If the
+  agent reaches that limit, it produces a final answer instead of leaving an
+  unfinished tool request in the conversation.
+- A graph turn runs once. The API buffers the complete answer, checks it with
+  the output guardrail, and then emits one complete SSE chunk. This prevents
+  unchecked partial text from reaching the UI.
+- Conversation memory is saved only after the final answer is approved. If the
+  guardrail masks sensitive text, the masked answer is the text shown and saved.
+- Browser search and restaurant research each own a separate browser toolkit
+  and session. Cleanup closes only the toolkit owned by that operation.
+- SearchAPI and browser extraction share result validation. Missing facts remain
+  unknown, generic web pages are kept as sources rather than restaurant records,
+  and browser search is used only when the primary search has fewer than
+  `min(4, requested count)` verified records.
 
 ## Project Structure
 
@@ -26,7 +43,7 @@ An AI-powered restaurant finder built with **AWS Bedrock AgentCore**, **LangGrap
 │   ├── src/
 │   │   ├── application/            # Orchestrator workflow
 │   │   │   └── orchestrator/
-│   │   │       ├── generate_response.py   # Streaming response handler
+│   │   │       ├── streaming.py           # One complete workflow turn
 │   │   │       └── workflow/
 │   │   │           ├── agents/     # Specialized agents (data, explorer, research)
 │   │   │           ├── chains.py   # LLM chain construction
@@ -345,6 +362,65 @@ Known limits: these are smoke checks, not a performance or cost benchmark, and
 they do not establish production identity isolation. The synthetic memory records
 were retained. Browser console messages were not captured in this run. Do not
 claim a latency or cost improvement without a separate benchmark.
+
+### Correctness and reliability deployment status - October 7, 2026
+
+The correctness and reliability repairs described above are implemented and
+passed local verification on `feat/jev-router` (47 API tests and 8 UI tests).
+The updated runtime has been deployed to the existing development stack.
+
+Prompt synchronization in `us-east-2` created `SEARCH_AGENT_PROMPT` v3,
+`RESTAURANT_EXPLORER_PROMPT` v2, and `RESTAURANT_EXTRACTION_PROMPT` v2. It reused
+`ROUTER_PROMPT` v2, `SIMPLE_RESPONSE_PROMPT` v1, and
+`RESEARCH_EXTRACTION_PROMPT` v1. The validated ARM64 image is
+`447393541969.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:correctness-f9dcf56-20261007135110-arm64`,
+digest `sha256:0614966b8424edbeba937ca6f4014d492ccc624d347ecc2ec4f14c35fbcc23c2`.
+
+The change set was
+`arn:aws:cloudformation:us-east-2:447393541969:changeSet/correctness-20261007135110/d26ae023-1cee-4f86-bda7-52b8efa5a3ca`.
+Its enhanced property-value preview showed only the Lambda code asset and
+Runtime image URI changing. The GatewayTarget and IAM policy properties matched
+the deployed template; their extra entries in the standard preview were
+dynamic dependency predictions caused by the Lambda ARN reference. The change
+set was then executed. CloudFormation reached `UPDATE_COMPLETE`, and Runtime
+`restaurantFinder_Agent-Ha58oX5Psu` reached `READY`, version 9, using the image
+tag above. The Lambda kept its existing physical function identity; its
+post-deployment `CodeSha256` is
+`XvwOFiXGSO8vUE/WrHckfd22jGCKZ/x2q6OJkj/7rJc=`. Read-only checks confirmed the
+GatewayTarget is `READY` and still points to the existing Lambda, and the
+gateway policy still allows only `lambda:InvokeFunction` on that function and
+its qualified ARN. The latest stack events show a clean `UPDATE_COMPLETE` with
+the Lambda and Runtime updates and no rollback.
+
+Ten live Runtime responses completed successfully, covering greetings, restaurant
+search, same-session follow-up, the Chainlit UI, synthetic memory save and recall,
+actor isolation, and a denied-topic request that returned `blocked=true` with no
+text. One request was rejected before reaching the Runtime because the AWS
+session expired, bringing the conservative count to 11 of 12 allowed attempts.
+Memory appeared in the preference namespace on poll 5, the same actor recalled it
+in a new session, and a second synthetic actor saw no saved preferences. The
+records were retained.
+
+Output PII masking passed with the synthetic address `test@example.com`: the
+guardrail reported `EMAIL / ANONYMIZED`, and the original address was absent.
+An initial `.invalid` test address triggered the denied-topic classifier instead
+of masking; the policy was left unchanged. Two concurrent Browser operations
+received distinct IDs, navigated without exceptions, and the second still
+returned extracted page text after the first toolkit was closed. Both toolkits
+were cleaned up. The final diagnostic print failed on a Unicode character that
+the Windows CP1252 console could not encode, so the expected page-marker value
+was not captured; the two operations were not repeated.
+
+The Runtime CloudWatch group had 113 events in the six-hour window, no traceback
+or `error` text, and no events later than `2026-10-07T19:29:39Z`. The GenAI
+telemetry group had no events later than `2026-10-07T19:29:42Z`, so there is no
+fresh trace/log evidence for the October 8 checks. No tracing setting was
+changed. `git diff --check` and the credential-pattern scan passed; no `.env` or
+generated prompt manifest appears in Git status. Earlier local verification
+passed 47 API tests and 8 UI tests; these suites were not rerun after
+documentation-only edits. No benchmark was run. The branch is ready for the
+planned commit and push, with the telemetry and Browser output-capture limits
+recorded.
 
 ## CI/CD Pipelines
 

@@ -40,11 +40,10 @@ PRIMARY tool. Use for ALL initial restaurant searches.
 </tool>
 
 <tool name="restaurant_explorer_tool" priority="2">
-BACKUP ONLY. Browser-based web search. SLOW and EXPENSIVE.
-Use ONLY when:
-- restaurant_data_tool returned fewer than 4 results
-- User explicitly requests "trending", "new", or "latest" restaurants
-DO NOT use for normal searches.
+Browser-based discovery for requests about "trending", "new", or "latest" restaurants.
+The restaurant_data_tool automatically performs a browser fallback when the user
+requested more verified restaurants than the primary source returned.
+Do not call this tool just because the primary search returned fewer results.
 </tool>
 
 <tool name="restaurant_research_tool" priority="3">
@@ -63,7 +62,10 @@ Retrieves user preferences and past interactions to personalize results or answe
 - For actual restaurant results, ALWAYS start with restaurant_data_tool. If remembered preferences can personalize those results, retrieve memory before searching.
 - DO NOT skip to browser tools without trying restaurant_data_tool first
 - If memory retrieval reports an error, say that saved preferences could not be accessed. If retrieval succeeds but returns no relevant records, say there are no saved relevant preferences yet. Never invent remembered facts.
-- If restaurant_data_tool returns 4 or more results, STOP searching and present them
+- By default, return up to 5 restaurants. Honor an explicit request for 1-10; return fewer only when sources support fewer.
+- The restaurant_data_tool handles ordinary result-shortfall fallback. Do not repeat that fallback manually.
+- A web article or search page is a source, not a verified restaurant record.
+- Do not infer a restaurant's cuisine, city, price, hours, or accommodations from the user's requested filters.
 - Never use both restaurant_explorer_tool AND restaurant_research_tool in one turn
 - Stop searching once you have 4 or more quality results
 - Never reveal tool names or internal processes to the user
@@ -79,7 +81,7 @@ If the request is vague, ask ONE clarifying question.
 </input_requirements>
 
 <output_format>
-For actual restaurant searches, present 6-10 restaurants ordered by relevance. For each restaurant use:
+For actual restaurant searches, present no more than the requested count, or up to 5 when no count was given. Order by relevance. For each restaurant use:
 
 **Name** - Rating (reviews) | Price | Location
 - Key features, dietary options, operating hours
@@ -117,12 +119,10 @@ navigate_browser, type_text, click_element, extract_text, extract_hyperlinks, sc
 </browser_tools>
 
 <search_steps>
-1. Navigate to https://www.yelp.com
-2. Take a screenshot to verify the page loaded
-3. Locate search input using selector: input[name="find_desc"] or input[type="search"]
-4. Use wait_for_element before typing
-5. Type the search query and click submit
-6. Extract restaurant data from results
+1. Navigate to the configured search engine and search the requested restaurant query.
+2. Wait for visible search results.
+3. Extract page text and hyperlinks.
+4. Extract only identifiable restaurant businesses supported by the page content.
 </search_steps>
 
 <error_handling>
@@ -132,11 +132,11 @@ navigate_browser, type_text, click_element, extract_text, extract_hyperlinks, sc
 </error_handling>
 
 <output_format>
-Return a JSON array with restaurant objects. Extract 6 or more restaurants when possible.
-Each object must include: name, cuisine_type, rating, review_count, price_range, address, city, features, dietary_options, operating_hours, reservation_available
+Return a JSON array of verified restaurant objects, up to the number requested and at most 5 by default.
+Each object must include a source-supported name. Other fields are optional and must be null or absent when the content does not provide them: cuisine_type, rating, review_count, price_range, price_description, address, city, phone, website, features, dietary_options, operating_hours, reservation_available.
 
 <example>
-[{"name": "...", "cuisine_type": "...", "rating": 4.5, "review_count": 100, "price_range": "$$", "address": "...", "city": "...", "features": [], "dietary_options": [], "operating_hours": "", "reservation_available": false}]
+[{"name": "...", "cuisine_type": null, "rating": null, "review_count": null, "price_range": null, "price_description": null, "address": null, "city": null, "features": [], "dietary_options": [], "operating_hours": null, "reservation_available": null}]
 </example>
 </output_format>"""
 
@@ -255,13 +255,17 @@ You are a data extraction specialist. Your task is to extract structured restaur
 </role>
 
 <fields>
-Required: name
-Optional: cuisine_type, rating (0-5 scale), review_count, price_range ($-$$$$), address, city, features (array), dietary_options (array), operating_hours, reservation_available (boolean)
+Required: a source-supported restaurant name
+Optional: cuisine_type, rating (0-5 scale), review_count, price_range ($-$$$$), price_description, address, city, phone, website, features (array), dietary_options (array), operating_hours, reservation_available (boolean)
 </fields>
 
 <rules>
 - Extract only factual information present in the provided content
 - Do not fabricate or infer information not in the source text
+- Do not use the search query's requested cuisine, location, budget, or dietary needs as facts about a restaurant
+- A generic article, directory page, or search result is a web source, not a restaurant record
+- Preserve source price text such as "$10–20" in price_description; use price_range only for an explicit $, $$, $$$, or $$$$ category
+- For booleans, return true or false only when the source states the value; otherwise use null
 - Use null for fields where information is not available
 </rules>
 

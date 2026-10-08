@@ -7,19 +7,19 @@ on the web, extracting and structuring the results using an LLM.
 Architecture:
 - Direct browser tool invocation (not ReAct) for reliable session control
 - LLM-based extraction of structured data from raw web content
-- Proper thread_id propagation for browser session isolation
+- One unique browser session per operation with inherited trace callbacks
 """
 
 import json
 import re
-import uuid
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
-from src.domain.models import Restaurant, RestaurantSearchResult, PRICE_RANGE_MAP, PriceRange
+from src.domain.models import RestaurantSearchResult
+from src.domain.restaurant_results import parse_restaurant, parse_search_result
 from src.domain.prompts import RESTAURANT_EXTRACTION_PROMPT
-from src.infrastructure.browser import get_browser_tools_by_name, cleanup_browser_sessions
+from src.infrastructure.browser import create_browser_operation, close_browser_operation
 from src.infrastructure.model import get_model, ModelType, extract_text_content
 
 
@@ -36,38 +36,6 @@ MAX_TEXT_FOR_EXTRACTION = 8000
 # Restaurant Parsing
 # =============================================================================
 
-def parse_restaurant(data: dict) -> Restaurant:
-    """
-    Parse a dictionary into a Restaurant model.
-
-    Args:
-        data: Dictionary containing restaurant data.
-
-    Returns:
-        Restaurant: Parsed restaurant object with defaults for missing fields.
-    """
-    price_str = data.get("price_range") or "$$"
-    price_range = PRICE_RANGE_MAP.get(price_str, PriceRange.MODERATE)
-
-    # Use `or` to handle both missing keys AND None values
-    rating_val = data.get("rating")
-    review_val = data.get("review_count")
-
-    return Restaurant(
-        name=data.get("name") or "Unknown Restaurant",
-        cuisine_type=data.get("cuisine_type") or "Various",
-        rating=float(rating_val) if rating_val is not None else 0.0,
-        review_count=int(review_val) if review_val is not None else 0,
-        price_range=price_range,
-        address=data.get("address") or "",
-        city=data.get("city") or "",
-        features=data.get("features") or [],
-        dietary_options=data.get("dietary_options") or [],
-        operating_hours=data.get("operating_hours") or "",
-        reservation_available=bool(data.get("reservation_available")),
-    )
-
-
 def parse_json_results(json_text: str, query: str) -> RestaurantSearchResult:
     """
     Parse JSON text into a RestaurantSearchResult.
@@ -79,38 +47,26 @@ def parse_json_results(json_text: str, query: str) -> RestaurantSearchResult:
     Returns:
         RestaurantSearchResult with parsed restaurants or empty result.
     """
-    restaurants = []
-
     try:
-        # Extract JSON array from text (handles surrounding text/markdown)
         json_match = re.search(r'\[[\s\S]*\]', json_text)
         if json_match:
             data = json.loads(json_match.group())
-            for item in data:
-                if isinstance(item, dict):
-                    restaurants.append(parse_restaurant(item))
+            if isinstance(data, list):
+                return parse_search_result(
+                    {"restaurants": data, "data_source": "browser"},
+                    query,
+                    default_data_source="browser",
+                )
     except (json.JSONDecodeError, ValueError) as e:
-        logger.warning(f"Failed to parse JSON results: {e}")
-
-    if not restaurants:
-        return RestaurantSearchResult(
-            query=query,
-            total_results=0,
-            restaurants=[],
-            search_location="",
-            search_filters={},
-            data_source="browser",
-            notes=f"No structured results extracted. Raw output:\n{json_text[:2000]}",
-        )
+        logger.warning("Failed to parse browser extraction (error_type={})", type(e).__name__)
 
     return RestaurantSearchResult(
         query=query,
-        total_results=len(restaurants),
-        restaurants=restaurants,
-        search_location="",
-        search_filters={},
+        total_results=0,
+        restaurants=[],
         data_source="browser",
-        notes="Results extracted from web search.",
+        notes="No verified restaurant records were extracted from the web results.",
+        status="empty",
     )
 
 
@@ -157,7 +113,7 @@ async def extract_restaurants_from_text(raw_text: str, query: str) -> str:
 # Browser Operations
 # =============================================================================
 
-async def search_web(query: str, config: dict) -> str:
+async def search_web(query: str, tools: dict, config: dict) -> str:
     """
     Perform a web search using browser tools.
 
@@ -168,7 +124,6 @@ async def search_web(query: str, config: dict) -> str:
     Returns:
         Combined raw text from search results page.
     """
-    tools = get_browser_tools_by_name()
     results = []
 
     # Build search URL
@@ -209,7 +164,7 @@ async def search_web(query: str, config: dict) -> str:
 
 async def run_restaurant_explorer(
     query: str,
-    thread_id: str | None = None,
+    parent_config: dict | None = None,
 ) -> RestaurantSearchResult:
     """
     Search for restaurants using browser automation and LLM extraction.
@@ -225,20 +180,19 @@ async def run_restaurant_explorer(
             - "Italian restaurants in San Francisco"
             - "Vegetarian Thai food under $30"
             - "Fine dining with outdoor seating in NYC"
-        thread_id: Browser session identifier. Each conversation should use
-            a unique thread_id to avoid session conflicts.
+        Each invocation creates and closes its own unique browser session.
 
     Returns:
         RestaurantSearchResult: Structured search results.
     """
-    effective_thread_id = thread_id or str(uuid.uuid4())
-    config = {"configurable": {"thread_id": effective_thread_id}}
+    toolkit, tools, config = create_browser_operation(parent_config)
+    effective_thread_id = config["configurable"]["thread_id"]
 
     logger.info(f"Starting restaurant search: '{query}' (thread_id={effective_thread_id})")
 
     try:
         # Step 1: Search the web
-        raw_content = await search_web(query, config)
+        raw_content = await search_web(query, tools, config)
         logger.info(f"Browser search completed, content length: {len(raw_content)}")
 
         # Step 2: Extract structured data using LLM
@@ -248,21 +202,21 @@ async def run_restaurant_explorer(
         return parse_json_results(extracted_json, query)
 
     except Exception as e:
-        logger.error(f"Restaurant search failed: {e}")
+        logger.error("Restaurant search failed (error_type={})", type(e).__name__)
         return RestaurantSearchResult(
             query=query,
             total_results=0,
             restaurants=[],
-            search_location="",
-            search_filters={},
             data_source="browser",
-            notes=f"Search error: {str(e)}",
+            notes="Browser search could not be completed.",
+            status="error",
+            error_code="browser_search_failed",
         )
 
     finally:
         # Always cleanup browser session
         try:
-            await cleanup_browser_sessions()
+            await close_browser_operation(toolkit)
             logger.info(f"Browser session cleaned up (thread_id={effective_thread_id})")
         except Exception as cleanup_error:
             logger.warning(f"Browser cleanup failed: {cleanup_error}")

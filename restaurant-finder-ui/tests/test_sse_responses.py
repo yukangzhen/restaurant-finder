@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -79,6 +80,63 @@ class UIStreamResponseTests(unittest.TestCase):
         message = self.invoke(["data: {malformed", 'data: {"done": true}'])
 
         self.assertEqual(message.content, "No response received.")
+
+    def test_agentcore_invocation_and_stream_reads_run_off_the_event_loop_thread(self):
+        event_loop_thread = threading.get_ident()
+
+        class _Body:
+            def __init__(self):
+                self.iter_thread = None
+                self.close_thread = None
+
+            def iter_lines(self, chunk_size):
+                self.iter_thread = threading.get_ident()
+                self.chunk_size = chunk_size
+                return iter([b'data: {"chunk":"safe"}', b'data: {"done":true}'])
+
+            def close(self):
+                self.close_thread = threading.get_ident()
+
+        body = _Body()
+
+        class _Client:
+            invoke_thread = None
+            kwargs = None
+
+            def invoke_agent_runtime(self, **kwargs):
+                self.invoke_thread = threading.get_ident()
+                self.kwargs = kwargs
+                return {"contentType": "text/event-stream", "response": body}
+
+        client = _Client()
+
+        async def collect():
+            return [line async for line in app._aws_sse_lines({"prompt": "hello"}, "session-1")]
+
+        with patch.object(app, "_get_agentcore_client", return_value=client):
+            lines = asyncio.run(collect())
+
+        self.assertEqual(len(lines), 2)
+        self.assertNotEqual(client.invoke_thread, event_loop_thread)
+        self.assertNotEqual(body.iter_thread, event_loop_thread)
+        self.assertNotEqual(body.close_thread, event_loop_thread)
+        self.assertEqual(body.chunk_size, 1)
+        self.assertEqual(client.kwargs["runtimeSessionId"], "session-1")
+
+    def test_agentcore_client_has_bounded_timeouts_and_no_retries(self):
+        import boto3
+
+        previous_client = app._agentcore_client
+        app._agentcore_client = None
+        try:
+            with patch.object(boto3, "client", return_value=object()) as make_client:
+                app._get_agentcore_client()
+            config = make_client.call_args.kwargs["config"]
+            self.assertEqual(config.connect_timeout, 10)
+            self.assertEqual(config.read_timeout, 300)
+            self.assertEqual(config.retries["total_max_attempts"], 1)
+        finally:
+            app._agentcore_client = previous_client
 
 
 if __name__ == "__main__":

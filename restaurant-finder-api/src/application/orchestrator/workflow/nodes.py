@@ -2,12 +2,14 @@ import asyncio
 from datetime import datetime, timezone
 import hashlib
 import time
+import uuid
 from typing import cast
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 
 from src.application.orchestrator.workflow.state import OrchestratorState, IntentType
+from src.application.orchestrator.workflow.edges import MAX_TOOL_CALLS_PER_TURN
 from src.application.orchestrator.workflow.chains import (
     get_search_agent_chain,
     get_router_chain,
@@ -18,6 +20,10 @@ from src.infrastructure.model import extract_text_content as _extract_text_conte
 from src.infrastructure.memory import get_memory_instance
 from src.infrastructure.observability import get_observability_manager
 from src.infrastructure.jev_router import classify_with_jev
+from src.infrastructure.guardrails import (
+    apply_output_guardrail,
+    get_blocked_output_message,
+)
 
 
 async def search_agent_node(
@@ -56,11 +62,15 @@ async def search_agent_node(
     customer_name = configurable.get("customer_name", "Guest")
     tool_call_count = state.get("tool_call_count", 0)
     react_iteration = tool_call_count + 1  # Track which ReAct loop iteration
+    remaining_tool_calls = max(0, MAX_TOOL_CALLS_PER_TURN - tool_call_count)
 
     messages = list(state["messages"])
 
     # Get the chain and prompt metadata for tracing
-    chain_result = get_search_agent_chain(customer_name=customer_name)
+    chain_result = get_search_agent_chain(
+        customer_name=customer_name,
+        allow_tool_calls=remaining_tool_calls > 0,
+    )
     prompt_meta = chain_result.prompt_metadata
 
     logger.debug(
@@ -94,9 +104,17 @@ async def search_agent_node(
         )
 
     # Track tool calls for efficiency limiting
-    has_tool_calls = hasattr(response, "tool_calls") and response.tool_calls
-    new_tool_count = tool_call_count + (len(response.tool_calls) if has_tool_calls else 0)
-    tool_names = [tc.get("name", "unknown") for tc in response.tool_calls] if has_tool_calls else []
+    requested_tool_calls = getattr(response, "tool_calls", []) or []
+    if len(requested_tool_calls) > remaining_tool_calls:
+        # Keep only executable calls in the message. Dropped calls never enter
+        # graph state, so there can be no unmatched tool-call IDs.
+        response = response.model_copy(
+            update={"tool_calls": requested_tool_calls[:remaining_tool_calls]}
+        )
+    tool_calls = getattr(response, "tool_calls", []) or []
+    has_tool_calls = bool(tool_calls)
+    new_tool_count = tool_call_count + len(tool_calls)
+    tool_names = [tc.get("name", "unknown") for tc in tool_calls]
 
     # Record workflow step completion with comprehensive metadata
     duration_ms = (time.time() - start_time) * 1000
@@ -129,6 +147,62 @@ async def search_agent_node(
         "tool_call_count": new_tool_count,
         "made_tool_calls": state.get("made_tool_calls", False) or has_tool_calls,
     }
+
+
+async def output_guardrail_node(
+    state: OrchestratorState,
+    config: RunnableConfig,
+) -> dict:
+    """Approve, anonymize, or replace the complete answer before persistence."""
+    messages = state.get("messages", [])
+    latest_user_index = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], HumanMessage)
+        ),
+        -1,
+    )
+    final_message = next(
+        (
+            message
+            for message in reversed(messages[latest_user_index + 1 :])
+            if isinstance(message, AIMessage) and not message.tool_calls
+        ),
+        None,
+    )
+    raw_text = _extract_text_content(final_message.content) if final_message else ""
+    if not raw_text.strip():
+        raw_text = "I couldn't prepare a complete answer. Please try again."
+
+    observability = get_observability_manager()
+    with observability.create_span(
+        "guardrail.output",
+        attributes={"output.length": len(raw_text)},
+    ):
+        result = await asyncio.to_thread(apply_output_guardrail, raw_text)
+
+    if result.allowed:
+        approved_text = result.output
+        response_status = "approved"
+        if approved_text != raw_text:
+            observability.add_span_event(
+                "guardrail.anonymized",
+                attributes={"action": result.action},
+            )
+    else:
+        approved_text = get_blocked_output_message()
+        response_status = "blocked"
+        observability.add_span_event(
+            "guardrail.blocked",
+            attributes={"action": result.action},
+        )
+
+    replacement = AIMessage(
+        content=approved_text,
+        id=(final_message.id if final_message and final_message.id else str(uuid.uuid4())),
+    )
+    return {"messages": replacement, "response_status": response_status}
 
 
 async def router_node(
@@ -323,6 +397,14 @@ async def memory_post_hook(
     configurable = config.get("configurable", {})
     actor_id = configurable.get("actor_id", "user:default")
     session_id = configurable.get("thread_id", "default_session")
+
+    if state.get("response_status") != "approved":
+        logger.debug("Response was not approved; skipping memory save")
+        observability.add_span_event(
+            "memory.skipped",
+            attributes={"reason": "response_not_approved"},
+        )
+        return {}
 
     messages = state.get("messages", [])
 

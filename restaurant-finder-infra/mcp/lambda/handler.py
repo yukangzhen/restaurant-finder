@@ -79,8 +79,8 @@ def lambda_handler(event, context):
         else:
             return _response(400, {"error": f"Unknown tool '{tool_name}'"})
 
-    except Exception as e:
-        return _response(500, {"system_error": str(e)})
+    except Exception:
+        return _response(500, {"error": "Restaurant search failed", "error_code": "SEARCH_PROVIDER_ERROR"})
 
 
 def _response(status_code: int, body: Dict[str, Any]):
@@ -108,10 +108,9 @@ def _search_local(query: str, location: str = "", num_results: int = 10) -> Dict
         with urllib.request.urlopen(req, timeout=30) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8") if e.fp else ""
-        raise RuntimeError(f"Search HTTP error {e.code}: {error_body}")
+        raise RuntimeError(f"Search HTTP error {e.code}") from e
     except urllib.error.URLError as e:
-        raise RuntimeError(f"Search connection error: {e.reason}")
+        raise RuntimeError("Search connection failed") from e
 
 
 def _search_web(query: str, num_results: int = 10) -> Dict[str, Any]:
@@ -132,10 +131,9 @@ def _search_web(query: str, num_results: int = 10) -> Dict[str, Any]:
         with urllib.request.urlopen(req, timeout=30) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8") if e.fp else ""
-        raise RuntimeError(f"Search HTTP error {e.code}: {error_body}")
+        raise RuntimeError(f"Search HTTP error {e.code}") from e
     except urllib.error.URLError as e:
-        raise RuntimeError(f"Search connection error: {e.reason}")
+        raise RuntimeError("Search connection failed") from e
 
 
 def _build_search_query(
@@ -188,25 +186,36 @@ def _parse_local_results(
     restaurants = []
     local_results = api_response.get("local_results", [])
 
-    for idx, result in enumerate(local_results[:limit]):
-        name = result.get("title") or result.get("name", f"Restaurant {idx + 1}")
+    for result in local_results[:limit]:
+        if not isinstance(result, dict):
+            continue
+        name = result.get("title") or result.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
 
-        rating = result.get("rating", 0.0)
-        if isinstance(rating, str):
-            try:
-                rating = float(rating)
-            except ValueError:
-                rating = 0.0
+        rating = result.get("rating")
+        if isinstance(rating, bool):
+            rating = None
+        try:
+            rating = float(rating) if rating is not None else None
+            if rating is not None and not 0 <= rating <= 5:
+                rating = None
+        except (TypeError, ValueError):
+            rating = None
 
-        reviews = result.get("reviews", 0)
-        if isinstance(reviews, str):
-            reviews = int("".join(filter(str.isdigit, reviews)) or "0")
+        reviews = result.get("reviews", result.get("review_count"))
+        try:
+            reviews = int(reviews) if reviews is not None else None
+            if reviews is not None and reviews < 0:
+                reviews = None
+        except (TypeError, ValueError):
+            reviews = None
 
         type_info = result.get("type", result.get("types", ""))
         if isinstance(type_info, list):
-            cuisine_type = ", ".join(type_info[:3]) if type_info else cuisine or "Restaurant"
+            cuisine_type = ", ".join(item for item in type_info[:3] if isinstance(item, str)) or None
         else:
-            cuisine_type = type_info if type_info else cuisine or "Restaurant"
+            cuisine_type = type_info if isinstance(type_info, str) and type_info else None
 
         address = result.get("address", "")
         service_options = result.get("service_options", {})
@@ -225,19 +234,24 @@ def _parse_local_results(
         if isinstance(hours, dict):
             hours = hours.get("today", "")
 
+        raw_price = result.get("price")
+        known_price_categories = {"$", "$$", "$$$", "$$$$"}
+        price_range_value = raw_price if isinstance(raw_price, str) and raw_price in known_price_categories else None
+        price_description = raw_price if isinstance(raw_price, str) and raw_price not in known_price_categories else None
         restaurant = {
             "name": name,
             "cuisine_type": cuisine_type,
-            "rating": round(float(rating), 1) if rating else 0.0,
-            "review_count": int(reviews) if reviews else 0,
-            "price_range": result.get("price", price_range or "$$"),
+            "rating": round(rating, 1) if rating is not None else None,
+            "review_count": reviews,
+            "price_range": price_range_value,
+            "price_description": price_description,
             "address": address[:200] if address else "",
-            "city": location.title() if location else "",
+            "city": result.get("city"),
             "neighborhood": result.get("neighborhood", ""),
             "features": features,
             "dietary_options": [],
             "operating_hours": hours if isinstance(hours, str) else "",
-            "reservation_available": "reservations" in str(service_options).lower(),
+            "reservation_available": result.get("reservation_available"),
             "phone": result.get("phone", ""),
             "website": result.get("website", result.get("link", "")),
             "thumbnail": result.get("thumbnail", ""),
@@ -257,36 +271,23 @@ def _parse_web_results(
     price_range: str,
     limit: int,
 ) -> List[Dict[str, Any]]:
-    """Parse google web search response into restaurant objects (fallback)."""
-    restaurants = []
+    """Preserve generic organic pages as sources, never as restaurant records."""
+    sources = []
     organic_results = api_response.get("organic_results", [])
 
-    for idx, result in enumerate(organic_results[:limit]):
-        title = result.get("title", f"Restaurant {idx + 1}")
-        snippet = result.get("snippet", "")
-        rating = 0.0
-        reviews = 0
-
-        restaurant = {
-            "name": title,
-            "cuisine_type": cuisine or "Restaurant",
-            "rating": rating,
-            "review_count": reviews,
-            "price_range": price_range or "$$",
-            "address": snippet[:200] if snippet else "",
-            "city": location.title() if location else "",
-            "neighborhood": "",
-            "features": [],
-            "dietary_options": [],
-            "operating_hours": "",
-            "reservation_available": False,
-            "phone": "",
-            "website": result.get("link", ""),
-            "source": "web_search",
+    for result in organic_results[:limit]:
+        if not isinstance(result, dict):
+            continue
+        source = {
+            key: result[key]
+            for key in ("title", "link", "snippet")
+            if isinstance(result.get(key), str) and result[key].strip()
         }
-        restaurants.append(restaurant)
-
-    return restaurants
+        if source:
+            if "link" in source:
+                source["url"] = source.pop("link")
+            sources.append(source)
+    return sources
 
 
 def search_restaurants(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -294,9 +295,9 @@ def search_restaurants(event: Dict[str, Any]) -> Dict[str, Any]:
     query = event.get("query", "").strip()
     cuisine = event.get("cuisine", "").strip()
     location = event.get("location", "").strip()
-    price_range = event.get("price_range", "$$")
+    price_range = event.get("price_range", "")
     dietary_restrictions = event.get("dietary_restrictions", [])
-    limit = min(int(event.get("limit", 5)), 10)
+    limit = min(max(1, int(event.get("limit", 5))), 10)
 
     if isinstance(dietary_restrictions, str):
         dietary_restrictions = [d.strip() for d in dietary_restrictions.split(",") if d.strip()]
@@ -310,8 +311,9 @@ def search_restaurants(event: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     restaurants = []
+    web_sources = []
     data_source = "google_local"
-    error_message = None
+    provider_failed = False
 
     try:
         api_response = _search_local(
@@ -331,32 +333,28 @@ def search_restaurants(event: Dict[str, Any]) -> Dict[str, Any]:
         if not restaurants:
             data_source = "web_search"
             api_response = _search_web(search_query, num_results=limit * 2)
-
-            restaurants = _parse_web_results(
-                api_response=api_response,
-                location=location,
-                cuisine=cuisine,
-                price_range=price_range,
-                limit=limit,
+            web_sources = _parse_web_results(
+                api_response=api_response, location=location, cuisine=cuisine,
+                price_range=price_range, limit=limit,
             )
 
-    except Exception as e:
-        error_message = str(e)
+    except Exception:
+        provider_failed = True
         try:
             data_source = "web_search"
             api_response = _search_web(search_query, num_results=limit * 2)
-
-            restaurants = _parse_web_results(
-                api_response=api_response,
-                location=location,
-                cuisine=cuisine,
-                price_range=price_range,
-                limit=limit,
+            web_sources = _parse_web_results(
+                api_response=api_response, location=location, cuisine=cuisine,
+                price_range=price_range, limit=limit,
             )
-        except Exception as fallback_error:
-            error_message = f"Local: {error_message}, Web: {str(fallback_error)}"
+            provider_failed = False
+        except Exception:
+            provider_failed = True
 
-    restaurants.sort(key=lambda x: x.get("rating", 0), reverse=True)
+    restaurants.sort(
+        key=lambda item: item["rating"] if isinstance(item.get("rating"), (int, float)) else -1,
+        reverse=True,
+    )
 
     result = {
         "restaurants": restaurants,
@@ -371,12 +369,14 @@ def search_restaurants(event: Dict[str, Any]) -> Dict[str, Any]:
         },
         "search_query_used": search_query,
         "data_source": data_source,
-        "message": f"Found {len(restaurants)} restaurants via {data_source}.",
+        "message": (
+            f"Found {len(restaurants)} restaurants via {data_source}."
+            if restaurants else "No verified restaurant records were returned."
+        ),
+        "status": "error" if provider_failed else ("success" if restaurants else "empty"),
+        "error_code": "SEARCH_PROVIDER_UNAVAILABLE" if provider_failed else None,
+        "web_sources": web_sources,
     }
-
-    if error_message and not restaurants:
-        result["error"] = error_message
-        result["message"] = f"Search failed: {error_message}"
 
     return result
 

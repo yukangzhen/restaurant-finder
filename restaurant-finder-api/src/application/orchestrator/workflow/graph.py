@@ -7,11 +7,13 @@ from src.application.orchestrator.workflow.nodes import (
     router_node,
     search_agent_node,
     simple_response_node,
+    output_guardrail_node,
     memory_post_hook,
 )
 from src.application.orchestrator.workflow.edges import (
     route_by_intent,
     should_continue_search_agent,
+    route_after_output_guardrail,
 )
 from src.application.orchestrator.workflow.tools import get_orchestrator_tools
 from src.infrastructure.memory import ShortTermMemory
@@ -28,8 +30,8 @@ def create_orchestrator_graph(force_recreate: bool = False):
     Uses a module-level singleton pattern instead of @lru_cache to support
     dynamic tool loading based on configuration changes.
 
-    Note: Guardrails are applied at the API layer (utils.py), not in the graph.
-    This keeps the graph focused on orchestration logic.
+    The final output guardrail runs inside the graph before memory persistence,
+    so unsafe or unavailable results cannot be saved or shown to the client.
 
     Args:
         force_recreate: If True, recreates the graph even if one exists.
@@ -118,6 +120,7 @@ def create_orchestrator_graph(force_recreate: bool = False):
 
     # Add the simple response node (handles non-restaurant queries)
     graph_builder.add_node("simple_response_node", simple_response_node)
+    graph_builder.add_node("output_guardrail_node", output_guardrail_node)
 
     # Get tools dynamically based on current config (respects ENABLE_BROWSER_TOOLS)
     tools = get_orchestrator_tools()
@@ -145,21 +148,29 @@ def create_orchestrator_graph(force_recreate: bool = False):
 
     # Conditional edge from search agent - ReAct loop
     # - If tool calls: route to tools, then back to search_agent
-    # - If no tool calls (Final Answer): route to memory hook, then END
+    # - If no tool calls (Final Answer): check output, then conditionally save
     graph_builder.add_conditional_edges(
         "search_agent_node",
         should_continue_search_agent,
         {
             "tools": "tool_node",
-            "end": "memory_post_hook",
+            "end": "output_guardrail_node",
         },
     )
 
     # After tools (Observation), return to search agent for next Thought/Action
     graph_builder.add_edge("tool_node", "search_agent_node")
 
-    # Simple response -> Memory Post-Hook
-    graph_builder.add_edge("simple_response_node", "memory_post_hook")
+    # Every response must pass output moderation before memory or API delivery.
+    graph_builder.add_edge("simple_response_node", "output_guardrail_node")
+    graph_builder.add_conditional_edges(
+        "output_guardrail_node",
+        route_after_output_guardrail,
+        {
+            "memory_post_hook": "memory_post_hook",
+            "end": END,
+        },
+    )
 
     # Memory Post-Hook -> END
     graph_builder.add_edge("memory_post_hook", END)

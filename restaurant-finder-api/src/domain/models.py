@@ -6,6 +6,8 @@ ensuring consistent and typed data flows through the system.
 """
 
 from enum import Enum
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -32,10 +34,12 @@ class Restaurant(BaseModel):
     name: str = Field(
         description="The name of the restaurant"
     )
-    cuisine_type: str = Field(
+    cuisine_type: str | None = Field(
+        default=None,
         description="The type of cuisine (e.g., Italian, Japanese, Indian)"
     )
-    rating: float = Field(
+    rating: float | None = Field(
+        default=None,
         ge=0.0,
         le=5.0,
         description="Rating out of 5 stars"
@@ -44,8 +48,13 @@ class Restaurant(BaseModel):
         default=None,
         description="Number of reviews"
     )
-    price_range: PriceRange = Field(
-        description="Price range category"
+    price_range: PriceRange | None = Field(
+        default=None,
+        description="Price category, only when the source provides one"
+    )
+    price_description: str | None = Field(
+        default=None,
+        description="Source-provided price text such as '$10–20'"
     )
     address: str | None = Field(
         default=None,
@@ -92,6 +101,7 @@ class RestaurantSearchResult(BaseModel):
         description="The original search query"
     )
     total_results: int = Field(
+        ge=0,
         description="Total number of restaurants found"
     )
     restaurants: list[Restaurant] = Field(
@@ -112,6 +122,18 @@ class RestaurantSearchResult(BaseModel):
     notes: str | None = Field(
         default=None,
         description="Additional notes or caveats about the search results"
+    )
+    status: Literal["success", "empty", "error"] = Field(
+        default="empty",
+        description="Whether the search succeeded, returned no restaurants, or failed"
+    )
+    error_code: str | None = Field(
+        default=None,
+        description="Sanitized stable error identifier; never raw provider text"
+    )
+    web_sources: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Generic web pages that are sources, not verified restaurant records"
     )
 
 

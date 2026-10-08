@@ -69,20 +69,23 @@ def should_continue_search_agent(
 
     # Check if the last message is an AIMessage with tool calls
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
-        # Check if we've hit the tool call limit
-        if tool_call_count >= MAX_TOOL_CALLS_PER_TURN:
-            logger.warning(
-                f"Tool call limit ({MAX_TOOL_CALLS_PER_TURN}) reached, "
-                "forcing end of ReAct loop"
-            )
-            return "end"
-
+        # search_agent_node trims calls to the remaining per-turn budget. The
+        # edge must still execute the final allowed calls before continuing.
         logger.debug(
-            f"Search agent: tool calls detected (count: {tool_call_count + 1}), "
+            f"Search agent: tool calls detected (turn count: {tool_call_count}), "
             "routing to tools"
         )
         return "tools"
 
     # No tool calls - agent has produced Final Answer
     logger.debug("Search agent: no tool calls (Final Answer), ending")
+    return "end"
+
+
+def route_after_output_guardrail(
+    state: OrchestratorState,
+) -> Literal["memory_post_hook", "end"]:
+    """Only approved, final text is allowed to reach the memory hook."""
+    if state.get("response_status") == "approved":
+        return "memory_post_hook"
     return "end"

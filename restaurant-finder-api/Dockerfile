@@ -7,7 +7,8 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_NO_PROGRESS=1 \
     PYTHONUNBUFFERED=1 \
     DOCKER_CONTAINER=1 \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:$PATH" \
+    REQUIRE_PROMPT_MANIFEST=1
 
 # Resolve only from the checked-in lockfile. The source tree is copied after
 # dependencies so normal code changes do not invalidate the dependency layer.
@@ -17,6 +18,7 @@ RUN uv sync --locked --no-dev --no-install-project
 # Run the agent as an unprivileged user.
 RUN useradd --create-home --uid 1000 bedrock_agentcore
 COPY . .
+RUN python -m src.deployment.validate_prompts
 RUN chown -R bedrock_agentcore:bedrock_agentcore /app
 USER bedrock_agentcore
 

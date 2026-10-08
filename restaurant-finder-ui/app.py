@@ -31,8 +31,27 @@ def _get_agentcore_client():
     global _agentcore_client
     if _agentcore_client is None:
         import boto3
-        _agentcore_client = boto3.client("bedrock-agentcore", region_name=AWS_REGION)
+        from botocore.config import Config
+
+        runtime_config = Config(
+            connect_timeout=10,
+            read_timeout=300,
+            retries={"total_max_attempts": 1},
+        )
+        _agentcore_client = boto3.client(
+            "bedrock-agentcore",
+            region_name=AWS_REGION,
+            config=runtime_config,
+        )
     return _agentcore_client
+
+
+def _next_stream_item(iterator, sentinel):
+    """Read one blocking SDK stream item without leaking StopIteration."""
+    try:
+        return next(iterator)
+    except StopIteration:
+        return sentinel
 
 
 @cl.on_settings_update
@@ -93,26 +112,52 @@ async def _aws_sse_lines(payload, conversation_id):
     import asyncio
 
     client = _get_agentcore_client()
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        None,
-        lambda: client.invoke_agent_runtime(
+    deadline = asyncio.get_running_loop().time() + 300
+    response = await asyncio.wait_for(
+        asyncio.to_thread(
+            client.invoke_agent_runtime,
             agentRuntimeArn=AGENT_RUNTIME_ARN,
             qualifier="DEFAULT",
             runtimeSessionId=conversation_id,
             payload=json.dumps(payload),
         ),
+        timeout=300,
     )
-
-    content_type = response.get("contentType", "")
-    if "text/event-stream" in content_type:
-        for line in response["response"].iter_lines(chunk_size=1):
-            if line:
-                yield line.decode("utf-8")
-    else:
-        for event in response.get("response", []):
-            chunk = event.decode("utf-8") if isinstance(event, bytes) else str(event)
-            yield f'data: {json.dumps({"chunk": chunk})}'
+    body = response.get("response")
+    sentinel = object()
+    try:
+        if "text/event-stream" in response.get("contentType", ""):
+            iterator = await asyncio.to_thread(body.iter_lines, chunk_size=1)
+            while True:
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise TimeoutError("AgentCore response exceeded 300 seconds")
+                line = await asyncio.wait_for(
+                    asyncio.to_thread(_next_stream_item, iterator, sentinel),
+                    timeout=remaining,
+                )
+                if line is sentinel:
+                    break
+                if line:
+                    yield line.decode("utf-8", errors="replace") if isinstance(line, bytes) else str(line)
+        elif body is not None:
+            iterator = await asyncio.to_thread(iter, body)
+            while True:
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise TimeoutError("AgentCore response exceeded 300 seconds")
+                item = await asyncio.wait_for(
+                    asyncio.to_thread(_next_stream_item, iterator, sentinel),
+                    timeout=remaining,
+                )
+                if item is sentinel:
+                    break
+                chunk = item.decode("utf-8") if isinstance(item, bytes) else str(item)
+                yield f'data: {json.dumps({"chunk": chunk})}'
+    finally:
+        close = getattr(body, "close", None)
+        if callable(close):
+            await asyncio.to_thread(close)
 
 
 @cl.on_message
@@ -121,7 +166,7 @@ async def on_message(message: cl.Message):
     customer_name = cl.user_session.get("customer_name", "Guest")
     conversation_id = cl.user_session.get("conversation_id")
 
-    msg = cl.Message(content="")
+    msg = cl.Message(content="Working on your request…")
     await msg.send()
 
     await _invoke_agent(msg, message.content, customer_name, conversation_id)
@@ -148,6 +193,7 @@ async def _invoke_agent(
         payload["actor_id"] = MEMORY_ACTOR_ID
 
     full_response = ""
+    streamed_content = False
 
     try:
         if AGENT_CONNECTION_MODE == "aws":
@@ -178,6 +224,11 @@ async def _invoke_agent(
 
                     if "chunk" in data:
                         chunk = data["chunk"]
+                        if not isinstance(chunk, str):
+                            chunk = str(chunk)
+                        if not streamed_content:
+                            msg.content = ""
+                            streamed_content = True
                         await msg.stream_token(chunk)
                         full_response += chunk
 
@@ -201,7 +252,7 @@ async def _invoke_agent(
     except Exception as e:
         if AGENT_CONNECTION_MODE == "aws":
             error_name = type(e).__name__
-            msg.content = f"AWS Runtime Error ({error_name}): {str(e)}"
+            msg.content = f"AWS Runtime Error ({error_name}). Please try again later."
         else:
             msg.content = "An unexpected error occurred. Please try again."
         await msg.update()
