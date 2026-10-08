@@ -15,6 +15,8 @@ The workflow needs no AWS/TypeSafe credentials, model calls, prompt synchronizat
 
 This supplies a status check. Enforcing merge/deployment ordering through protected branches or deployment gates is separate repository policy, not configured here. The existing main-only deployment workflows remain separate.
 
+The owner approved enabling previously disabled Actions for this repository. Its selected-action allowlist permits the pinned CI action commits and the references already used by existing workflows. When changing an action reference, update that allowlist deliberately; a new SHA/tag is not automatically permitted.
+
 ## Run the document evaluation locally
 
 From `restaurant-finder-api`, use the locked environment. Dependency installation is `uv sync --locked`; an existing local AWS development environment may retain its `local-aws` extra. The evaluation itself requires no AWS login.

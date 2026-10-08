@@ -16,6 +16,8 @@ defaults:
     shell: bash
 
 env:
+  # Use the selected supported 3.11 runtime instead of the API's old patch hint.
+  UV_PYTHON: "3.11"
   AWS_EC2_METADATA_DISABLED: "true"
   AWS_REGION: us-east-2
   PROMPT_SYNC_MODE: "false"

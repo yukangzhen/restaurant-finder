@@ -225,3 +225,11 @@ The owner supplied the explicit `proceed` required by `AGENTS.md`. No implementa
 The initial dataset run found the existing keyword resolver considers `Pasta` in the full venue name `Harbor Pasta Lab` a menu keyword. Its full-name policy question consequently has no type filter, although the selected answer correctly cites policy. The full-name case remains in the dataset and expects that current query behavior while requiring the correct policy quote. A separate short-alias `Harbor policy` case requires policy-only filtering. This preserves the approved retrieval-algorithm boundary and documents the efficiency quirk instead of claiming policy filtering worked for both forms.
 
 The dataset contains 16 cases, including separate forged-ID and changed-quote cases. Execution results, GitHub evidence and final acceptance status will be recorded after verification.
+
+### Owner-approved Actions setting change
+
+The first implementation push could not trigger CI: an authenticated read of the repository's Actions permissions returned `enabled: false`. Local work and publication were completed before requesting the additional setting authorization. The owner explicitly answered **Enable Actions and verify CI**.
+
+Actions was enabled with `allowed_actions: selected`. The verified allowlist has 15 exact action references: the five pinned official action commits used by this CI plus the references already present in the existing deployment/destruction workflows. Broad GitHub-owned/verified-action allowances remain false; existing SHA-enforcement settings were not changed. This preserves the existing workflows' permitted references without dispatching them or modifying secrets. Ignored before/after settings records are under `.generated/evaluation/`. Future action-reference updates require updating that allowlist.
+
+The API's `.python-version` hints at the older exact patch 3.11.9, while the tested local interpreter is 3.11.16 (UI: 3.11.15). Both meet project requirements. CI sets `UV_PYTHON=3.11` so uv uses the selected supported minor runtime rather than fetching the older exact patch. Locked dependencies are unchanged.
