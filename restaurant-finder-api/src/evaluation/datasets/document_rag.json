@@ -174,7 +174,7 @@
       "expected": {
         "status": "answered",
         "restaurant_id": "demo-harbor-pasta",
-        "document_type": null,
+        "document_type": "policy",
         "quotes": [
           {
             "document_id": "harbor-policy",
@@ -586,6 +586,58 @@
       "simulation": {
         "status": "answered",
         "selections": [
+          {
+            "document_id": "harbor-policy",
+            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking."
+          }
+        ]
+      }
+    },
+    {
+      "id": "harbor_menu_and_policy",
+      "category": "mixed_document_scope",
+      "corpus": "corpus-v2.json",
+      "question": "According to Harbor Pasta Lab's menu and policy, what is the mushroom pasta price and cancellation fee?",
+      "expected": {
+        "status": "answered",
+        "restaurant_id": "demo-harbor-pasta",
+        "document_type": null,
+        "quotes": [
+          {
+            "document_id": "harbor-menu",
+            "version": "v2",
+            "quote": "Mushroom pasta - RM32 per serving.",
+            "page": 1
+          },
+          {
+            "document_id": "harbor-policy",
+            "version": "v1",
+            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
+            "section": "Reservations and cancellation",
+            "line_start": 5,
+            "line_end": 8
+          }
+        ],
+        "forbidden_phrases": [
+          "RM28",
+          "RM36",
+          "RM15",
+          "RM10"
+        ],
+        "calls": {
+          "embedding": 1,
+          "retrieval": 1,
+          "selector": 1,
+          "rewrite": 0
+        }
+      },
+      "simulation": {
+        "status": "answered",
+        "selections": [
+          {
+            "document_id": "harbor-menu",
+            "quote": "Mushroom pasta - RM32 per serving."
+          },
           {
             "document_id": "harbor-policy",
             "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking."

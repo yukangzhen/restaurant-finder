@@ -222,6 +222,8 @@ The owner supplied the explicit `proceed` required by `AGENTS.md`. No implementa
 
 ## 10. Implementation findings
 
+**Historical record:** The name/intent quirk described below is addressed by the subsequent [query-scoping PRD](HANDOFF_PRD_RAG_QUERY_SCOPE.md), which also adds a seventeenth evaluation case. This document preserves the original CI task's counts and run evidence.
+
 The initial dataset run found the existing keyword resolver considers `Pasta` in the full venue name `Harbor Pasta Lab` a menu keyword. Its full-name policy question consequently has no type filter, although the selected answer correctly cites policy. The full-name case remains in the dataset and expects that current query behavior while requiring the correct policy quote. A separate short-alias `Harbor policy` case requires policy-only filtering. This preserves the approved retrieval-algorithm boundary and documents the efficiency quirk instead of claiming policy filtering worked for both forms.
 
 The dataset contains 16 cases, including separate forged-ID and changed-quote cases. Final execution evidence and acceptance status are recorded below.

@@ -21,9 +21,13 @@ def is_followup(question: str) -> bool:
 def resolve_query(question: str, manifest: GenerationManifest, approved_scope: str | None = None) -> DocumentQuery:
     question = canonical_text(question)[:1000]
     found = []
+    name_spans = []
     for restaurant in manifest.restaurants:
-        if any(re.search(r"(?<!\w)" + re.escape(alias) + r"(?!\w)", question, re.I) for alias in [restaurant.name, *restaurant.aliases]):
+        matches = [match for alias in [restaurant.name, *restaurant.aliases]
+                   for match in re.finditer(r"(?<!\w)" + re.escape(alias) + r"(?!\w)", question, re.I)]
+        if matches:
             found.append(restaurant.restaurant_id)
+            name_spans.extend(match.span() for match in matches)
     if len(found) > 1:
         return DocumentQuery(query=question, clarification="Please choose one fictional restaurant for this document question.")
     scope = found[0] if found else None
@@ -34,8 +38,14 @@ def resolve_query(question: str, manifest: GenerationManifest, approved_scope: s
     if not scope:
         names = ", ".join(r.aliases[0] if r.aliases else r.name for r in manifest.restaurants)
         return DocumentQuery(query=question, clarification=f"Which fictional restaurant's documents should I use: {names}?")
-    menu = bool(re.search(r"\b(menu|dish|pasta|price|cost|meal|ingredients)\b", question, re.I))
-    policy = bool(re.search(r"\b(policy|policies|cancellation|cancel|booking|reservation|fee|parking|allergies)\b", question, re.I))
+    # Names identify the venue, but their words must not imply document intent.
+    # Mask all spans on a separate copy, preserving overlaps and the query itself.
+    intent_characters = list(question)
+    for start, end in name_spans:
+        intent_characters[start:end] = [" "] * (end - start)
+    intent_text = "".join(intent_characters)
+    menu = bool(re.search(r"\b(menu|dish|pasta|price|cost|meal|ingredients)\b", intent_text, re.I))
+    policy = bool(re.search(r"\b(policy|policies|cancellation|cancel|booking|reservation|fee|parking|allergies)\b", intent_text, re.I))
     return DocumentQuery(query=question, restaurant_id=scope, document_type="menu" if menu and not policy else "policy" if policy and not menu else None)
 
 

@@ -125,8 +125,29 @@ class RagEvaluationTests(unittest.TestCase):
         self.assertEqual(clarified.calls, rag.Calls(embedding=0,retrieval=0,selector=0,rewrite=0))
         full_name = next(o for o in self.observations if o.case_id == "harbor_fee")
         short_name = next(o for o in self.observations if o.case_id == "harbor_fee_alias")
-        self.assertIsNone(full_name.query_document_type)
+        self.assertEqual(full_name.query_document_type,"policy")
         self.assertEqual(short_name.query_document_type,"policy")
+
+    def test_full_name_policy_cannot_pass_with_the_old_unfiltered_query(self):
+        policy=next(o for o in self.observations if o.case_id=="harbor_fee")
+        self.assertTrue(policy.evidence)
+        self.assertTrue(all(item.document_type=="policy" for item in policy.evidence))
+        report=self.score(self.changed("harbor_fee",query_document_type=None))
+        row=next(row for row in report["cases"] if row["case_id"]=="harbor_fee")
+        self.assertEqual(row["checks"]["query_document_type"],"fail")
+        self.assertFalse(report["passed"])
+
+    def test_mixed_question_requires_both_sources_and_no_type_filter(self):
+        mixed=next(o for o in self.observations if o.case_id=="harbor_menu_and_policy")
+        self.assertIsNone(mixed.query_document_type)
+        self.assertEqual([c.document_id for c in mixed.citations],["harbor-menu","harbor-policy"])
+        self.assertEqual({item.document_type for item in mixed.evidence},{"menu","policy"})
+        self.assertIn("RM32",mixed.text)
+        self.assertIn("RM20",mixed.text)
+        for document_type in ["menu","policy"]:
+            with self.subTest(document_type=document_type):
+                self.assertFalse(self.score(self.changed(mixed.case_id,query_document_type=document_type))["passed"])
+        self.assertFalse(self.score(self.changed(mixed.case_id,citations=mixed.citations[:1]))["passed"])
 
     def test_missing_duplicate_unknown_cases_do_not_pass(self):
         report = self.score(self.observations[:-1])

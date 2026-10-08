@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -13,9 +14,121 @@ from src.application.document_rag.retrieval import DocumentRetriever, resolve_qu
 from src.application.document_rag import workflow
 from src.application.orchestrator.workflow import graph, nodes, edges
 from src.application.orchestrator import streaming
-from src.domain.document_rag import ActivePointer, RagAnswerDraft, RetrievedEvidence
+from src.domain.document_rag import ActivePointer, RagAnswerDraft, RetrievedEvidence, canonical_text
 from src.infrastructure.guardrails import GuardrailResult, GuardrailUnavailableError
 from src.infrastructure.jev_router import JevClassification, JevRouterUnavailable
+
+
+class QueryScopeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.manifest, cls.sources = prepare_generation(CORPUS)
+
+    def test_full_names_aliases_case_and_possessives_keep_the_right_type(self):
+        for venue in ["Harbor Pasta Lab (fictional demo)", "Harbor Pasta Lab", "Harbor Pasta", "Harbor", "hArBoR pAsTa LaB"]:
+            for suffix in [" policy: what is the cancellation fee?", "'s cancellation policy?", "’s cancellation policy?"]:
+                with self.subTest(venue=venue,suffix=suffix):
+                    query=resolve_query("According to "+venue+suffix,self.manifest)
+                    self.assertEqual(query.restaurant_id,"demo-harbor-pasta")
+                    self.assertEqual(query.document_type,"policy")
+            with self.subTest(venue=venue,intent="menu"):
+                query=resolve_query("According to "+venue+", what is the mushroom pasta price?",self.manifest)
+                self.assertEqual(query.document_type,"menu")
+
+    def test_real_mixed_and_neutral_intent_have_no_type_filter(self):
+        for question in ["According to Harbor Pasta Lab's menu and policy, what is the pasta price and cancellation fee?",
+                         "Summarize Harbor Pasta Lab's documents.", "Harbor Pasta Lab (fictional demo)"]:
+            with self.subTest(question=question):
+                query=resolve_query(question,self.manifest)
+                self.assertEqual(query.restaurant_id,"demo-harbor-pasta")
+                self.assertIsNone(query.document_type)
+
+    def test_overlapping_aliases_and_repeated_mentions_are_all_masked(self):
+        venue=self.manifest.restaurants[0]
+        manifest=self.manifest.model_copy(update={"restaurants":[venue.model_copy(update={"aliases":list(reversed(venue.aliases))}),
+                                                                  *self.manifest.restaurants[1:]]})
+        question="Harbor Pasta Lab policy: Harbor Pasta Lab, Harbor Pasta and Harbor cancellation fee?"
+        for catalog in [self.manifest,manifest]:
+            with self.subTest(aliases=catalog.restaurants[0].aliases):
+                query=resolve_query(question,catalog)
+                self.assertEqual(query.document_type,"policy")
+                self.assertEqual(query.query,question)
+
+    def test_other_keyword_names_and_regex_characters_are_not_intent(self):
+        for name,question,expected in [
+            ("Policy Kitchen","According to Policy Kitchen menu, what is the pasta price?","menu"),
+            ("Price Cafe","According to Price Cafe policy, what is the cancellation fee?","policy"),
+            ("Pasta+Policy (Cafe)","Summarize Pasta+Policy (Cafe) documents.",None),
+            ("Pasta+Policy (Cafe)","Pasta+Policy (Cafe) cancellation fee?","policy"),
+        ]:
+            venue=self.manifest.restaurants[0].model_copy(update={"name":name,"aliases":[]})
+            manifest=self.manifest.model_copy(update={"restaurants":[venue,*self.manifest.restaurants[1:]]})
+            with self.subTest(name=name,question=question):
+                query=resolve_query(question,manifest)
+                self.assertEqual(query.restaurant_id,venue.restaurant_id)
+                self.assertEqual(query.document_type,expected)
+
+    def test_original_canonical_bounded_query_and_alias_boundaries_are_preserved(self):
+        for question in [" \nHarbor Pasta Lab's\t cancellation fee?  ", "Harbor Pasta Lab policy "+"x "*700]:
+            with self.subTest(question=question[:60]):
+                query=resolve_query(question,self.manifest)
+                self.assertEqual(query.query,canonical_text(question)[:1000])
+                self.assertEqual(query.document_type,"policy")
+        for question in ["Harborview cancellation fee?","OtherHarbor menu price?","Harbor_Extra policy?"]:
+            with self.subTest(question=question):
+                self.assertTrue(resolve_query(question,self.manifest).clarification)
+
+    def test_scope_override_followup_and_clarification_rules_are_preserved(self):
+        for question in ["What does the uploaded menu say about pasta?", "Compare Harbor Pasta Lab and Sakura menus",
+                         "And what about the menu at Unknown Bistro?"]:
+            with self.subTest(question=question):
+                query=resolve_query(question,self.manifest,"demo-harbor-pasta")
+                self.assertTrue(query.clarification)
+                self.assertIsNone(query.restaurant_id)
+        explicit=resolve_query("Sakura menu pasta price?",self.manifest,"demo-harbor-pasta")
+        self.assertEqual((explicit.restaurant_id,explicit.document_type),("demo-sakura-table","menu"))
+        followup=resolve_query("And what about its cancellation fee?",self.manifest,"demo-harbor-pasta")
+        self.assertEqual((followup.restaurant_id,followup.document_type),("demo-harbor-pasta","policy"))
+
+    def policy_workflow(self,question,scope=None):
+        store,vectors,embeddings=FakeStore(),FakeVectors(),FakeEmbeddings()
+        publish_generation(self.manifest,self.sources,store,vectors,embeddings)
+        retriever=DocumentRetriever(store,vectors,embeddings)
+        before=embeddings.attempts
+        before_queries=len(vectors.query_calls)
+        draft={"status":"answered","selections":[{"chunk_id":next(c.chunk_id for c in self.manifest.chunks
+                     if c.document_id=="harbor-policy" and c.section=="Reservations and cancellation"),
+                     "quote":"Cancellations less than 24 hours before the booking incur a RM20 fee per booking."}]}
+        selector=SimpleNamespace(ainvoke=AsyncMock(return_value=draft))
+        rewrite=SimpleNamespace(ainvoke=AsyncMock(return_value={"query":"Sakura menu pasta price"}))
+        state={"messages":[AIMessage(content="Previous approved document answer."),HumanMessage(content=question)],
+               "rag_approved_scope":scope}
+        with patch("boto3.client",side_effect=AssertionError("Live client forbidden")), \
+             patch("boto3.session.Session.__init__",side_effect=AssertionError("Live client forbidden")), \
+             patch.object(workflow.settings,"DOCUMENT_RAG_ENABLED",True):
+            outcome=asyncio.run(workflow.answer_document_question(state,{},retriever,rewrite,selector))
+        self.assertEqual(outcome.status,"answered")
+        self.assertEqual(outcome.restaurant_id,"demo-harbor-pasta")
+        self.assertEqual(vectors.query_calls[-1],(self.manifest.generation_id,"demo-harbor-pasta","policy"))
+        self.assertEqual(embeddings.attempts-before,1)
+        self.assertEqual(len(vectors.query_calls)-before_queries,1)
+        selector.ainvoke.assert_awaited_once()
+        supplied=json.loads(selector.ainvoke.await_args.args[0]["payload"])["evidence"]
+        self.assertTrue(supplied)
+        chunks={chunk.chunk_id:chunk for chunk in self.manifest.chunks}
+        self.assertTrue(all(chunks[item["chunk_id"]].document_type=="policy"
+                            and chunks[item["chunk_id"]].document_id=="harbor-policy"
+                            and item["text"]==chunks[item["chunk_id"]].text for item in supplied))
+        self.assertEqual([c.document_id for c in outcome.citations],["harbor-policy"])
+        return rewrite
+
+    def test_full_name_policy_workflow_supplies_only_policy_evidence(self):
+        rewrite=self.policy_workflow("According to Harbor Pasta Lab's policy, what is the cancellation fee?")
+        rewrite.ainvoke.assert_not_awaited()
+
+    def test_followup_rewrite_cannot_change_resolved_policy_or_explicit_venue(self):
+        rewrite=self.policy_workflow("And what does Harbor Pasta Lab's cancellation policy say?","demo-sakura-table")
+        rewrite.ainvoke.assert_awaited_once()
 
 
 class RetrievalTests(unittest.TestCase):

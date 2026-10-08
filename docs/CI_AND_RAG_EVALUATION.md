@@ -47,7 +47,7 @@ Use the exit code from the current invocation. Invalid input does not create a n
 
 Run API regressions with `uv run --no-sync python -m unittest discover -s tests -q`. From `restaurant-finder-ui`, run the same command for UI tests. From `restaurant-finder-infra`, run `npm ci`, `npm run build`, `npm test -- --runInBand`, and CDK synth with dummy account `123456789012`, region `us-east-2`, `--no-lookups` and the explicit dummy image context shown in `.github/workflows/ci.yml`. Do not substitute an authenticated deployment command for this check.
 
-## What the 16 cases check
+## What the 17 cases check
 
 The versioned dataset is `restaurant-finder-api/src/evaluation/datasets/document_rag.json`.
 
@@ -56,14 +56,19 @@ The versioned dataset is `restaurant-finder-api/src/evaluation/datasets/document
 - Missing parking evidence, unspecified/unknown/multiple restaurants, follow-up scope and explicit scope override.
 - Forged chunk selection and changed source quotation.
 - Full-name and short-alias Harbor policy queries.
+- A mixed Harbor menu/policy question requiring both the RM32 menu quote and RM20 cancellation-policy quote, with two separately verified citations.
 
 Human-written gold quotes are checked against real local source chunks, versions and page/line locations. Gold and simulated selector inputs occupy separate dataset fields. The offline harness calls the real document workflow, query resolver, `DocumentRetriever`, provenance validator and renderer. Its store, vector results, embeddings and model answers are explicitly simulated; it does not copy an expected result into an observation.
 
 The scorer independently checks the complete extractive answer text, expected status/scope/generation, every citation field, evidence integrity, source inclusion and supplied call counters. A valid quote about tomato pasta still fails the mushroom-pasta question, even if its source hash and page are correct. Exact prices alone are not an accepted gold quote.
 
-### A documented scope quirk
+### Restaurant names and document scope
 
-The existing keyword resolver treats `pasta` as a menu keyword even when it appears inside the venue name `Harbor Pasta Lab`. A full-name policy question therefore resolves to no document-type filter; it can retrieve menu and policy passages. Its evaluation still requires the correct policy quote/citation. The short-name `Harbor policy` case explicitly requires policy-only filtering. This task documents and covers the current behavior; it does not change the retrieval algorithm.
+The resolver determines the restaurant from registered catalog names and aliases, then masks all matched name spans only in the text used for document-type inference. The complete canonical question still goes to retrieval and answer selection. Repeated/overlapping aliases, case differences and possessives are covered by tests; words outside the matched names retain their normal meaning.
+
+For example, `Harbor Pasta Lab cancellation policy` now selects **policy**: `Pasta` belongs to the venue name. `Harbor Pasta Lab mushroom pasta price` selects **menu** because the separate dish/price words remain. A question explicitly requesting the menu price and cancellation policy selects **both** (no document-type restriction). A neutral documents question also has no type restriction.
+
+Both full-name and short-alias policy cases now require policy-only evidence. The scorer rejects a full-name policy observation if its recorded filter is changed back to the previous unrestricted value. This remains a keyword heuristic, not a general semantic classifier; contextual phrases such as policy `cost` can still match both keyword groups. See the [query-scoping PRD](HANDOFF_PRD_RAG_QUERY_SCOPE.md) for the scope and execution evidence. Deploying the corrected code requires a separate Runtime rollout.
 
 ## How to interpret the report
 
@@ -71,7 +76,7 @@ An offline report is labeled `offline_regression` and `simulated_dependencies`. 
 
 Checks have `pass`, `fail` or `unmeasured` states. The report records the expected and observed case counts, missing IDs, failed cases, measured-check count and unmeasured-check count. A partial set cannot receive complete-suite success. Source provenance establishes where a quote came from; question relevance is checked against this small curated dataset, not a universal semantic judge.
 
-Inputs are bounded to 2 MiB, 50 cases, 15,000 answer characters, three citations and ten evidence records per observation. The dataset requires at least 14 cases; this version has 16. IDs/schemas are strict, unknown and duplicate case IDs fail, and nonfinite JSON values are rejected. Reports omit raw answer/evidence bodies, provider payloads, sessions, headers and credentials.
+Inputs are bounded to 2 MiB, 50 cases, 15,000 answer characters, three citations and ten evidence records per observation. The dataset requires at least 14 cases; this version has 17. IDs/schemas are strict, unknown and duplicate case IDs fail, and nonfinite JSON values are rejected. Reports omit raw answer/evidence bodies, provider payloads, sessions, headers and credentials.
 
 ## Score recorded or hand-authored observations
 
@@ -110,6 +115,8 @@ A real end-to-end model evaluation requires a separately authorized collection r
 
 ## Evidence
 
-The [verified GitHub run](https://github.com/yukangzhen/restaurant-finder/actions/runs/37750760123) checks implementation commit `3aba7881ad9de422fbf2db77d4198b8368f33714`. Its downloaded artifacts confirm **125 API tests**, **26 UI tests**, **3 infrastructure tests**, and **16/16 offline RAG cases** with 352 measured checks and no failures. TypeScript compilation and CDK synthesis also succeeded. Local RAG JSON matches the GitHub report exactly.
+The [prior verified GitHub run](https://github.com/yukangzhen/restaurant-finder/actions/runs/37750760123) checks the original CI/evaluation implementation commit `3aba7881ad9de422fbf2db77d4198b8368f33714`. Its downloaded artifacts confirmed **125 API tests**, **26 UI tests**, **3 infrastructure tests**, and **16/16 offline RAG cases** with 352 measured checks. This is historical baseline evidence; it predates the query-scoping fix and seventeenth case.
+
+The query-scoping change passed **135 local API tests** and **17/17 local offline RAG cases**, with **374 measured checks** and no failures/unmeasured checks. Publication and new GitHub verification are recorded in the [query-scoping PRD](HANDOFF_PRD_RAG_QUERY_SCOPE.md) after inspection.
 
 The [approved execution PRD](HANDOFF_PRD_CI_AND_RAG_EVALUATION.md) records commands, controlled-failure checks, the first run's masked test failure and its repair, and all acceptance results. Inspect both the run's commit SHA and test artifacts before claiming success; a status badge alone is insufficient. These results describe offline regression with simulated dependencies, not live model accuracy.
