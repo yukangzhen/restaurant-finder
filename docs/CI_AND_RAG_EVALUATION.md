@@ -110,4 +110,6 @@ A real end-to-end model evaluation requires a separately authorized collection r
 
 ## Evidence
 
-The [approved execution PRD](HANDOFF_PRD_CI_AND_RAG_EVALUATION.md) records the final local counts, controlled-failure checks, GitHub run URL and acceptance results. Inspect an actual Actions run for its commit SHA before claiming the GitHub checks passed.
+The [verified GitHub run](https://github.com/yukangzhen/restaurant-finder/actions/runs/37750760123) checks implementation commit `3aba7881ad9de422fbf2db77d4198b8368f33714`. Its downloaded artifacts confirm **125 API tests**, **26 UI tests**, **3 infrastructure tests**, and **16/16 offline RAG cases** with 352 measured checks and no failures. TypeScript compilation and CDK synthesis also succeeded. Local RAG JSON matches the GitHub report exactly.
+
+The [approved execution PRD](HANDOFF_PRD_CI_AND_RAG_EVALUATION.md) records commands, controlled-failure checks, the first run's masked test failure and its repair, and all acceptance results. Inspect both the run's commit SHA and test artifacts before claiming success; a status badge alone is insufficient. These results describe offline regression with simulated dependencies, not live model accuracy.

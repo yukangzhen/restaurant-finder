@@ -1,6 +1,6 @@
 # Handoff PRD: Automated checks and document RAG evaluation
 
-**Status:** Approved by the owner's explicit `proceed`; implementation and verification in progress.
+**Status:** Complete. Approved implementation, local checks, corrected GitHub CI and report-artifact inspection passed on 2026-10-08.
 **Prepared:** 2026-10-08.
 **Branch:** `feat/jev-router`, inspected at `0a428d026572b5d83cda53bc634ac7eea91efdfd` with a clean worktree.
 
@@ -224,7 +224,7 @@ The owner supplied the explicit `proceed` required by `AGENTS.md`. No implementa
 
 The initial dataset run found the existing keyword resolver considers `Pasta` in the full venue name `Harbor Pasta Lab` a menu keyword. Its full-name policy question consequently has no type filter, although the selected answer correctly cites policy. The full-name case remains in the dataset and expects that current query behavior while requiring the correct policy quote. A separate short-alias `Harbor policy` case requires policy-only filtering. This preserves the approved retrieval-algorithm boundary and documents the efficiency quirk instead of claiming policy filtering worked for both forms.
 
-The dataset contains 16 cases, including separate forged-ID and changed-quote cases. Execution results, GitHub evidence and final acceptance status will be recorded after verification.
+The dataset contains 16 cases, including separate forged-ID and changed-quote cases. Final execution evidence and acceptance status are recorded below.
 
 ### Repairs discovered by inspecting CI artifacts
 
@@ -239,3 +239,52 @@ The first implementation push could not trigger CI: an authenticated read of the
 Actions was enabled with `allowed_actions: selected`. The verified allowlist has 15 exact action references: the five pinned official action commits used by this CI plus the references already present in the existing deployment/destruction workflows. Broad GitHub-owned/verified-action allowances remain false; existing SHA-enforcement settings were not changed. This preserves the existing workflows' permitted references without dispatching them or modifying secrets. Ignored before/after settings records are under `.generated/evaluation/`. Future action-reference updates require updating that allowlist.
 
 The API's `.python-version` hints at the older exact patch 3.11.9, while the tested local interpreter is 3.11.16 (UI: 3.11.15). Both meet project requirements. CI sets `UV_PYTHON=3.11` so uv uses the selected supported minor runtime rather than fetching the older exact patch. Locked dependencies are unchanged.
+
+## 11. Verified execution record — 2026-10-08
+
+### Published implementation and GitHub evidence
+
+- Repository/branch: `yukangzhen/restaurant-finder`, `feat/jev-router`.
+- Implementation commits: `f93530614bb2190ab95dc72e4130b7e97f3fa166` (CI/evaluation), `13a5a769447675140127feb6f6d9359da5731133` (supported Python selection/Actions approval), and `3aba7881ad9de422fbf2db77d4198b8368f33714` (failure propagation/portable paths).
+- Accepted push run: [Offline quality checks — 37750760123](https://github.com/yukangzhen/restaurant-finder/actions/runs/37750760123), head `3aba7881ad9de422fbf2db77d4198b8368f33714`, completed with `success` for **API and document RAG**, **UI**, **Infrastructure**, and **Quality checks**.
+- `git ls-remote --heads origin feat/jev-router` matched that implementation SHA. The implementation worktree was clean before this final documentation update. The final documentation commit is verified against the remote after publication; its hash cannot be written into its own contents.
+- Downloaded and inspected all three accepted-run artifacts: `offline-rag-and-api`, `offline-ui`, `offline-infrastructure`. API/UI logs end in `OK`; infrastructure log reports all three tests passed. The RAG JSON is identical to the local report; the Markdown case table also confirms complete success. The earlier misleading green run is explicitly excluded above.
+- Safe downloaded artifacts, local reports and run metadata are ignored under `restaurant-finder-api/.generated/evaluation/`. GitHub artifacts have seven-day retention; this record preserves their inspected results after expiry.
+
+### Commands and actual results
+
+Local Python runs used `UV_PYTHON=3.11`, a workspace `UV_CACHE_DIR`, and the sanitized environment documented in `CI_AND_RAG_EVALUATION.md`. No dependency lockfile was changed. CI installed each project from its committed lockfile in a clean runner.
+
+| Check | Command | Local result | Accepted GitHub artifact/step |
+| --- | --- | --- | --- |
+| API | `uv run --no-sync python -m unittest discover -s tests -q` | **125 tests, OK** | **125 tests, OK** (4.582 seconds). |
+| UI | Same command from `restaurant-finder-ui` | **26 tests, OK** | **26 tests, OK** (0.467 seconds). |
+| RAG | `uv run --no-sync python -m src.evaluation.rag --offline --output .generated/evaluation/document-rag.json` | **16/16 cases passed** | Identical JSON: **352 measured checks**, zero failed cases, missing cases or unmeasured checks. |
+| TypeScript | `npm run build` | Passed | Compile infrastructure step succeeded. |
+| Infrastructure | `npm test -- --runInBand` | **3 tests passed** | **3 tests passed** (9.612 seconds). |
+| CDK | `npx --no-install cdk synth --all --no-lookups -c imageUri=123456789012.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:offline-ci --output cdk.out/ci` | ECR/RAG/AgentCore stacks synthesized | Synthesis step succeeded with dummy account/region and no lookups. |
+
+CDK used `CDK_DEFAULT_ACCOUNT=123456789012`, `CDK_DEFAULT_REGION=us-east-2`, and disabled EC2 metadata. There was no deployment, image publication, AWS resource change, corpus ingestion or live model/evaluator invocation. The localhost demo was not restarted.
+
+The API suite includes 20 new evaluation/workflow test methods. Controlled tests verify wrong answers/citations and incomplete observations return CLI exit **1**, invalid input returns **2**, and healthy offline execution returns **0**. They cover relevant-but-wrong source facts, all citation identity/location fields, missing/extra references, scope/counters, forged evidence, duplicate/unknown IDs, bounded input and import isolation. Expected error messages from deliberately failing fixtures are not failed tests; inspect the final unittest result.
+
+The aggregate script was executed with success/failure/cancelled/skipped results for each required job (12 combinations). Only all-success inputs pass. The actual logged scripts for all three test jobs were also executed with successful and failing substitutes (six checks), proving `tee` cannot hide failure. Source-path rejection now covers seven Windows/POSIX/traversal forms on both local Windows and CI Linux.
+
+### Acceptance results
+
+| ID | Result | Inspected evidence |
+| --- | --- | --- |
+| Q1 | PASS | Accepted push run matches the published implementation SHA. |
+| Q2 | PASS | Local and downloaded CI logs confirm API 125/UI 26, both `OK`. |
+| Q3 | PASS | Local and CI build/Jest/synth passed; dummy context and `--no-lookups` are explicit. |
+| Q4 | PASS | Aggregate and pipeline failure tests passed; workflow has read-only permission and no secrets/OIDC/deploy. |
+| E1 | PASS | 16 unique cases compile against pinned local sources/versions/locations; corrupted gold data fails. |
+| E2 | PASS | Real document workflow/retriever/validator/renderer execute with labeled simulated dependencies. |
+| E3 | PASS | Scorer regression tests detect corrupted answers, provenance, evidence, scope and outcome. |
+| E4 | PASS | Controlled wrong-answer/wrong-citation CLI tests return 1; complete healthy run returns 0. |
+| E5 | PASS | Partial coverage fails; imports retain unverified origin/unmeasured internals; strict malformed/duplicate/unknown inputs fail. |
+| E6 | PASS | Local and CI JSON/Markdown exist; all three accepted-run artifacts downloaded and inspected. |
+| E7 | PASS | Fresh-process import/execution guards and lazy-export compatibility tests passed without real client construction. |
+| D1 | PASS | Guide, README links and this evidence record describe commands/limits/known quirk; scoped implementation pushed and remote matched. Final documentation publication is checked separately. |
+
+No acceptance criterion is left unverified. Live Jev/Haiku/Titan accuracy, semantic retrieval ranking, latency/cost and protected-branch enforcement remain outside the approved scope; offline success makes no claim about them.
