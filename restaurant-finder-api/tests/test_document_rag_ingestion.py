@@ -102,14 +102,12 @@ class ParserTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             path = Path(temp)/"corpus.json"
             data = json.loads(CORPUS.read_text())
-            data["documents"][0]["path"] = "../outside.pdf"
-            path.write_text(json.dumps(data))
-            with self.assertRaises(ValueError):
-                load_corpus(path)
-            data["documents"][0]["path"] = "C:/outside.pdf"
-            path.write_text(json.dumps(data))
-            with self.assertRaises(ValueError):
-                load_corpus(path)
+            for source_path in ["../outside.pdf", "C:/outside.pdf", "C:\\outside.pdf", "C:outside.pdf", "/outside.pdf", "\\outside.pdf", "\\\\server\\share\\outside.pdf"]:
+                with self.subTest(source_path=source_path):
+                    data["documents"][0]["path"] = source_path
+                    path.write_text(json.dumps(data))
+                    with self.assertRaisesRegex(ValueError, "inside the corpus directory"):
+                        load_corpus(path)
             data["documents"].append(data["documents"][0])
             path.write_text(json.dumps(data))
             with self.assertRaises(ValueError):

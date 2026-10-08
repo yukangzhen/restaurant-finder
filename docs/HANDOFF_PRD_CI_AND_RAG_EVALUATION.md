@@ -226,6 +226,12 @@ The initial dataset run found the existing keyword resolver considers `Pasta` in
 
 The dataset contains 16 cases, including separate forged-ID and changed-quote cases. Execution results, GitHub evidence and final acceptance status will be recorded after verification.
 
+### Repairs discovered by inspecting CI artifacts
+
+The first Actions run, `37749612011` at `13a5a769447675140127feb6f6d9359da5731133`, reported successful jobs. Downloading its test artifact revealed the API suite actually had one error. That run is **not accepted as successful verification**: the test pipeline ended in `tee`, masking the failing command's exit code. Each project job now explicitly selects Bash and each logged test step sets `set -euo pipefail`. A regression test executes the actual three step scripts with successful/failing substitutes, without injecting shell flags from the test, and requires correct exit propagation.
+
+The underlying test error was platform-specific path validation: Linux's `Path` treated the prohibited Windows path `C:/outside.pdf` as relative and attempted to read it. A narrow parser repair now rejects Windows drive/root-qualified paths on either platform before accessing source bytes. Existing traversal tests now also cover drive-relative, backslash, UNC and POSIX absolute forms. This is an offline parser/platform repair under execution step 9; source contents, retrieval algorithms and deployed resources are unchanged.
+
 ### Owner-approved Actions setting change
 
 The first implementation push could not trigger CI: an authenticated read of the repository's Actions permissions returned `enabled: false`. Local work and publication were completed before requesting the additional setting authorization. The owner explicitly answered **Enable Actions and verify CI**.

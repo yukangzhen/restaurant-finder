@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from src.domain.document_rag import ChunkRecord, CorpusSpec, DocumentSpec, ExtractedUnit, canonical_text, digest
 
@@ -14,8 +14,14 @@ def load_corpus(path: Path) -> tuple[CorpusSpec, dict[str, bytes]]:
     sources = {}
     for doc in corpus.documents:
         relative = Path(doc.path)
+        # Catalog paths must stay relative on both Windows and Linux runners.
+        windows_path = PureWindowsPath(doc.path)
         candidate = (root / relative).resolve()
-        if relative.is_absolute() or not candidate.is_relative_to(root) or candidate.suffix.lower() not in {".md", ".pdf"}:
+        if (
+            windows_path.drive or windows_path.root or relative.is_absolute()
+            or not candidate.is_relative_to(root)
+            or candidate.suffix.lower() not in {".md", ".pdf"}
+        ):
             raise ValueError("Source must be a Markdown/PDF file inside the corpus directory")
         if candidate.stat().st_size > 5 * 1024 * 1024:
             raise ValueError("Document exceeds 5 MiB")

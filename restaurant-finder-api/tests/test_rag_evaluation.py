@@ -274,6 +274,27 @@ class WorkflowTests(unittest.TestCase):
                     with self.subTest(variable=variable,status=status):
                         self.assertEqual(result.returncode==0,status=="success",result.stderr)
 
+    def test_logged_test_steps_preserve_a_failed_command_exit(self):
+        bash=shutil.which("bash")
+        if sys.platform=="win32":
+            bash="C:/Program Files/Git/bin/bash.exe"
+        if not bash or not Path(bash).exists():
+            self.skipTest("Bash unavailable for local workflow verification")
+        with TemporaryDirectory() as directory:
+            for job_name in ["api","ui","infrastructure"]:
+                job=self.workflow["jobs"][job_name]
+                self.assertEqual(job["defaults"]["run"]["shell"],"bash")
+                steps=[step for step in job["steps"] if "| tee" in step.get("run","")]
+                self.assertEqual(len(steps),1)
+                script=steps[0]["run"]
+                command=next(line for line in script.splitlines() if "| tee" in line).split("| tee",1)[0]
+                for replacement in ["true ","false "]:
+                    # Execute the actual step's flags; do not supply pipefail from the test.
+                    result=subprocess.run([bash,"--noprofile","--norc","-c",script.replace(command,replacement,1)],
+                                          cwd=directory,env=os.environ.copy(),capture_output=True,text=True,timeout=10)
+                    with self.subTest(job=job_name,command=replacement.strip()):
+                        self.assertEqual(result.returncode==0,replacement.strip()=="true",result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

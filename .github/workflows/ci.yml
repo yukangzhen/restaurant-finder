@@ -34,6 +34,7 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
+        shell: bash
         working-directory: restaurant-finder-api
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,7 +52,9 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --locked
       - name: Run API regression tests
-        run: uv run --no-sync python -m unittest discover -s tests -q 2>&1 | tee api-tests.log
+        run: |
+          set -euo pipefail
+          uv run --no-sync python -m unittest discover -s tests -q 2>&1 | tee api-tests.log
       - name: Evaluate document RAG with simulated dependencies
         run: uv run --no-sync python -m src.evaluation.rag --offline --output .generated/evaluation/document-rag.json
       - name: Publish readable RAG summary
@@ -81,6 +84,7 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
+        shell: bash
         working-directory: restaurant-finder-ui
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -98,7 +102,9 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --locked
       - name: Run UI regression tests
-        run: uv run --no-sync python -m unittest discover -s tests -q 2>&1 | tee ui-tests.log
+        run: |
+          set -euo pipefail
+          uv run --no-sync python -m unittest discover -s tests -q 2>&1 | tee ui-tests.log
       - name: Save UI test log
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -117,6 +123,7 @@ jobs:
       CDK_DEFAULT_REGION: us-east-2
     defaults:
       run:
+        shell: bash
         working-directory: restaurant-finder-infra
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -132,7 +139,9 @@ jobs:
       - name: Compile infrastructure
         run: npm run build
       - name: Run infrastructure regression tests
-        run: npm test -- --runInBand 2>&1 | tee infrastructure-tests.log
+        run: |
+          set -euo pipefail
+          npm test -- --runInBand 2>&1 | tee infrastructure-tests.log
       - name: Synthesize with dummy context and no lookups
         run: npx --no-install cdk synth --all --no-lookups -c imageUri=123456789012.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:offline-ci --output cdk.out/ci > synthesis.log
       - name: Save infrastructure test log

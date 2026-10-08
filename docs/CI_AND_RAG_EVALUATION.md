@@ -13,6 +13,8 @@ The `Offline quality checks` workflow runs on pushes and pull requests:
 
 The workflow needs no AWS/TypeSafe credentials, model calls, prompt synchronization or deployments. It has read-only repository permission, pinned action commits, job timeouts and per-project dependency caches. It publishes the RAG case table in the job summary and keeps only the fictional evaluation report and concise test logs as artifacts for seven days. Original documents, `.env`, private session files and AWS state are not uploaded.
 
+Logged test commands explicitly enable Bash `pipefail`, so piping output through `tee` preserves test failures. Regression tests verify this behavior for all three jobs as well as the aggregate check. Corpus source paths must be relative on Windows and Linux; the parser rejects drive-qualified, rooted and out-of-directory paths before reading source files.
+
 This supplies a status check. Enforcing merge/deployment ordering through protected branches or deployment gates is separate repository policy, not configured here. The existing main-only deployment workflows remain separate.
 
 The owner approved enabling previously disabled Actions for this repository. Its selected-action allowlist permits the pinned CI action commits and the references already used by existing workflows. When changing an action reference, update that allowlist deliberately; a new SHA/tag is not automatically permitted.
