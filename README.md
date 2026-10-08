@@ -418,9 +418,9 @@ fresh trace/log evidence for the October 8 checks. No tracing setting was
 changed. `git diff --check` and the credential-pattern scan passed; no `.env` or
 generated prompt manifest appears in Git status. Earlier local verification
 passed 47 API tests and 8 UI tests; these suites were not rerun after
-documentation-only edits. No benchmark was run. The branch is ready for the
-planned commit and push, with the telemetry and Browser output-capture limits
-recorded.
+documentation-only edits. No benchmark was run. The implementation was
+committed as `169d56f` and pushed to `origin/feat/jev-router`; the telemetry and
+Browser output-capture limits remain recorded.
 
 ## CI/CD Pipelines
 

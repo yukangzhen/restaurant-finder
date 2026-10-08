@@ -178,5 +178,6 @@ The review reproduced these issues using source inspection and local fixtures: t
 - No resource replacement or deletion occurred, and no prompt, memory, IAM, or
   tracing configuration was changed by the deployment. The remaining evidence
   gaps are the absent fresh telemetry and the Browser test's uncaptured page
-  marker; the operation-isolation behavior itself completed. The branch is
-  ready for the planned commit and push, with these limitations recorded.
+  marker; the operation-isolation behavior itself completed. The implementation
+  was committed as `169d56f` and pushed to `origin/feat/jev-router`; these
+  limitations remain recorded.
