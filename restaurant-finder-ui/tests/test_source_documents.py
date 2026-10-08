@@ -120,8 +120,8 @@ class SourceTests(unittest.TestCase):
         async def run():
             event_thread.append(threading.get_ident())
             return await sources.prepare_source_elements([reference(),reference(label="Source 2")],ANSWER+"\nSource: Source 2 — same menu","bucket","us-east-2")
-        with patch.object(sources,"load_original",side_effect=loader) as load, patch.object(sources,"make_elements",side_effect=lambda c,b:[c.label,b]):
-            elements,notice=asyncio.run(run())
+        with patch.object(sources,"load_original",side_effect=loader) as load, patch.object(sources,"make_elements",side_effect=lambda c,b,n:[c.label,b]):
+            elements,notice,links=asyncio.run(run())
         self.assertEqual(len(elements),4)
         self.assertEqual(notice,"")
         load.assert_called_once()
@@ -129,7 +129,7 @@ class SourceTests(unittest.TestCase):
 
     def test_duplicate_failures_are_not_retried_and_errors_are_safe(self):
         with patch.object(sources,"load_original",side_effect=RuntimeError("SECRET_PROVIDER_BODY")) as load:
-            elements,notice=self.prepare([reference(),reference(label="Source 2")],ANSWER+"\nSource: Source 2 — same menu")
+            elements,notice,links=self.prepare([reference(),reference(label="Source 2")],ANSWER+"\nSource: Source 2 — same menu")
         load.assert_called_once()
         self.assertEqual(elements,[])
         self.assertEqual(notice,sources.SOURCE_UNAVAILABLE)
@@ -146,7 +146,7 @@ class SourceTests(unittest.TestCase):
             time.sleep(.03)
             return PDF
         with patch.object(sources,"SOURCE_TIMEOUT_SECONDS",.001),patch.object(sources,"load_original",side_effect=slow) as load:
-            elements,notice=self.prepare([reference(),reference(label="Source 2",document_id="other")],ANSWER+"\nSource: Source 2 — other")
+            elements,notice,links=self.prepare([reference(),reference(label="Source 2",document_id="other")],ANSWER+"\nSource: Source 2 — other")
         load.assert_called_once()
         self.assertEqual(elements,[])
         self.assertEqual(notice,sources.SOURCE_UNAVAILABLE)
@@ -156,12 +156,19 @@ class SourceTests(unittest.TestCase):
             return SimpleNamespace(**kwargs)
         with patch.object(sources.cl,"Pdf",side_effect=element),patch.object(sources.cl,"Text",side_effect=element),patch.object(sources.cl,"File",side_effect=element):
             pdf,download=sources.make_elements(sources.Citation.model_validate(reference()),PDF)
-            self.assertEqual((pdf.name,pdf.page,pdf.content),("Source 1",1,PDF))
+            self.assertEqual((pdf.name,pdf.page,pdf.content),("Source 1 (answer 1)",1,PDF))
             self.assertEqual(download.content,PDF)
             text,download=sources.make_elements(sources.Citation.model_validate(reference(MD)),MD)
             self.assertIn("   3 | Fee RM20.",text.content)
             self.assertEqual(download.content,MD)
             self.assertEqual(download.mime,"application/octet-stream")
+
+    def test_native_viewer_names_are_distinct_across_answers(self):
+        citation=sources.Citation.model_validate(reference())
+        self.assertNotEqual(sources.viewer_name(citation,1),sources.viewer_name(citation,2))
+        for number in [True,0,-1,1000001,"2"]:
+            with self.subTest(number=number),self.assertRaises(ValueError):
+                sources.viewer_name(citation,number)
 
     def test_sdk_timeouts_and_attempt_bound(self):
         import boto3
@@ -188,11 +195,11 @@ class CitationStreamTests(unittest.TestCase):
     def test_direct_and_nested_approved_metadata_attaches_to_complete_answer(self):
         event="data: "+json.dumps({"chunk":ANSWER,"citations":[reference()]})
         for value in [event,"data: "+json.dumps(event)]:
-            prepare=AsyncMock(return_value=(["viewer","download"],""))
+            prepare=AsyncMock(return_value=(["viewer","download"],"",{"Source 1":"Source 1 (answer 1)"}))
             message=self.invoke([value,'data: {"done":true}'],prepare)
-            self.assertEqual(message.content,ANSWER)
+            self.assertEqual(message.content,ANSWER.replace("Source: Source 1 — ","Source: Source 1 (answer 1) — "))
             self.assertEqual(message.elements,["viewer","download"])
-            prepare.assert_awaited_once_with([reference()],ANSWER,"bucket",app.AWS_REGION)
+            prepare.assert_awaited_once_with([reference()],ANSWER,"bucket",app.AWS_REGION,1)
 
     def test_block_errors_incomplete_and_mismatched_envelopes_never_attach(self):
         event="data: "+json.dumps({"chunk":ANSWER,"citations":[reference()]})
@@ -204,7 +211,7 @@ class CitationStreamTests(unittest.TestCase):
             self.assertEqual(message.elements,[])
 
     def test_source_failure_keeps_approved_answer_and_provenance(self):
-        prepare=AsyncMock(return_value=([],sources.SOURCE_UNAVAILABLE))
+        prepare=AsyncMock(return_value=([],sources.SOURCE_UNAVAILABLE,{}))
         event="data: "+json.dumps({"chunk":ANSWER,"citations":[reference()]})
         message=self.invoke([event,'data: {"done":true}'],prepare)
         self.assertEqual(message.content,ANSWER+"\n\n"+sources.SOURCE_UNAVAILABLE)

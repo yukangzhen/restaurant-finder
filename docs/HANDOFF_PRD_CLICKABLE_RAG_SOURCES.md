@@ -1,6 +1,6 @@
 # PRD: Clickable document citations
 
-**Status:** Approved by the owner's explicit `proceed`; implementation and verification in progress.
+**Status:** Approved by the owner's explicit `proceed`; implementation and verification complete, feature-branch publication pending.
 **Prepared:** 2026-10-08.
 **Project:** Restaurant Finder portfolio demo, `origin/feat/jev-router`.
 
@@ -249,6 +249,102 @@ If deployment rollback is required, restore the captured previous Runtime image 
 
 Assumptions: the user wants an in-app document panel with original download; the local UI server uses the owner's AWS development profile; the source corpus remains the existing fictional controlled documents; historical permanent links and public hosting are outside this request.
 
-No product-choice question blocks this design. The remaining gate is the user's required PRD sign-off. Request explicit **proceed** for local implementation, targeted verification, the bounded existing-Runtime deployment and feature-branch push described above.
+The owner supplied the required explicit **proceed** for local implementation, targeted verification, the bounded existing-Runtime deployment and feature-branch push described above. No further product-choice question blocked execution.
 
 No application code, AWS resources or tests were changed/run while preparing this proposal.
+
+### Implementation adjustment: PDF renderer
+
+The first live browser check opened a valid hash-verified original PDF, but Chainlit 2.9.6's iframe viewer remained blank in Codex's in-app browser. The original download was available. This prevents criterion C1 from being complete. The issue and the UI dependency update were explained to the owner during execution.
+
+Use the supported native PDF.js viewer supplied by Chainlit 2.12.0, pinned in the UI dependency/lockfile, and rerun the UI regression tests and browser check. The official [PDF documentation](https://docs.chainlit.io/api-reference/elements/pdf) identifies the renderer introduced in 2.11.0; the [release history](https://github.com/Chainlit/chainlit/releases) was inspected before selecting 2.12.0. This is a necessary UI compatibility correction within the approved citation feature. It requires no further Runtime image, corpus update or access grant. Count the repeat PDF question against the existing four-call allowance.
+
+### Implementation adjustment: distinct viewer names
+
+Initial browser inspection showed the PDF and policy together in one panel. Inspection of the installed frontend established that Chainlit automatically opens all new side elements together; clicking a named source selects that element alone. Repeated names also make native link selection ambiguous across answers. The UI now decorates eligible navigation labels with a per-session answer number, for example `Source 1 (answer 2)`. Native element names use the same distinct label. The API's approved text, quotations, citation metadata and memory text retain their existing format; only the UI navigation label is decorated after its reference and original bytes are validated. Failed source loads keep their plain textual labels.
+
+An offline regression checks distinct names across answers. The fourth and last allowed live check combined the menu and cancellation questions. Explicitly clicking each final source link opened only its correct document.
+
+## 10. Execution record
+
+### Steps completed
+
+1. Captured the clean branch at `1375b93fc6d40eef7b017ade78f0d541af228605`, Runtime version 10, image/environment, CloudFormation template, private-bucket settings and active generation. Retained rollback records locally.
+2. Added the strict API citation contract and bounded `RagOutcome.citations` field.
+3. Built references and textual citations together from verified selections and the pinned manifest. Kept references outside the model's answer schema.
+4. Added pending/approved per-turn state, exact unchanged-answer moderation gating and citation-bearing `TurnResult`. Memory continues to receive the approved API text.
+5. Added optional approved references to the same complete SSE chunk; preserved the existing `done` event and legacy-client text behavior.
+6. Added the UI's strict validation, generation-derived S3 reads, size/hash checks, bounded asynchronous loading, source deduplication and safe failures.
+7. Added PDF/full-text source panels and unmodified file downloads. Corrected the PDF renderer and distinct navigation names as documented above.
+8. Ran the final API and UI offline suites: **105 API tests passed** and **26 UI tests passed**. Logs from deliberately failing fixtures are expected. Validated the existing eight deployment prompt versions without creating new versions.
+9. Published one ARM64 API image, reviewed and executed the existing stack's Runtime-only change set, and configured/restarted only the local port-8010 demo. Kept the unrelated port-8000 process running.
+10. Used **four of four authorized Runtime calls**. The final combined answer and both explicit source clicks passed; both original downloads matched their pinned hashes. No Runtime calls remain in this allowance.
+11. Updated documentation/config examples and reviewed the tracked diff. Final feature-branch publication is recorded below after Git verification.
+
+### Final offline commands
+
+From `restaurant-finder-api`:
+
+```powershell
+$env:PROMPT_SYNC_MODE='false'
+$env:PROMPT_MANIFEST_PATH='.generated/offline-no-manifest.json'
+$env:REQUIRE_PROMPT_MANIFEST='false'
+$env:LOGURU_LEVEL='ERROR'
+.venv/Scripts/python.exe -m unittest discover -s tests -q
+```
+
+Result: **105 tests, OK**. From `restaurant-finder-ui`:
+
+```powershell
+.venv/Scripts/python.exe -m unittest discover -s tests -q
+```
+
+Result: **26 tests, OK**, including direct/nested SSE, unchanged-answer attachment gating, safe source failures and distinct viewer names. MCP remains disabled; Chainlit's notice about ignored older MCP config sections does not affect the document feature.
+
+The UI dependency update encountered a Windows lock on `.venv/Scripts/chainlit.exe` held by the separate port-8000 application. That process was preserved. Chainlit package metadata and bundled PDF worker verified version 2.12.0; `uv sync --locked --extra local-aws --no-install-package chainlit --inexact` completed the supporting dependencies. The demo runs with `.venv/Scripts/python.exe -m chainlit run app.py --host 127.0.0.1 --port 8010 --headless`, which uses the updated package without replacing the locked launcher. A full launcher replacement can be completed after the owner stops that other application; it is not needed by the current demo.
+
+### Deployment evidence
+
+- Region: `us-east-2`; existing Runtime: `restaurantFinder_Agent-Ha58oX5Psu`.
+- Final read-only check: Runtime **READY**, version **11**; `restaurantFinder-AgentCoreStack` **UPDATE_COMPLETE**.
+- API image source commit: `00a846a44d5ecac3ffc458d0331470fc9d16393d`.
+- Image: `447393541969.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:citations-00a846a-20261008052831-arm64`.
+- Digest: `sha256:7704ff7ce9e906e6508d2128a16b5479b6fb27608e0d05b38bf143c444700761`; build descriptor confirms `linux/arm64`.
+- Reviewed change set: exactly one `Modify` for `restaurantFinderAgentCoreRuntime`, replacement `False`, changing only `AgentRuntimeArtifact`. No IAM/resource replacement was included.
+- Runtime environment, Runtime role and CloudFormation execution role match the captured baseline. All four bucket public-access blocks remained enabled at source preflight.
+- Active generation remained `29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a`; the final pointer content equals the captured baseline.
+- Citation rollback image: `document-rag-47a7ddb-20261008040245-arm64`, digest `sha256:70bb7c82728901c6a02dc6b7c4f88caf74ba7855b494694aec5dd9228021f009`. The ignored `.generated/citations/runtime-rollback.template.json` restores this image through a separately reviewed Runtime-only update. No rollback was performed.
+- Final UI renderer/name fixes change only the local UI and documentation; no second API image or Runtime update was required.
+
+### Browser and original-file evidence
+
+The final live question was: "According to Harbor Pasta Lab's menu and policy, how much is mushroom pasta and what is the cancellation fee?"
+
+- Menu: exact quote `Mushroom pasta - RM32 per serving.`; `Source 1 (answer 1)` opens the complete Harbor menu v2 PDF at page **1 of 1**. The visible PDF includes RM32 and its surrounding menu entries.
+- Policy: exact quote `Cancellations less than 24 hours before the booking incur a RM20 fee per booking.`; `Source 2 (answer 1)` opens only the complete 11-line policy, including cited section **Reservations and cancellation**, lines **5–8**. The UI adds line numbers; the download retains original bytes.
+- Downloaded both files through the final message's observed Chainlit session-file endpoints, independently of the S3 preflight. Menu: **1,975 bytes**, SHA-256 `501c1300d00c571e8f94920a6ab25bd0a4ae54976e79ed047bce8e9dc8f6bb10`; policy: **534 bytes**, SHA-256 `d3d4b1ca9ca945c0f0db133c50bf02ae8c75c8736b32232a902634a8faa79471`. Both match the pinned manifest.
+- A prior actual browser menu download also matched that PDF hash. Final screenshots are saved locally as `.generated/citations/ui-pdf.png` and `ui-policy.png`.
+- Retained v1 menu read-check: generation `a68dcd7921d2f96d67de441961f55c972ad5af8072eb26f5841f8d7588ef3ab3`, **1,973 bytes**, SHA-256 `70ee04a2490bf03df5da3e0d15efeaf7b29b38cd3075c5b44872b1d6cf547ea2`. The offline source-key test confirms pointer changes do not change a pinned source lookup. The live active pointer was never modified for this feature.
+
+Private AWS snapshots, downloaded originals, browser session URLs and generated reports remain ignored under `restaurant-finder-api/.generated/citations/`; Chainlit session files and `.env` remain ignored. None are Git deliverables or included in the API image.
+
+### Acceptance results
+
+| ID | Result and evidence |
+| --- | --- |
+| C1 | Passed: final explicit PDF source click shows menu v2, page 1/1 and RM32 using the native PDF.js viewer. |
+| C2 | Passed: final explicit policy source click shows the complete numbered document and cited section/range. |
+| C3 | Passed: both final session-served original downloads match their manifest hashes and lengths. |
+| C4 | Passed through retained-source read-check and offline pointer-change fixture; no live pointer mutation. |
+| C5 | Passed offline: strict IDs/hashes/metadata, evidence/manifest agreement, format/encoding and size bounds. |
+| C6 | Passed offline: blocked/modified/error/no-evidence paths exclude metadata, and per-turn state resets prevent stale references. |
+| C7 | Passed offline: source failures/timeouts preserve approved text and never replay the agent; duplicate failures are not retried. |
+| C8 | Passed offline: direct/nested SSE and responses without citation metadata retain compatible text behavior. |
+| C9 | Passed by inspected change set, private-bucket read checks and local session serving; no new grants or public URLs. |
+| C10 | Tests, browser evidence and deployment passed; feature-branch publication pending the final push verification. |
+
+Verification limits: live inspection covered the current fictional one-page menu and Markdown policy. Other PDFs/page locations and failure/moderation paths were exercised with offline fixtures, not additional live calls. This is session-scoped source inspection on a local anonymous demo; permanent historical links and public/private multi-user authorization remain outside scope.
+
+### Git publication
+
+The implementation commit is `00a846a44d5ecac3ffc458d0331470fc9d16393d`. Final UI fixes and this execution record will be committed and pushed to the existing `origin/feat/jev-router`; record the verified remote implementation commit after publication. No PR, main merge or workflow dispatch is part of this task.

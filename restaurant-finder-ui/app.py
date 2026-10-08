@@ -172,7 +172,9 @@ async def on_message(message: cl.Message):
     msg = cl.Message(content="Working on your request…")
     await msg.send()
 
-    await _invoke_agent(msg, message.content, customer_name, conversation_id)
+    answer_number = cl.user_session.get("answer_number", 0) + 1
+    cl.user_session.set("answer_number", answer_number)
+    await _invoke_agent(msg, message.content, customer_name, conversation_id, answer_number)
 
 
 async def _invoke_agent(
@@ -180,6 +182,7 @@ async def _invoke_agent(
     user_input: str,
     customer_name: str,
     conversation_id: str,
+    answer_number: int = 1,
 ):
     """Invoke the agent via local API or AWS AgentCore Runtime based on config."""
     if AGENT_CONNECTION_MODE == "aws" and not AGENT_RUNTIME_ARN:
@@ -258,9 +261,13 @@ async def _invoke_agent(
         msg.content = full_response if full_response else "No response received."
         if (DOCUMENT_SOURCE_VIEWER_ENABLED and completed and citation_metadata
                 and citation_answer == full_response):
-            msg.elements, notice = await prepare_source_elements(
-                citation_metadata, full_response, RAG_DOCUMENT_BUCKET, AWS_REGION,
+            msg.elements, notice, links = await prepare_source_elements(
+                citation_metadata, full_response, RAG_DOCUMENT_BUCKET, AWS_REGION, answer_number,
             )
+            # Distinct element names disambiguate native source links across answers.
+            # Only decorate the trusted navigation label; quotes/provenance stay intact.
+            for label, name in links.items():
+                msg.content = msg.content.replace(f"Source: {label} — ", f"Source: {name} — ", 1)
             if notice:
                 msg.content += "\n\n" + notice
         await msg.update()

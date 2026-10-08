@@ -119,19 +119,27 @@ def markdown_view(citation, content):
     )
 
 
-def make_elements(citation, content):
+def viewer_name(citation, answer_number):
+    if type(answer_number) is not int or not 1 <= answer_number <= 1000000:
+        raise ValueError("Invalid answer reference number")
+    return f"{citation.label} (answer {answer_number})"
+
+
+def make_elements(citation, content, answer_number=1):
+    name = viewer_name(citation, answer_number)
     if citation.format == "pdf":
-        viewer = cl.Pdf(name=citation.label, content=content, display="side", page=citation.page)
+        viewer = cl.Pdf(name=name, content=content, display="side", page=citation.page)
     else:
-        viewer = cl.Text(name=citation.label, content=markdown_view(citation, content), display="side")
-    original = cl.File(name=f"{citation.label} original — {citation.filename}", content=content,
+        viewer = cl.Text(name=name, content=markdown_view(citation, content), display="side")
+    original = cl.File(name=f"{name} original — {citation.filename}", content=content,
                        display="inline", mime="application/pdf" if citation.format == "pdf" else "application/octet-stream")
     return [viewer, original]
 
 
-async def prepare_source_elements(values, answer, bucket, region):
+async def prepare_source_elements(values, answer, bucket, region, answer_number=1):
     """No agent retries; a source failure leaves the approved answer available."""
     elements = []
+    links = {}
     unavailable = False
     try:
         citations = validate_citations(values, answer)
@@ -155,11 +163,12 @@ async def prepare_source_elements(values, answer, bucket, region):
                     content = originals[citation.source_key]
                     if content is None:
                         raise ValueError("Original unavailable")
-                    elements.extend(make_elements(citation, content))
+                    elements.extend(make_elements(citation, content, answer_number))
+                    links[citation.label] = viewer_name(citation, answer_number)
                 except Exception as error:
                     unavailable = True
                     logger.warning("Source inspection unavailable (error_type=%s)", type(error).__name__)
     except Exception as error:
         unavailable = True
         logger.warning("Source preparation unavailable (error_type=%s)", type(error).__name__)
-    return elements, SOURCE_UNAVAILABLE if unavailable else ""
+    return elements, SOURCE_UNAVAILABLE if unavailable else "", links
