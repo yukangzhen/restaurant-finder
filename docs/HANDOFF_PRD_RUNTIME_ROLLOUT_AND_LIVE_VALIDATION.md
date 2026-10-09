@@ -1,6 +1,6 @@
 # Handoff PRD: Deploy the RAG query-scoping fix and verify the live demo
 
-**Status:** Runtime rollout and six live functional checks completed on 2026-10-09. Runtime 12 is retained. The immediate-follow-up timing requirement was missed; see R6 and section 12. Documentation publication/CI verification is the remaining close-out gate at authoring.
+**Status:** Execution closed on 2026-10-09 with the R6 timing deviation recorded. Runtime 12 is retained; all six functional expectations passed. Documentation was published to the feature branch and its offline CI artifacts were inspected; see the publication receipt below.
 **Prepared:** 2026-10-09, Asia/Kuala_Lumpur.
 **Audience:** The owner and the agent executing the rollout for the LinkedIn AI engineering demonstration.
 **Selected application source:** `feat/jev-router`, commit `ef146a295fe8edd0c5a9fa50ff5c9eccf70de35e`.
@@ -432,10 +432,18 @@ Application error/warning reads found **fourteen LoggingHandler deprecation warn
 | R6 | FAIL — timing only | All six functional expectations passed within six attempts; immediate F2 timing was missed due to the browser download delay. |
 | R7 | PASS | Explicit individual and earlier-answer source clicks; PDF/Markdown original bytes matched fresh manifest hashes, including F4 copies. |
 | R8 | PASS with unmeasured fields | Six fresh correlated traces, Jev routing, expected stages/counters. Exact type filters, hidden retries and dollar spend remain unmeasured; application warnings recorded separately. |
-| R9 | UNMEASURED publication gate at authoring | Deployment/ledger/source/telemetry record completed; commit/push and actual resulting documentation-SHA CI must be inspected before final close-out. |
+| R9 | PASS | Deployment/ledger/source/telemetry record published to the feature branch; four successful CI jobs and actual artifact counts inspected for documentation commit `539453fa29f08cabdcc36d7ac5982ab5a0ee029f`. Final receipt-only documentation commit is checked separately against its own resulting SHA. |
+
+### Documentation publication and offline CI receipt
+
+The rollout record and engineering guide were committed/pushed only to `origin/feat/jev-router` as `539453fa29f08cabdcc36d7ac5982ab5a0ee029f`. [Offline quality checks, 37889994286](https://github.com/yukangzhen/restaurant-finder/actions/runs/37889994286) completed successfully for that exact SHA. API and document RAG, UI, Infrastructure, and Quality checks all passed.
+
+Downloaded artifact contents, rather than badges alone, confirmed **135 API tests**, **26 UI tests**, **3 infrastructure tests**, and **17/17 offline RAG cases with 374 measured checks and zero unmeasured checks**. API/UI logs reported `OK`; infrastructure reported all tests passed; the complete RAG JSON reported every case passed in `offline_regression` mode. These are new inspected CI results, separate from the historical source-SHA CI and the six live Runtime scenarios. They do not measure live ranking quality or model performance.
+
+The remote SHA matched, and the worktree was clean before recording this receipt. This receipt changes only documentation; its resulting final commit/automatically triggered CI is inspected separately and retained as `final-publication-ci-verification.json` in the ignored evidence directory, with the final CI link reported to the owner. The deployed image remains built from application source `ef146a295fe8edd0c5a9fa50ff5c9eccf70de35e`.
 
 ### Preserved evidence and process state
 
-Private evidence lives under `restaurant-finder-api/.generated/rollout-query-scope-20261009/`. Retain baseline/update/fresh rollback templates, image/source/prompt/build/push records, actual change-set and final control-plane records, six-slot ledger, source-download verification, answer/source screenshots, safe telemetry summary and final-verification JSON. Archive/build staging is transient and removed only after checking its resolved path stays within this directory.
+Private evidence lives under `restaurant-finder-api/.generated/rollout-query-scope-20261009/`. Retain baseline/update/fresh rollback templates, image/source/prompt/build/push records, actual change-set and final control-plane records, six-slot ledger, source-download verification, answer/source screenshots, safe telemetry summary, final-verification JSON and publication/CI receipts. The transient source archive and build staging were removed after checking their resolved paths stayed within this directory and contained no reparse points. Earlier phase evidence and user files were preserved.
 
 The existing loopback port-8010 project UI was reused and remains running with source viewing enabled and the correct AWS Runtime configuration. It was not restarted. The separate port-8000 application remains running. Runtime 12 is retained and the approved rollback was unused. No application/UI source, dependencies, credentials, IAM, prompts, corpus, tracing destinations or workflow settings were changed. Documentation publication targets only `feat/jev-router`; no main push/merge, PR, deployment/destruction workflow dispatch or LinkedIn publication is included.
