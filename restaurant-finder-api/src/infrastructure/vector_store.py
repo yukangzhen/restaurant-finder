@@ -33,9 +33,12 @@ class VectorStore:
     def get(self, keys: list[str]):
         return self.client.get_vectors(indexArn=self.index_arn, keys=keys, returnData=True, returnMetadata=True)["vectors"]
 
-    def query(self, vector: list[float], generation_id: str, restaurant_id: str, document_type: str | None = None, top_k: int = 5):
+    def query(self, vector: list[float], generation_id: str, restaurant_id: str, document_type: str | None = None, top_k: int = 5,
+              *, max_pages: int = 10):
         if not 1 <= top_k <= 10:
             raise ValueError("top_k must be 1 to 10")
+        if isinstance(max_pages, bool) or not 1 <= max_pages <= 10:
+            raise ValueError("max_pages must be 1 to 10")
         clauses = [{"generation_id": {"$eq": generation_id}}, {"restaurant_id": {"$eq": restaurant_id}}]
         if document_type:
             if document_type not in {"menu", "policy"}:
@@ -49,7 +52,7 @@ class VectorStore:
         members = self.client.meta.service_model.operation_model("QueryVectors").input_shape.members
         pages = 1
         while response.get("nextToken"):
-            if "nextToken" not in members or pages >= 10:
+            if "nextToken" not in members or pages >= max_pages:
                 raise ValueError("Unsupported or excessive query pagination")
             response = self.client.query_vectors(**request, nextToken=response["nextToken"])
             results.extend(response["vectors"])

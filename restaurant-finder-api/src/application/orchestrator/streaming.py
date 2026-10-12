@@ -50,6 +50,7 @@ async def run_orchestrator_turn(
         "made_tool_calls": False,
         "response_status": "pending",
         "rag_status": None,
+        "rag_mode": None,
         "rag_generation": None,
         "rag_pending_scope": None,
         "rag_retrieval_count": 0,

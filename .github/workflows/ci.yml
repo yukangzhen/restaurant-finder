@@ -57,6 +57,8 @@ jobs:
           uv run --no-sync python -m unittest discover -s tests -q 2>&1 | tee api-tests.log
       - name: Evaluate document RAG with simulated dependencies
         run: uv run --no-sync python -m src.evaluation.rag --offline --output .generated/evaluation/document-rag.json
+      - name: Evaluate document comparison with simulated dependencies
+        run: uv run --no-sync python -m src.evaluation.document_comparison --offline --output .generated/evaluation/document-comparison.json
       - name: Publish readable RAG summary
         if: always()
         run: |
@@ -64,6 +66,11 @@ jobs:
             cat .generated/evaluation/document-rag.md >> "$GITHUB_STEP_SUMMARY"
           else
             echo 'RAG report was not produced; inspect the failing step.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f .generated/evaluation/document-comparison.md ]; then
+            cat .generated/evaluation/document-comparison.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Comparison report was not produced; inspect the failing step.' >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Save fictional RAG report and test log
         if: always()
@@ -73,6 +80,8 @@ jobs:
           path: |
             restaurant-finder-api/.generated/evaluation/document-rag.json
             restaurant-finder-api/.generated/evaluation/document-rag.md
+            restaurant-finder-api/.generated/evaluation/document-comparison.json
+            restaurant-finder-api/.generated/evaluation/document-comparison.md
             restaurant-finder-api/api-tests.log
           include-hidden-files: true
           if-no-files-found: warn

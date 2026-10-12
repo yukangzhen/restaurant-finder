@@ -23,8 +23,9 @@ from src.infrastructure.observability import get_observability_manager
 from src.infrastructure.rag_observability import rag_span
 
 
-def structured_chain(prompt, schema, max_tokens):
-    model = get_model(temperature=0, model_type=ModelType.EXTRACTION).model_copy(update={"max_tokens": max_tokens})
+def structured_chain(prompt, schema, max_tokens, *, client_config=None):
+    options = {"client_config": client_config} if client_config is not None else {}
+    model = get_model(temperature=0, model_type=ModelType.EXTRACTION, **options).model_copy(update={"max_tokens": max_tokens})
     return ChatPromptTemplate.from_messages([SystemMessage(content=prompt.prompt), ("human", "{payload}")]) | model.with_structured_output(schema)
 
 
@@ -93,11 +94,16 @@ def make_retriever():
                              top_k=settings.RAG_TOP_K, max_characters=settings.RAG_MAX_CONTEXT_CHARACTERS)
 
 
-async def answer_document_question(state, config, retriever=None, query_chain=None, answer_chain=None):
+async def answer_document_question(state, config, retriever=None, query_chain=None, answer_chain=None,
+                                   *, comparison_dependencies=None, deadline=None):
     if not settings.DOCUMENT_RAG_ENABLED:
         return RagOutcome(status="disabled", text="Document answering is currently disabled.")
     obs = get_observability_manager()
     question = next((extract_text_content(m.content) for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
+    from src.application.document_rag.comparison import is_comparison_candidate
+    if is_comparison_candidate(question):
+        from src.application.document_rag.comparison_workflow import answer_comparison
+        return await answer_comparison(question, config, dependencies=comparison_dependencies, deadline=deadline)
     retriever = retriever or make_retriever()
     with rag_span("rag.scope"):
         manifest = await asyncio.to_thread(retriever.pin)
@@ -144,9 +150,13 @@ async def answer_document_question(state, config, retriever=None, query_chain=No
 
 async def document_qa_node(state, config):
     started = time.monotonic()
+    from src.application.document_rag.comparison import is_comparison_candidate
+    question = next((extract_text_content(m.content) for m in reversed(state.get("messages", [])) if isinstance(m, HumanMessage)), "")
+    mode = "comparison" if is_comparison_candidate(question) else "single"
     try:
         async with asyncio.timeout(settings.RAG_REQUEST_TIMEOUT_SECONDS):
-            outcome = await answer_document_question(state, config)
+            options = {"deadline": started+settings.RAG_REQUEST_TIMEOUT_SECONDS} if mode == "comparison" else {}
+            outcome = await answer_document_question(state, config, **options)
     except asyncio.CancelledError:
         raise
     except Exception as error:
@@ -156,7 +166,7 @@ async def document_qa_node(state, config):
     get_observability_manager().record_workflow_step(step_name="document_qa", step_type="node",
         duration_ms=(time.monotonic()-started)*1000, success=outcome.status not in {"unavailable", "invalid_answer"},
         metadata={"rag.status": outcome.status, "rag.generation": outcome.generation_id or "none", "rag.retrieval_count": outcome.retrieval_count})
-    return {"messages": AIMessage(content=outcome.text, additional_kwargs={"document_rag_response":True}), "rag_status": outcome.status, "rag_generation": outcome.generation_id,
+    return {"messages": AIMessage(content=outcome.text, additional_kwargs={"document_rag_response":True}), "rag_mode": mode, "rag_status": outcome.status, "rag_generation": outcome.generation_id,
             "rag_pending_scope": outcome.restaurant_id if outcome.status in {"answered", "insufficient_evidence"} else None,
             "rag_retrieval_count": outcome.retrieval_count,
             "rag_pending_citations": [c.model_dump() for c in outcome.citations]}

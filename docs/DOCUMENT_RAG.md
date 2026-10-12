@@ -35,7 +35,7 @@ All source/chunk/manifest/cache writes are conditional and preserve existing con
 
 Use `sample_documents/corpus-v2.json` for the controlled RM28-to-RM32 Harbor price update. Verify the first price before publishing v2. This fixture changes the complete generation while reusing unchanged text embeddings.
 
-## Question answering
+## Single-restaurant question answering
 
 The [document evaluation guide](CI_AND_RAG_EVALUATION.md) describes 17 source-grounded cases, deterministic answer/provenance checks and the credential-free CI workflow. Offline regression reports identify simulated dependencies; they do not claim live model or vector-ranking accuracy.
 
@@ -66,17 +66,52 @@ Examples:
 - “According to Harbor Pasta Lab's policy, what is the cancellation fee?” -> policy-only retrieval; `Pasta` in the restaurant name does not imply a menu request.
 - “According to Harbor Pasta Lab's menu and policy, what is the mushroom pasta price and cancellation fee?” -> menu and policy retrieval with separate trusted quotations/citations.
 
+## Comparing document menu prices
+
+The document node also accepts a bounded two-restaurant comparison. Name one exact menu item and two different fictional catalog restaurants:
+
+- `Compare mushroom pasta prices at Harbor Pasta Lab and Sakura Table Lab. Show the sources.`
+- `What is the price difference for mushroom pasta between Harbor and Sakura?`
+- `Which is cheaper for mushroom pasta: Harbor or Sakura?`
+
+Registered short aliases, case differences, ordinary whitespace, optional leading `the` and final punctuation are supported. Other phrasing asks for clarification. Non-price comparisons, three restaurants, multiple dishes/criteria and unknown operands are outside this version. The Jev/Haiku router is unchanged; live classification of these examples has not been measured by the offline checks.
+
+The workflow pins the active generation once, then dispatches two isolated LangGraph workers. Each uses a server-selected restaurant/menu filter, one embedding/query and at most one structured quote-selection call. The private graph has no checkpointer; only its final answer/citations enter the parent workflow. Both branches settle before deterministic aggregation, so completion order cannot reorder the restaurants or source labels.
+
+Exact menu records must identify the requested item, match verified chunks and retain adjacent qualifiers. The application parses fixed RM/MYR listed prices with an explicit `per serving`, `per bowl` or `per piece` unit using `Decimal`. It calculates a difference only for two supported records with matching currency and units. Ranges, discounts, unsupported currencies/units and ambiguous boundaries produce no calculation. This compares listed document prices and makes no claim about current availability, restaurant quality or equal portion sizes.
+
+With the local v2 fixtures, Harbor's mushroom pasta is RM32 per serving and Sakura's is RM36 per serving, yielding RM4. The response includes full quotes and two original-document links: Harbor's PDF and Sakura's Markdown. It does not infer which generation is currently deployed.
+
+| Evidence situation | User-visible result |
+| --- | --- |
+| Two supported, comparable prices | Two cited rows and an application-calculated difference or tie. |
+| Two supported records with incompatible units/formats | Both sources; explanation that arithmetic is unavailable. |
+| One supported, one missing | One-source partial result; no difference/winner. Missing retrieval evidence does not prove the dish is unavailable. |
+| One supported, one provider failure | One-source partial result explicitly identifying retrieval unavailability. |
+| Neither supported | Insufficient evidence, or unavailable when a provider failed. |
+| Forged/changed/out-of-scope/conflicting evidence | Whole comparison rejected; no citation attachments or calculation. |
+
+The complete answer goes through the existing output guardrail. Blocked or changed/anonymized answers lose original citation attachments. Approved comparisons clear the single-restaurant follow-up scope: `What about its cancellation policy?` asks which restaurant. A later explicit single-restaurant request establishes its normal scope again. The approved final turn is saved once.
+
+Per comparison: two workers, two embedding/vector-query operations, one vector page per worker, at most ten chunk reads, at most 18,000 passage characters, two selector calls and two quotes/citations. Each selector allows 1,600 output tokens. SDK retries and repair loops are disabled for this path. Workers have a maximum 45-second deadline and reserve two seconds within the existing maximum 60-second document timeout for aggregation. Cancellation prevents starting subsequent operations; an already-running synchronous SDK call can still finish within its configured timeout. These limits exclude parent routing, guardrails and memory operations and are not a latency/cost benchmark.
+
+Implementation and acceptance details are in the [comparison handoff PRD](C:/Users/kinoc/Documents/Codex/2026-09-28/i-x20/work/agentic-ai-langgraph-and-aws-agentcore/docs/HANDOFF_PRD_DOCUMENT_COMPARISON.md). Offline evaluation uses simulated providers; AWS deployment and live model/ranking checks remain separate.
+
+## Retrieval scope and historical single-restaurant validation
+
+The following rollout record covers the earlier single-restaurant feature. The new comparison workflow has only offline validation in this phase.
+
 Document-type inference ignores matched catalog-name/alias spans while retaining the full canonical question for embedding and answer selection. Menu-only intent selects `menu`, policy-only intent selects `policy`, and mixed/neutral intent has no type restriction. Existing restaurant clarification, approved follow-up scope and explicit restaurant override remain covered by regression tests. The [query-scoping PRD](HANDOFF_PRD_RAG_QUERY_SCOPE.md) records the code improvement and offline verification. Its selected source `ef146a295fe8edd0c5a9fa50ff5c9eccf70de35e` was deployed on 2026-10-09 as READY Runtime/DEFAULT version 12 through an image-only update; see the [live rollout record](HANDOFF_PRD_RUNTIME_ROLLOUT_AND_LIVE_VALIDATION.md).
 
 The six live scenarios returned the expected menu, policy, mixed, conversational follow-up, insufficient-evidence and clarification behavior. Jev routed every request to `document_qa`; five query embeddings/vector queries, five selections and one follow-up rewrite were observed. Clarification performed no embedding/vector query/selection. Explicit menu and policy citation clicks opened the intended originals; their downloads matched the pinned hashes. A browser download delay prevented the planned immediate follow-up timing, although the same conversation retained Harbor scope. These controlled checks do not establish universal retrieval accuracy, performance or production suitability.
 
-Only server code creates filters and resolves manifest keys. The model selects supplied IDs and exact contiguous quotes; it cannot supply source URLs, restaurant filters or S3 paths. At most five complete passages / 9,000 characters reach the answer selector. Distances are retrieval ordering, not calibrated confidence. Invalid citations, changed quotes, malformed structured answers and instruction-like selections produce a safe failure. No automatic model/graph replay occurs.
+Only server code creates filters and resolves manifest keys. The model selects supplied IDs and exact contiguous quotes; it cannot supply source URLs, restaurant filters or S3 paths. At most five complete passages / 9,000 characters reach each answer selector. Distances are retrieval ordering, not calibrated confidence. Invalid citations, changed quotes, malformed structured answers and instruction-like selections produce a safe failure. No automatic model/graph replay occurs.
 
 Extractive answers intentionally sacrifice conversational paraphrasing for inspectable evidence. Exact matching validates quotation provenance, not universal factual correctness or semantic relevance. Source quality and the answer selector still matter. Retrieved text is treated as untrusted data; the document model has no executable browser, memory or ingestion tools. The normal guardrail can anonymize or block the final cited answer before UI delivery and memory storage.
 
 ## Inspecting the original source
 
-New unchanged, approved document answers include optional structured citation references in the same complete SSE chunk. The API resolves them from the selected evidence and pinned manifest; the model still supplies only chunk IDs and exact quotes. Blocked, modified/anonymized, failed and missing-evidence answers carry no clickable references. Pending and approved references reset on every turn.
+New unchanged, approved document answers include optional structured citation references in the same complete SSE chunk. The API resolves them from the selected evidence and pinned manifest; the model still supplies only chunk IDs and exact quotes. Blocked, modified/anonymized, invalid and wholly unsupported answers carry no clickable references. A partial comparison attaches only its supported restaurant's source. Pending and approved references reset on every turn.
 
 The local Chainlit server fetches each distinct original once from `rag/generations/<generation>/sources/<document-id>.<pdf-or-md>`, verifies its SHA-256 and 5 MiB size bound, then attaches a clickable `Source 1`/`Source 2`/`Source 3` element. PDFs open at their cited page. Markdown opens as complete literal text with original line numbers and the cited section/range. Original downloads contain the unmodified verified bytes. The loader uses bounded I/O, a 30-second preparation timeout and no SDK or agent retries. Failure preserves the approved answer and plain citation with a source-unavailable notice.
 

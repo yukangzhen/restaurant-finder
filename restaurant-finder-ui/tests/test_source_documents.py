@@ -4,6 +4,7 @@ import json
 import threading
 import time
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -41,6 +42,30 @@ class Body:
 
 
 class SourceTests(unittest.TestCase):
+    def test_comparison_opens_two_distinct_originals_with_one_generation(self):
+        root = Path(__file__).resolve().parents[2] / "restaurant-finder-api" / "sample_documents"
+        pdf, md = (root/"harbor-menu-v2.pdf").read_bytes(), (root/"sakura-menu.md").read_bytes()
+        values = [reference(pdf,format="pdf",filename="harbor-menu-v2.pdf",document_id="harbor-menu",version="v2",
+                            page=1,section=None,line_start=None,line_end=None),
+                  reference(md,label="Source 2",filename="sakura-menu.md",document_id="sakura-menu",section="Main dishes",
+                            line_start=5,line_end=11,chunk_id="c"*64)]
+        answer = "| Harbor | RM32 per serving | Source 1 |\n| Sakura | RM36 per serving | Source 2 |\n" + ANSWER + "\nSource: Source 2 — sakura menu"
+        def element(**kwargs):
+            return SimpleNamespace(**kwargs)
+        with patch.object(sources,"load_original",side_effect=[pdf,md]) as load,\
+             patch.object(sources.cl,"Pdf",side_effect=element),patch.object(sources.cl,"Text",side_effect=element),\
+             patch.object(sources.cl,"File",side_effect=element):
+            elements,notice,links = self.prepare(values,answer)
+        self.assertEqual(load.call_count,2)
+        self.assertEqual(notice,"")
+        self.assertEqual(len(elements),4)
+        self.assertEqual((elements[0].content,elements[0].page),(pdf,1))
+        self.assertIn("RM36",elements[2].content)
+        self.assertEqual(elements[3].content,md)
+        self.assertEqual(set(links),{"Source 1","Source 2"})
+        with self.assertRaises(ValueError):
+            sources.validate_citations([values[0],{**values[1],"generation_id":"f"*64}],answer)
+
     def load(self, content, data=None, length=None):
         body=Body(content)
         client=SimpleNamespace(get_object=lambda **kw:{"Body":body,"ContentLength":len(content) if length is None else length})
@@ -184,6 +209,19 @@ class SourceTests(unittest.TestCase):
 
 
 class CitationStreamTests(unittest.TestCase):
+    def test_comparison_and_partial_source_lines_remain_clickable(self):
+        for values, answer in [([reference(),reference(MD,label="Source 2")],ANSWER+"\nSource: Source 2 — second venue"),
+                               ([reference()],"Partial comparison: other restaurant retrieval unavailable.\n"+ANSWER)]:
+            mapping = {value["label"]:value["label"]+" (answer 1)" for value in values}
+            prepare = AsyncMock(return_value=(["viewers"],"",mapping))
+            events = ["data: "+json.dumps({"chunk":answer,"citations":values}),'data: {"done":true}']
+            message = self.invoke(events,prepare)
+            self.assertEqual(message.elements,["viewers"])
+            for label, viewer in mapping.items():
+                self.assertIn(f"Source: {viewer} — ",message.content)
+                self.assertNotIn(f"Source: {label} — ",message.content)
+            prepare.assert_awaited_once()
+
     def invoke(self, events, prepare):
         message=_Message()
         with patch.object(app,"AGENT_CONNECTION_MODE","aws"),patch.object(app,"AGENT_RUNTIME_ARN","runtime"),\

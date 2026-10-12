@@ -6,7 +6,7 @@ The `Offline quality checks` workflow runs on pushes and pull requests:
 
 | Job | Checks |
 | --- | --- |
-| API and document RAG | Locked dependencies, API unit/regression suite, complete offline RAG dataset. |
+| API and document RAG | Locked dependencies, API unit/regression suite, complete offline RAG and comparison datasets. |
 | UI | Locked dependencies and UI regression suite. |
 | Infrastructure | Locked npm dependencies, TypeScript compilation, Jest and CDK synthesis with dummy context/no lookups. |
 | Quality checks | Passes only when all three jobs succeed; failure, cancellation and skipped jobs do not pass. |
@@ -35,6 +35,7 @@ $env:EVALUATION_ENABLED='false'
 $env:LOGURU_LEVEL='ERROR'
 uv run --no-sync python -m src.evaluation.rag --list-cases
 uv run --no-sync python -m src.evaluation.rag --offline --output .generated/evaluation/document-rag.json
+uv run --no-sync python -m src.evaluation.document_comparison --offline --output .generated/evaluation/document-comparison.json
 ```
 
 The CLI writes JSON and a same-name `.md` case table. Generated local reports are ignored by Git. Exit codes:
@@ -72,7 +73,21 @@ Both full-name and short-alias policy cases now require policy-only evidence. Th
 
 ## How to interpret the report
 
-An offline report is labeled `offline_regression` and `simulated_dependencies`. It establishes reproducible workflow/contract behavior. It does **not** measure current Jev routing accuracy, Haiku answer selection, Titan vector ranking, live hallucination rate, latency or cost.
+### Separate document comparison regression
+
+The comparison evaluator keeps the original 17 single-restaurant cases unchanged. Its separate 20-case dataset covers both fixture generations, all supported question forms, aliases/order, missing evidence, malformed/unknown/duplicate operands, extra criteria, wrong-item/forged/changed quotations, a provider failure and a pointer change after pinning.
+
+It runs the actual dispatcher, deterministic planner, compiled LangGraph workers, retriever, validator, arithmetic and renderer with simulated stores, embeddings, vector hits and selectors. Cloud-client construction is forbidden. Expected records and provider scripts occupy separate fields; observations come from executed code, not from copying expected results. An independent scorer checks exact answer text, row records, numeric conclusions, original citations, fixed generation/menu scopes, selected evidence and actual call counts.
+
+The CLI writes ignored JSON and Markdown reports with safe case/check summaries and the same 0/1/2 success/failure/input-error distinction described above. CI requires the full comparison dataset and uploads only these reports with the existing artifact allowlist. Raw responses, source bodies, provider exceptions and session/credential values are omitted. Skipped, duplicate or unknown observations cannot yield a passing complete report.
+
+Reports explicitly identify `offline_regression` and `simulated_dependencies`. Live Jev routing, selector accuracy, semantic vector ranking, latency and cost remain unmeasured. These are functional regression checks, not a benchmark.
+
+Additional API tests cover ties, decimal prices, unsupported currencies/formats, different serving units, retrieved conflicts, quote qualifiers, deadline/page/attempt limits, parallel execution, cancellation, output moderation, follow-up scope and parent memory. UI tests verify two distinct PDF/Markdown originals and one-source partial responses through the existing citation transport. Synthetic arithmetic edge inputs are labeled as contract tests and do not alter the corpus originals.
+
+### Original single-restaurant report
+
+The original RAG report is labeled `offline_regression` and `simulated_dependencies`. It establishes reproducible workflow/contract behavior. It does **not** measure current Jev routing accuracy, Haiku answer selection, Titan vector ranking, live hallucination rate, latency or cost.
 
 Checks have `pass`, `fail` or `unmeasured` states. The report records the expected and observed case counts, missing IDs, failed cases, measured-check count and unmeasured-check count. A partial set cannot receive complete-suite success. Source provenance establishes where a quote came from; question relevance is checked against this small curated dataset, not a universal semantic judge.
 

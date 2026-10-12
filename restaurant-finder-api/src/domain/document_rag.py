@@ -12,6 +12,10 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class EvidenceIntegrityError(ValueError):
+    """Fixed-message provenance failure; distinct from provider unavailability."""
+
+
 def canonical_text(text: str) -> str:
     """Stable whitespace/Unicode normalization; keep prices and negation intact."""
     return " ".join(unicodedata.normalize("NFC", text).split())
@@ -227,7 +231,7 @@ class DocumentCitation(Contract):
 
 
 class RagOutcome(Contract):
-    status: Literal["answered", "clarify", "insufficient_evidence", "disabled", "unavailable", "invalid_answer"]
+    status: Literal["answered", "partial", "clarify", "insufficient_evidence", "disabled", "unavailable", "invalid_answer"]
     text: str
     generation_id: str | None = None
     restaurant_id: str | None = None
@@ -236,8 +240,10 @@ class RagOutcome(Contract):
 
     @model_validator(mode="after")
     def citation_status(self):
-        if self.citations and self.status != "answered":
-            raise ValueError("Only an answered outcome can have citations")
+        if self.citations and self.status not in {"answered", "partial"}:
+            raise ValueError("Only answered/partial outcomes can have citations")
+        if self.status == "partial" and (len(self.citations) != 1 or self.restaurant_id is not None):
+            raise ValueError("Partial comparison requires one source and no single scope")
         if any(c.generation_id != self.generation_id for c in self.citations):
             raise ValueError("Citation generation differs from the answer")
         return self

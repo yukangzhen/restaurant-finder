@@ -207,16 +207,20 @@ async def output_guardrail_node(
     update = {"messages": replacement, "response_status": response_status,
               "rag_pending_citations": [], "rag_approved_citations": []}
     if (response_status == "approved" and approved_text == raw_text
-            and state.get("intent") == "document_qa" and state.get("rag_status") == "answered"):
+            and state.get("intent") == "document_qa" and state.get("rag_status") in {"answered", "partial"}):
         from src.domain.document_rag import DocumentCitation
         pending = state.get("rag_pending_citations", [])
         if len(pending) > 3:
             raise ValueError("Too many pending citations")
+        if state.get("rag_status") == "partial" and (state.get("rag_mode") != "comparison" or len(pending) != 1):
+            raise ValueError("Partial citations require one-source comparison")
         update["rag_approved_citations"] = [DocumentCitation.model_validate(c).model_dump() for c in pending]
     if response_status == "approved":
         update["last_approved_intent"] = state.get("intent")
     # Only an approved document turn advances scope. All per-turn fields reset upstream.
-    if response_status == "approved" and state.get("rag_pending_scope"):
+    if response_status == "approved" and state.get("rag_mode") == "comparison":
+        update["rag_approved_scope"] = None
+    elif response_status == "approved" and state.get("rag_pending_scope"):
         update["rag_approved_scope"] = state["rag_pending_scope"]
     return update
 

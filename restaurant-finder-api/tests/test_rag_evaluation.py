@@ -265,6 +265,16 @@ class WorkflowTests(unittest.TestCase):
         path=rag.API_ROOT.parent/".github"/"workflows"/"ci.yml"
         self.workflow=yaml.load(path.read_text(),Loader=yaml.BaseLoader)
 
+    def test_comparison_evaluation_and_safe_report_artifacts_are_required(self):
+        steps = self.workflow["jobs"]["api"]["steps"]
+        runs = [s.get("run","") for s in steps]
+        self.assertTrue(any("python -m src.evaluation.document_comparison --offline" in command for command in runs))
+        artifact = next(s["with"] for s in steps if "upload-artifact@" in s.get("uses",""))
+        self.assertIn(".generated/evaluation/document-comparison.json",artifact["path"])
+        self.assertIn(".generated/evaluation/document-comparison.md",artifact["path"])
+        self.assertNotIn("sample_documents",artifact["path"])
+        self.assertTrue(any("document-comparison.md" in command and "GITHUB_STEP_SUMMARY" in command for command in runs))
+
     def test_workflow_is_offline_read_only_and_actions_are_pinned(self):
         self.assertEqual(set(self.workflow["on"]),{"push","pull_request"})
         self.assertEqual(self.workflow["permissions"],{"contents":"read"})

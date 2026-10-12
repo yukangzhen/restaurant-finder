@@ -67,6 +67,7 @@ def get_model(
     temperature: float = 0.7,
     model_id: str | None = None,
     model_type: ModelType = ModelType.ORCHESTRATOR,
+    client_config: Any = None,
 ) -> ChatBedrockConverse:
     """
     Get a ChatBedrockConverse model instance.
@@ -75,13 +76,16 @@ def get_model(
         temperature: Model temperature (0.0-1.0).
         model_id: Model ID override. Takes precedence over model_type.
         model_type: The type of model to use (orchestrator, extraction, router).
+        client_config: Optional construction-time Botocore configuration.
 
     Returns:
         ChatBedrockConverse: Configured model instance.
     """
     resolved_model_id = model_id or _get_model_id_for_type(model_type)
 
+    options = {"config": client_config} if client_config is not None else {}
     return ChatBedrockConverse(
         model=resolved_model_id,
         temperature=temperature,
+        **options,
     )

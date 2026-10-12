@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import math
 import re
+import time
 from pathlib import Path
 
-from src.domain.document_rag import ChunkRecord, DocumentQuery, GenerationManifest, RestaurantEntry, RetrievedEvidence, canonical_text
+from src.domain.document_rag import ChunkRecord, DocumentQuery, EvidenceIntegrityError, GenerationManifest, RestaurantEntry, RetrievedEvidence, canonical_text
 from src.infrastructure.rag_observability import rag_span
 
 
@@ -54,45 +55,71 @@ class DocumentRetriever:
         self.store, self.vectors, self.embeddings = store, vectors, embeddings
         self.active_key, self.top_k, self.max_characters = active_key, top_k, max_characters
 
-    def pin(self) -> GenerationManifest:
-        pointer, _ = self.store.active(self.active_key)
+    @staticmethod
+    def check_deadline(deadline, clock):
+        if deadline is not None and clock() >= deadline:
+            raise TimeoutError("Document deadline exhausted")
+
+    def pin(self, *, deadline=None, clock=time.monotonic) -> GenerationManifest:
+        self.check_deadline(deadline, clock)
+        try:
+            pointer, _ = self.store.active(self.active_key)
+        except ValueError:
+            raise EvidenceIntegrityError("Invalid active pointer") from None
         if pointer is None:
             raise ValueError("No active corpus")
-        data, _ = self.store.read_json(pointer.manifest_key)
-        manifest = GenerationManifest.model_validate(data)
+        self.check_deadline(deadline, clock)
+        try:
+            data, _ = self.store.read_json(pointer.manifest_key)
+            manifest = GenerationManifest.model_validate(data)
+        except ValueError:
+            raise EvidenceIntegrityError("Invalid generation manifest") from None
         if manifest.generation_id != pointer.generation_id or manifest.config != self.embeddings.config:
-            raise ValueError("Active generation/model configuration mismatch")
+            raise EvidenceIntegrityError("Active generation/model configuration mismatch")
+        self.check_deadline(deadline, clock)
         self.vectors.validate_index()
         return manifest
 
-    def retrieve(self, query: DocumentQuery, manifest: GenerationManifest) -> list[RetrievedEvidence]:
+    def retrieve(self, query: DocumentQuery, manifest: GenerationManifest, *, deadline=None, clock=time.monotonic,
+                 max_pages=None) -> list[RetrievedEvidence]:
         if query.clarification or query.restaurant_id not in {r.restaurant_id for r in manifest.restaurants}:
             raise ValueError("Retrieval requires an approved catalog scope")
         with rag_span("rag.embed", {"rag.embedding_model":self.embeddings.config.model_id}) as span:
+            self.check_deadline(deadline, clock)
             vector = self.embeddings.embed(query.query)
             if span:
                 span.set_attribute("rag.query_tokens", self.embeddings.tokens)
                 span.set_attribute("rag.embedding_attempts", self.embeddings.attempts)
         with rag_span("rag.vector_query", {"rag.generation":manifest.generation_id, "rag.restaurant":query.restaurant_id, "rag.top_k":self.top_k}):
-            hits = self.vectors.query(vector, manifest.generation_id, query.restaurant_id, query.document_type, self.top_k)
+            self.check_deadline(deadline, clock)
+            options = {"max_pages": max_pages} if max_pages is not None else {}
+            hits = self.vectors.query(vector, manifest.generation_id, query.restaurant_id, query.document_type, self.top_k, **options)
+        if len(hits) > self.top_k:
+            raise EvidenceIntegrityError("Vector result exceeds requested bound")
         references = {f"{manifest.generation_id}:{c.chunk_id}": c for c in manifest.chunks}
         names = {r.restaurant_id: r.name for r in manifest.restaurants}
         evidence, seen, characters = [], set(), 0
         for hit in hits:
+            if not isinstance(hit, dict):
+                raise EvidenceIntegrityError("Invalid vector hit")
             ref = references.get(hit.get("key"))
             if ref is None or ref.restaurant_id != query.restaurant_id or (query.document_type and ref.document_type != query.document_type):
-                raise ValueError("Retrieved vector is outside the pinned scope")
+                raise EvidenceIntegrityError("Retrieved vector is outside the pinned scope")
             if hit["key"] in seen:
-                raise ValueError("Duplicate retrieved vector")
+                raise EvidenceIntegrityError("Duplicate retrieved vector")
             seen.add(hit["key"])
             expected = {"generation_id": manifest.generation_id, "chunk_id": ref.chunk_id, "document_id": ref.document_id,
                         "restaurant_id": ref.restaurant_id, "document_type": ref.document_type}
-            if hit.get("metadata") != expected or not isinstance(hit.get("distance"), (int, float)) or not math.isfinite(hit["distance"]):
-                raise ValueError("Retrieved vector metadata/distance is invalid")
-            data, _ = self.store.read_json(ref.key)
-            chunk = ChunkRecord.model_validate(data)
+            if hit.get("metadata") != expected or isinstance(hit.get("distance"), bool) or not isinstance(hit.get("distance"), (int, float)) or not math.isfinite(hit["distance"]):
+                raise EvidenceIntegrityError("Retrieved vector metadata/distance is invalid")
+            self.check_deadline(deadline, clock)
+            try:
+                data, _ = self.store.read_json(ref.key)
+                chunk = ChunkRecord.model_validate(data)
+            except ValueError:
+                raise EvidenceIntegrityError("Invalid retrieved chunk") from None
             if chunk.model_dump() != ref.model_dump(exclude={"key"}):
-                raise ValueError("Retrieved source text/location/hash is inconsistent")
+                raise EvidenceIntegrityError("Retrieved source text/location/hash is inconsistent")
             if characters + len(chunk.text) > self.max_characters:
                 continue  # Keep whole passages; never truncate their records.
             characters += len(chunk.text)

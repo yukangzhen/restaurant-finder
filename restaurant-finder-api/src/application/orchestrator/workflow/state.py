@@ -40,6 +40,7 @@ class OrchestratorState(TypedDict):
     # Final response state set only after the output guardrail approves/blocks.
     response_status: Literal["pending", "approved", "blocked"]
     rag_status: str | None
+    rag_mode: Literal["single", "comparison"] | None
     rag_generation: str | None
     rag_pending_scope: str | None
     rag_approved_scope: str | None
