@@ -1,6 +1,6 @@
 # Handoff PRD: Publish, deploy, and verify document price comparisons
 
-**Status:** Owner approved execution on 2026-10-12; publication and release checks in progress.
+**Status:** Owner approved execution on 2026-10-12. Source publication, offline CI, and fresh AWS/corpus/rollback baseline verified; disk space recovered. Image build and deployment remain blocked by unresponsive Docker Desktop after the owner-approved supported restart failed.
 **Prepared:** 2026-10-12, Asia/Kuala_Lumpur.
 **Audience:** The owner and the execution agent responsible for the Restaurant Finder AI engineering demonstration.
 **Repository:** [yukangzhen/restaurant-finder](https://github.com/yukangzhen/restaurant-finder).
@@ -494,27 +494,84 @@ No login material, Docker auth directory, secret dump, signed download URL, unre
 - No deliberate Jev failure, arbitrary document upload, invalid-input live matrix, benchmark, warning repair, or recorded demo is included.
 - Use the current agent/runtime model unless the owner explicitly chooses another supported model. Do not claim execution used a particular model without runtime metadata.
 
-## 13. Execution record — fill only with inspected outcomes
+## 13. Execution record — inspected outcomes on 2026-10-12
 
-**Preparation completed:** This PRD was created after inspecting local implementation, release/CI workflows, source handling, provider bounds, and historical release evidence. No test suite, AWS check, model call, Git publication, Docker operation, deployment, UI restart, or walkthrough was performed during preparation.
+### Release and deployment
 
 | Record | Outcome |
 | --- | --- |
-| Owner execution approval and date | Explicit **proceed** on 2026-10-12 after PRD presentation. |
-| Fresh six-attempt allowance | Approved: maximum six Runtime attempts, including failures/replacements. |
-| Release commit / matching remote SHA | Not executed |
-| Release CI run / artifact checks | Not executed |
-| Fresh AWS/Docker baseline | Not executed |
-| Prompt manifest validation/hash | Not executed |
-| ARM64 image tag/digest/provenance | Not executed |
-| Reviewed/actual change set | Not executed |
-| Before/after Runtime and DEFAULT versions | Not executed |
-| Environment/role/pointer preservation | Not executed |
-| V1 / V2 / V3 / V4 / V5 / V6 | Not executed |
-| Runtime attempts used / remaining | 0 / 6 approved |
-| Originals/source hashes | Not executed |
-| Routing/worker/moderation/memory telemetry | Not executed |
-| D1-D10 acceptance matrix | Not executed |
-| Retain/recovery/rollback decision | Not executed |
-| Closeout documentation SHA / CI | Not executed |
-| Remaining gaps/deviations | Live-release criteria pending. GitHub CLI absent from PATH; existing Git credential helper plus GitHub REST reads verified owner identity/access without installing tools or exposing credentials. Remote feature FETCH_HEAD equals the inspected base, with zero divergence. |
+| Owner approval | Explicit **proceed** on 2026-10-12 approved feature publication, one image-only update, conditional rollback and at most six Runtime attempts. |
+| Source / branch | **be5c35d69b7f0d1458856a20777ec30446409b03**, published to **origin/feat/jev-router**; remote SHA matched. Exactly 22 approved feature files; unrelated warning PRD preserved. |
+| Release CI | [Run 38205337652](https://github.com/yukangzhen/restaurant-finder/actions/runs/38205337652): all four jobs PASS for that source SHA. Inspected downloaded artifacts: 166 API tests, 28 UI tests, 3 infrastructure tests; original RAG 17/17 and 374 measured checks; comparison 20/20 and 260 measured checks. No missing or unmeasured offline checks. |
+| Fresh baseline | Intended account/principal verified; stable stack and Runtime/DEFAULT READY on **12/12**. Current Original template matched resolved Runtime image/role/environment/network/protocol. Current corpus, index and four original hashes verified; fresh baseline template saved for rollback. |
+| Prompt manifest | Eight immutable prompts validated; manifest SHA-256 **0d1b1e71dd2195a9aa3fcfcd7ac690b0ade28f4cfb1b6be12eae8788f03f6e6a**. |
+| Image tag | **comparison-be5c35d-20261012093655-arm64** in the existing ECR repository. One build, one publication; no dependency upgrade. |
+| ECR digest | **sha256:671e5c9c1ecc477aca287b4cefa83e06e9ef07e1eea678547d44181490f0da5a**. Actual registry index has one runnable **linux/arm64** image plus an attestation. |
+| Packaged provenance | Offline, network-disabled image audit verified 78 packaged regular source files against release Git bytes plus the validated prompt manifest; nonprivileged bedrock_agentcore user and matching revision label. |
+| Base image | Resolved uv Python 3.11 Bookworm base digest **sha256:4f5d923c9dcea037f57bda425dd209f3ec643da2f0b74227f68d09dab0b3bb36**. |
+| Rollback availability | Fresh baseline query-scope image digest **sha256:e4afa3b679bc2c69ea8ca70a00e77115ed7d0a4b4f54ad7827bcd6c4ae694428** remained fetchable after publication; rank 4 under the unchanged last-10-image lifecycle policy. Temporary private Docker auth was removed. |
+| Template / change set | CDK synth and actual deployment template each differed from the fresh baseline at exactly one ContainerUri leaf. Reviewed change set **comparison-be5c35d-20261012101528** modified one existing Runtime, Replacement=False, AgentRuntimeArtifact only, recreation Never. Executed once. |
+| Deployed result | Stack UPDATE_COMPLETE; Runtime **READY 13**, DEFAULT **READY liveVersion 13**, exact new URI/digest. Final verification at **11:45:59Z / 19:45:59 MYT** preserved role/environment/network/protocol, resource identities/outputs, and active-pointer content/ETag. |
+| Retain / rollback | **Retained Runtime 13.** No release-caused regression found in the six approved scenarios; manual rollback not used. READY alone was not treated as functional proof. |
+
+### Six real UI scenarios
+
+Exactly **6 used / 0 remaining**. Three fresh conversations and three distinct derived synthetic actors were used. No warmup, greeting, fault injection, live evaluator, replacement attempt or extra Runtime diagnostic was sent.
+
+| Case | Inspected answer and sources | Result |
+| --- | --- | --- |
+| V1 | Harbor RM32 / Sakura RM36 per serving in request order; Harbor RM4 lower; coverage 2/2. Two complete original menu quotations, including wheat/milk and Sakura dinner-only qualifier. | PASS |
+| V2 | Asked which fictional restaurant's documents to use; no fee or citations. Same conversation as V1. No retrieval, selector, embedding, vector query or rewrite in its trace. | PASS |
+| V3 | Aliases resolved; Sakura/Harbor rows and source labels remained in request order. Correct RM36/RM32, RM4 difference, coverage 2/2 and original documents. | PASS |
+| V4 | Harbor RM32, one Harbor menu citation; Spice missing retrieved menu evidence; coverage 1/2. No invented Spice price or numeric difference. | PASS |
+| V5 | Explicit Harbor policy scope; quoted the conditional RM20-per-booking fee for cancellations less than 24 hours before booking; correct policy Markdown. Surrounding original includes the free >=24-hour condition. | PASS |
+| V6 | Same conversation as V5 retained Harbor; quoted RM32 from Harbor menu v2 PDF. One logical model rewrite inside rag.scope, with its nested provider span; no rewrite in V2/V5. | PASS |
+
+Follow-up send times were measured against the prior **server output-moderation end**, and separately against completed UI observation:
+
+| Follow-up | Prior approval UTC | Send UTC | Approval-to-send gap | Observed UI-to-send gap |
+| --- | --- | --- | --- | --- |
+| V2 after V1 | 10:28:32.484895Z | 10:29:09.949Z | **37.464105 s** | 18.547 s |
+| V6 after V5 | 11:33:27.173257Z | 11:34:05.548Z | **38.374743 s** | 33.587 s |
+
+Both satisfy the 60-second requirement. Source inspection occurred after the dependent follow-ups.
+
+### Original sources and workflow evidence
+
+- All cited originals use active generation **29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a**. Worker-generation attributes and preserved active pointer agree.
+- Actual observed UI citation controls opened Harbor PDF page 1, Sakura Markdown Main dishes and Harbor policy Markdown Reservations and cancellation. Reversed V3 labels opened the correct documents; V4 exposed one supported source; V5/V6 and reopened V1 kept their answer/source association.
+- Actual UI downloads of all three distinct cited originals matched the immutable manifest: Harbor menu v2 **501c1300d00c571e8f94920a6ab25bd0a4ae54976e79ed047bce8e9dc8f6bb10**; Sakura menu v1 **0ac797361e4fc9abc433685b26693e6d877ed6ad873c94110cd0e3a7be7e9637**; Harbor policy v1 **d3d4b1ca9ca945c0f0db133c50bf02ae8c75c8736b32232a902634a8faa79471**.
+- Source controls are produced by the existing UI only after a completed structured citation envelope matches the unchanged approved answer and validated source metadata. Actual controls/downloads were verified; raw full SSE citation metadata was not independently captured or added to instrumentation.
+- Existing request-correlated spans were found in **aws/spans**; fresh application events remain in the configured telemetry log group. The historical telemetry-group span query and X-Ray summary query returned no spans; no destination/configuration was changed to obtain evidence.
+- All six router.classify spans report **Jev jev-1.13.0 / document_qa**; no Bedrock routing fallback occurred. This verifies live Jev on these six inputs; deliberate fallback behavior was not exercised.
+- V1/V3/V4 each have one plan, two correctly scoped workers, two embeddings/vector queries/selectors/validators and one ordered aggregate. Worker spans overlap by **1525.248 / 1502.719 / 1285.558 ms** respectively. This is observed overlap, not a latency benchmark.
+- Aggregate coverage/citation counts are **2/2, 2/2, 1/1** for V1/V3/V4; V4 status is partial. V5/V6 retrieve from Harbor with the same generation; V6 contains one nested provider call in the scope rewrite.
+- Across the six traces: **8 logical embeddings, 8 vector queries, 8 selectors, 6 output-moderation spans and 6 parent memory.save spans; zero span errors**. The 146 provider API spans exposing retry_attempts each report zero; HTTP attempts without that instrumentation remain unmeasured.
+- A final read of POST /invocations for the three known fresh sessions found **exactly six**, with no extra invocations from opening/downloading sources.
+- Two uncorrelated warning records were present in the bounded request windows; their category/cause was not established. They were not attributed to this feature or repaired in this release.
+
+### Acceptance and remaining limits
+
+| Criterion | Status | Evidence |
+| --- | --- | --- |
+| D1 | PASS | Allowlisted release commit, remote SHA and preserved unrelated warning work. |
+| D2 | PASS | Exact-release CI, four successful jobs and inspected reports/artifacts. |
+| D3 | PASS | Fresh account/deployment/corpus/originals/rollback snapshots. |
+| D4 | PASS | Eight prompts, packaged-byte audit, ARM64 and actual ECR digest. |
+| D5 | PASS | One-leaf template diff and one existing Runtime/no-replacement change set. |
+| D6 | PASS | Final READY 13/13, exact image and preserved configuration/pointer/resources. |
+| D7 | PASS | Six actual UI answers, trace correlation and both follow-up timing bounds. |
+| D8 | PASS | Observed source controls, three downloaded original hashes, correct associations, no additional Runtime sends. |
+| D9 | PASS | Required fresh routing/parallel/scoped-retrieval/moderation/parent-memory telemetry inspected. Detailed limits below remain explicit. |
+| D10 | Publication closeout | This execution record is the only file in the documentation commit. Its exact SHA, remote read-back, automatic CI outcome and unchanged API/dependency Git blobs are verified after publication and retained in closeout receipts; a commit cannot contain its own SHA. |
+
+**UNMEASURED:** exact live document-type filter request payloads; exact single manifest-pin read count; durable distinct persistent memory-event count; provider HTTP attempts not exposed by existing spans; full raw SSE citation metadata; total dollar spend; broad accuracy, production readiness, speed improvement and cost savings. These are not silently treated as successful measurements.
+
+### Recovery, local state and stop point
+
+- Disk recovery was owner-performed. The separately approved single supported Docker Desktop restart failed at its deadline; no repeat restart, forced backend shutdown, WSL reset, factory reset or broad cleanup was performed. After the owner's manual Windows/Docker recovery, a fresh engine check passed and the approved single image build continued.
+- One browser download operation stalled for approximately an hour before returning both saved originals. It consumed no agent attempt, caused no missed dependent-turn timing, and was not a service-performance measurement. Later policy download used the observed click/download event and completed.
+- Existing Git credential/REST access replaced unavailable GitHub CLI; credentials were kept in memory. No tools/credentials were installed, no main merge or PR was created, and no deployment/destruction workflow was dispatched.
+- UI remains on **http://127.0.0.1:8010/** in AWS mode with the existing source viewer and fresh per-conversation identity. Process/listener details, bounded private correlation, sanitized spans, rollback/provenance, ledger, CI and source-download receipts are retained in the ignored **restaurant-finder-api/.generated/comparison-rollout-20261012044813/** evidence directory.
+- Remove only operation-owned helpers/build context/synth scratch after closeout; preserve evidence, downloaded originals, rollback files, owner files and unrelated warning PRD.
+- **Stop before the demo walkthrough, recording, benchmark, LinkedIn publication or further feature implementation.** No additional Runtime attempts remain in this allowance.
