@@ -1,6 +1,6 @@
 # Handoff PRD: Publish and validate the multi-part document workflow
 
-**Status:** Owner approved execution with “proceed” on 2026-10-13. Local implementation, publication, the scoped AWS update, conditional rollback, UI restart and a fresh maximum of six Runtime attempts are authorized. Execution is in progress.
+**Status:** Owner approved execution with “proceed” on 2026-10-13. Publication and trial deployment completed; L1 failed final output moderation, so the stop rule prevented L2-L6. The approved rollback restored the prior image/configuration at READY Runtime/DEFAULT 15. Live feature acceptance is incomplete. This documentation closes out the failed rollout without an application repair or demo; its publication/CI receipt is recorded separately from the packaged release identity.
 
 **Audience and purpose:** The project owner and execution agent delivering a controlled AI engineering portfolio demonstration. Establish that the locally verified workflow works through GitHub CI, the deployed AgentCore Runtime, and the actual source viewer before adding another feature.
 
@@ -460,7 +460,7 @@ Primary documentation consulted during preparation:
 
 Chosen assumptions for sign-off: six attempts, one image-and-flag update, new review branch/draft PR to the existing enhancement branch, default-off CDK, current configured models/corpus, no main merge, loopback UI only. No missing credential answer is required to review the plan; readiness is discovered during execution. A different dollar cap, base branch, deployment scope or validation set changes the plan and must be resolved before dependent actions.
 
-## 12. Execution record — owner approved, work in progress
+## 12. Execution record — trial failed, approved rollback verified
 
 ### Preparation completed on 2026-10-13
 
@@ -470,25 +470,49 @@ Chosen assumptions for sign-off: six attempts, one image-and-flag update, new re
 - Checked the document's structure, 30 existing publication paths, 11 ordered steps, six scenario definitions, balanced code fences and whitespace; preserved HEAD and the warning-file hash.
 - No application/infrastructure tests, Git mutation/publication, PR creation, AWS account operation, prompt sync, Docker operation, UI restart/submission, live inference or demo action was performed for preparation.
 
-### Fill during execution; do not prepopulate success
+### Inspected execution receipts
 
 | Record | Actual evidence / result |
 | --- | --- |
 | Owner sign-off and included allowance | Explicit “proceed” on 2026-10-13; complete scoped execution and six total Runtime attempts approved. |
 | Starting/remote base SHA and warning-file hash | Local and freshly read remote `feat/jev-router`: `081e0fb51d13cba9838ca5bf01762997ddef79ef`. Proposed feature branch absent; no equivalent PR. Warning SHA-256 remains `C3F491550280BA5568CEA656D1E90378A76547EE5520E462A323469949AEBF9F`. |
 | Infra changes / local suites / flag synthesis diff | Four allowlisted infrastructure paths updated. Build exit 0; 6/6 infrastructure, 196 API and 31 UI tests pass. Fresh offline evaluations: 17/17 (374 checks), 20/20 (260), 40/40 (609), no failed/missing cases. Omitted and false templates equal; true changes only `/Resources/restaurantFinderAgentCoreRuntime/Properties/EnvironmentVariables/DOCUMENT_MULTIPART_ENABLED` from `false` to `true`. Invalid `yes` fails with exit 1 and the intended error. |
-| Release SHA / branch / draft PR URL and attachment | Pending. |
-| Push CI / PR CI / inspected artifact results | Pending. |
-| Fresh AWS identity / baseline versions / rollback image and UI | Pending. |
-| Nine prompt IDs/versions / manifest hash / old-definition preservation | Pending. |
-| Unique image URI/digest / architecture / packaged provenance | Pending. |
-| Exact two-leaf diff / actual change-set ARN/details | Pending. |
-| New Runtime/DEFAULT versions / configuration and pointer equality | Pending. |
-| L1-L6 results and actual used/remaining attempts | Pending. |
-| Source controls/download hashes / correlated traces / gaps | Pending. |
-| Retain or rollback with cause and resulting configuration | Pending. |
-| R01-R11 individual PASS/FAIL/BLOCKED/UNMEASURED | Pending. |
-| Closeout docs SHA/CI and release source equality | Pending. |
-| Cleanup / preserved evidence / exact stopping point | Pending. |
+| Release SHA / branch / draft PR URL and attachment | `c3bcd83ed864290098c01464927727fe2f0dee5a`, `feat/document-multipart-rollout`; [draft PR #1](https://github.com/yukangzhen/restaurant-finder/pull/1) targets the verified `feat/jev-router` baseline. Exact 30-file scope and remote SHA read back; PR attached to the Codex task. |
+| Push CI / PR CI / inspected artifact results | [Push run 38342463448](https://github.com/yukangzhen/restaurant-finder/actions/runs/38342463448) and [PR run 38342701260](https://github.com/yukangzhen/restaurant-finder/actions/runs/38342701260): all four jobs passed. Push artifacts downloaded and inspected: 196 API, 31 UI, 6 infra tests; 17/20/40 cases and 374/260/609 checks, no failed/missing cases. Push source SHA is the release identity; PR checkout may be a synthetic merge. |
+| Fresh AWS identity / baseline versions / rollback image and UI | Intended account/profile/region verified. Stack UPDATE_COMPLETE; Runtime and DEFAULT READY at 13. Fresh template resolves to actual environment/image/role/network/protocol. Multipart flag absent. Baseline image digest `sha256:671e5c9c1ecc477aca287b4cefa83e06e9ef07e1eea678547d44181490f0da5a` fetchable and retained after one new push. Pointer generation `29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a`; all six original hashes, chunks, locations and expected facts verified. Identified existing loopback UI, saved non-secret configuration and checked prior UI export against Git bytes. Linux Docker engine responds with ARM64 capability; Desktop status disagrees, so no restart was used. |
+| Nine prompt IDs/versions / manifest hash / old-definition preservation | One synchronization execution created planner `PJD4IHTIBA` version `1`; eight existing immutable entries reused unchanged. All nine read-backs and offline validation pass against the 107-file committed API export. New manifest SHA-256 `68e9d44e8e073d301d63fd00619ce0aefc867d66df235da9bfe809a2a25f82d9`. Old worktree eight-prompt manifest preserved. New-code packaging must explicitly select the new manifest. |
+| Unique image URI/digest / architecture / packaged provenance | One successful build and one push: `447393541969.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:multipart-c3bcd83-20261013035217-arm64`; registry digest `sha256:eeb838cc34ab4e7a22fbc30a7269562209238d5ee2811478e13eac2790240f98`. Runnable Linux ARM64 manifest `sha256:679556a3ad48506a52db0a2dcca37877bc35fc17abed03c8bb2fe7b10305d8fa`. Offline network-disabled audit verified 82 packaged source/config files against Git bytes, the nine-prompt manifest and UID 1000 without invoking agent main. Cached base digest `sha256:4f5d923c9dcea037f57bda425dd209f3ec643da2f0b74227f68d09dab0b3bb36`; no reproducible-build claim. |
+| Exact two-leaf diff / actual change-set ARN/details | `arn:aws:cloudformation:us-east-2:447393541969:changeSet/multipart-c3bcd83-20261013041048/67410673-523a-4b54-b49d-115148150faa`: one existing Runtime Modify, Replacement False, RequiresRecreation Never. Only container URI and multipart flag changed; reviewed synthesized Runtime properties equal the minimal patch. Executed once. |
+| New Runtime/DEFAULT versions / configuration and pointer equality | Deployment reached UPDATE_COMPLETE and READY Runtime/DEFAULT 14; exact approved template, other settings/outputs/physical IDs and active pointer/ETag preserved. This deployment receipt precedes the subsequent rollback. |
+| L1-L6 results and actual used/remaining attempts | L1 delivered once and failed: public output was the guardrail refusal, with no facts or sources. L2-L6 not sent under the required stop rule. 1 used, 5 unspent; no greeting, warm-up, automatic resend, direct Runtime reproduction or post-rollback inference. The ledger and correlation receipts are private. |
+| Source controls/download hashes / correlated traces / gaps | Fresh bounded baseline reads verified all six originals and expected facts. L1 exposed no source controls, so no browser download or retained-answer verification occurred. Its one correlated trace shows Jev (`jev-1.13.0`, document_qa), one planner, four single-attempt retrieval/selector workers, four embeddings/vector pages, maximum two overlapping worker spans, aggregate answered 4/4 with four internal citations, one input and one output guardrail, and `guardrail.blocked`. Document execution ~4.7 s, request span ~5.6 s in this failed attempt, not a benchmark. No named `memory.save` span or web/browser tool span. Specific blocking rule, public factual accuracy/arithmetic, source transport, L2-L6, exact filter/pin reads, durable event totals, uncaptured HTTP attempts, SDK thread termination and dollar cost are unmeasured. |
+| Retain or rollback with cause and resulting configuration | Mandatory L1 public acceptance failed at final moderation. Conditional rollback reviewed and executed once via `arn:aws:cloudformation:us-east-2:447393541969:changeSet/multipart-rollback-c3bcd83-20261013042759/59398c31-a173-4f45-b146-e2127e60733e`, again one Runtime Modify without replacement. Prior comparison image and absent multipart key restored; exact baseline template, settings, outputs, physical IDs, pointer/ETag and baseline image digest verified. UPDATE_COMPLETE; Runtime/DEFAULT READY 15. Prior committed UI source/config restored on 127.0.0.1:8010. New image/prompt retained; rollback does not erase calls/charges/checkpoint events. |
+| R01-R11 individual PASS/FAIL/BLOCKED/UNMEASURED | Individual results below; rollout is not accepted. R11 closeout publication/CI is verified independently after this document's commit. |
+| Closeout docs SHA/CI and release source equality | Closeout is documentation only on the same review branch. A commit cannot contain its own SHA or a subsequent CI result: exact documentation SHA, automatically triggered push/PR jobs, remote read-back and API/UI/dependency blob equality are retained in the private closeout receipt and the existing PR body. The packaged release remains `c3bcd83ed864290098c01464927727fe2f0dee5a`; no image rebuild follows documentation changes. |
+| Cleanup / preserved evidence / exact stopping point | Temporary Docker auth directories removed and global Docker config preserved. Operation-owned scratch contexts/archives/helpers are removed at closeout after containment/junction checks; sealed nine-prompt manifest, provenance, rollback UI/source/config, originals, attempt ledger and receipts remain private. The unrelated warning file, original datasets and old eight-prompt manifest remain preserved. Stop before application repair, additional inference, benchmark or demo walkthrough. |
+
+### Acceptance results
+
+| Criterion | Actual result |
+| --- | --- |
+| R01 | PASS: strict default-off CDK behavior and isolated flag changes verified locally and in CI. |
+| R02 | PASS: exact 30-file feature commit, draft PR to verified baseline, unrelated owner work preserved. |
+| R03 | PASS: exact release push and PR jobs passed; push artifacts actually inspected. |
+| R04 | PASS: fresh identity, baseline, rollback image/UI and original corpus evidence captured. |
+| R05 | PASS: all nine immutable prompt entries validated; prior eight entries unchanged. |
+| R06 | PASS: one audited ARM64 image published with recorded source/manifest/digest provenance. |
+| R07 | PASS for the trial update: two-field no-replacement change set, readiness and preservation verified. Subsequent rollback verified separately. |
+| R08 | FAIL: L1's final guardrail refusal fails the required public answer; L2-L6 blocked by stop rule. |
+| R09 | BLOCKED: L1 released no sources; live four-source viewing/download and retained-answer association could not be checked. Fresh original-object integrity was verified independently. |
+| R10 | BLOCKED for full acceptance: L1 routing, worker bounds and moderation are measured; blocked output correctly suppresses citation/coverage release and approved memory save. Remaining scenarios and unavailable internals are explicitly unmeasured. |
+| R11 | Documentation closeout prepared; exact commit/CI/publication and final cleanup are recorded after commit in private receipts and the existing draft PR. This does not convert R08-R10 to success. |
+
+### Execution adjustments and next boundary
+
+- A staged source extraction exceeded Windows path length; a shorter operation-owned export path succeeded with Git-byte verification. No source was changed.
+- The first offline image-audit helper exceeded its bound while walking installed dependencies. Its temporary container was reconciled; a pruned scan then passed against the same image. No rebuild or Runtime send occurred.
+- Initial temporary Docker login failed in the Windows credential helper before any push. An isolated user-restricted config avoided helper discovery; authentication cleanup verified. Exactly one actual image push followed, with global config unchanged.
+- Rollback read-back reconciled SDK/CLI response schemas: the installed boto3 model omits `metadataConfiguration`, so the same current CLI schema as the baseline verified that field. A pre-execution comparison normalized date/request metadata; no unreviewed change or duplicate rollback was executed.
+- No application, guardrail policy, IAM, endpoint, corpus or provider change was made to force a passing answer. A separate repair PRD must diagnose why this legitimate assembled response was blocked, preserve moderation and unchanged-only source release, and specify a fresh live allowance before retrying. The five unused scenarios were not spent on exploration.
 
 Do not mark this release complete merely because the image deployed or offline tests passed. Report every unresolved live criterion and distinguish any approved recovery/repair from the original plan.

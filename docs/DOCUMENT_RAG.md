@@ -123,7 +123,7 @@ References pin the full generation and hash, so an older citation cannot silentl
 
 Opening a source discloses the complete controlled fictional document, beyond the quotation checked by the answer guardrail. Markdown is displayed as literal data, with no document HTML/scripts/remote links executed. Keep this anonymous demonstration on loopback. Private documents or public visitors require a separate authentication/authorization design. See the [clickable-citation PRD](HANDOFF_PRD_CLICKABLE_RAG_SOURCES.md) for rollout evidence and criteria.
 
-## Bounded multi-part document questions — local implementation
+## Bounded multi-part document questions — implementation and rollout
 
 The multi-part path combines one menu item's listed price with cancellation policies for one or two explicitly named fictional catalog restaurants. It requires both `DOCUMENT_RAG_ENABLED` and `DOCUMENT_MULTIPART_ENABLED`; the second flag defaults to false. Real `.env` files and the deployed Runtime were not changed during local implementation.
 
@@ -166,6 +166,14 @@ The viewer still checks sequential source markers, one generation, derived immut
 Adding `RAG_MULTIPART_PLAN_PROMPT` increases the current registry to nine prompts. Both synchronization and read-only manifest validation include it. Packaging this code against an old eight-prompt manifest will fail; even a feature-disabled image needs an approved updated manifest. Historical rollout sections elsewhere in this guide refer to their original eight-prompt releases. No prompt sync, image publication or Runtime deployment was performed for this local feature.
 
 See the [approved multi-part PRD](HANDOFF_PRD_MULTIPART_DOCUMENT_WORKFLOW.md) for acceptance evidence and the [evaluation guide](CI_AND_RAG_EVALUATION.md) for the separate 40-case offline regression.
+
+### Trial deployment and rollback — 2026-10-13
+
+Release source `c3bcd83ed864290098c01464927727fe2f0dee5a` was published in [draft PR #1](https://github.com/yukangzhen/restaurant-finder/pull/1). Its [exact-source push CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/38342463448) passed all four jobs; downloaded artifacts confirmed 196 API, 31 UI and 6 infrastructure tests, plus complete 17/20/40-case offline evaluations. One prompt sync created the ninth immutable planner prompt and preserved the prior eight entries. The audited ARM64 image was deployed through a two-field Runtime update, reaching READY Runtime/DEFAULT 14 with the flag enabled.
+
+Only L1 of the six approved attempts was sent. Its correlated trace established Jev document routing, one planner, four supported workers with one retrieval/selector each, maximum two overlapping worker spans, and a four-citation internal aggregate. Final output moderation blocked the complete answer, so the public response had no facts or citations. Document execution took approximately 4.7 seconds in this single failed acceptance attempt; this is neither a benchmark nor evidence of improved performance. No named approved parent memory-save span was present. The specific blocking rule and public accuracy, arithmetic, source viewing and L2-L6 behavior remain unmeasured.
+
+The stop rule prevented L2-L6 and further diagnostic inference. One reviewed rollback restored the exact captured baseline template: the prior comparison image and absent multipart key, with unchanged resources, other settings and active corpus pointer. Runtime/DEFAULT are READY at 15. The prior UI source/configuration was restored on loopback without a post-rollback Runtime request. The new image and planner prompt remain retained. See the [publication/rollout PRD](HANDOFF_PRD_MULTIPART_PUBLICATION_AND_ROLLOUT.md) for identities, individual criteria and the repair boundary. The feature has not passed live acceptance and must not be described as a working deployed four-source workflow.
 
 ## Configuration and infrastructure
 
