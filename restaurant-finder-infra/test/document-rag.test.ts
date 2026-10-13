@@ -44,6 +44,33 @@ test("runtime has exact RAG read permissions and fixed environment", () => {
   expect(statements.find(s => s.Sid === "DocumentRagEmbeddingInvocation").Resource).toBe("arn:aws:bedrock:us-east-2::foundation-model/amazon.titan-embed-text-v2:0");
   const runtime = Object.values(template.findResources("AWS::BedrockAgentCore::Runtime")) as any[];
   expect(runtime[0].Properties.EnvironmentVariables.DOCUMENT_RAG_ENABLED).toBe("true");
+  expect(runtime[0].Properties.EnvironmentVariables.DOCUMENT_MULTIPART_ENABLED).toBe("false");
   expect(runtime[0].Properties.EnvironmentVariables.RAG_EMBEDDING_DIMENSIONS).toBe("512");
   expect(statements.find(s => s.Sid === "S3BucketAccess")).toBeUndefined();
+});
+
+function multipartTemplate(documentMultipartEnabled: boolean) {
+  const stack = new AgentCoreStack(new cdk.App(), "Agent", {
+    appName: "restaurantFinder", env, imageUri: "demo:image", documentMultipartEnabled,
+    ragDocumentBucketName: "demo-corpus", ragDocumentBucketArn: "arn:aws:s3:::demo-corpus",
+    ragVectorIndexArn: "arn:aws:s3vectors:us-east-2:123456789012:bucket/demo/index/documents",
+  });
+  return Template.fromStack(stack).toJSON();
+}
+
+test.each([false, true])("explicit multipart flag %s is serialized without changing other environment", enabled => {
+  const template = multipartTemplate(enabled);
+  const runtime = Object.values(template.Resources).find((r: any) => r.Type === "AWS::BedrockAgentCore::Runtime") as any;
+  expect(runtime.Properties.EnvironmentVariables.DOCUMENT_MULTIPART_ENABLED).toBe(String(enabled));
+  expect(runtime.Properties.EnvironmentVariables.DOCUMENT_RAG_ENABLED).toBe("true");
+});
+
+test("toggling multipart changes only its runtime environment key", () => {
+  const disabled = multipartTemplate(false);
+  const enabled = multipartTemplate(true);
+  for (const template of [disabled, enabled]) {
+    const runtime = Object.values(template.Resources).find((r: any) => r.Type === "AWS::BedrockAgentCore::Runtime") as any;
+    delete runtime.Properties.EnvironmentVariables.DOCUMENT_MULTIPART_ENABLED;
+  }
+  expect(enabled).toEqual(disabled);
 });

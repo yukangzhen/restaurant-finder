@@ -65,13 +65,14 @@ def get_prompt_metadata(name: str, prompt_text: str) -> dict[str, Any] | None:
 
 
 def validate_prompt_manifest() -> dict[str, Any]:
-    """Validate all eight local prompts against the manifest without AWS calls."""
+    """Validate all nine local prompts against the manifest without AWS calls."""
     manifest = _load_manifest()
     if manifest is None:
         raise RuntimeError("No Bedrock prompt manifest is available to validate.")
 
     from src.domain.prompts import (
         RAG_QUERY_PROMPT,
+        RAG_MULTIPART_PLAN_PROMPT,
         RAG_ANSWER_PROMPT,
         RESEARCH_EXTRACTION_PROMPT,
         RESTAURANT_EXPLORER_PROMPT,
@@ -83,6 +84,7 @@ def validate_prompt_manifest() -> dict[str, Any]:
 
     prompt_objects = (
         RAG_QUERY_PROMPT,
+        RAG_MULTIPART_PLAN_PROMPT,
         RAG_ANSWER_PROMPT,
         SEARCH_AGENT_PROMPT,
         RESTAURANT_EXPLORER_PROMPT,
@@ -95,8 +97,9 @@ def validate_prompt_manifest() -> dict[str, Any]:
         "manifest": str(default_manifest_path()),
         "prompt_count": len(prompt_objects),
         "prompts": {
-            prompt.name: prompt.bedrock_metadata["arn"]
+            # Revalidate current bytes even if prompt objects were imported
+            # before the process selected this manifest.
+            prompt.name: get_prompt_metadata(prompt.name, prompt.prompt)["arn"]
             for prompt in prompt_objects
-            if prompt.bedrock_metadata is not None
         },
     }

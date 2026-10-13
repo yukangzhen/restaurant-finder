@@ -10,6 +10,30 @@ from src.infrastructure.prompt_metadata import get_prompt_metadata
 
 
 class PromptMetadataTests(unittest.TestCase):
+    def test_nine_prompt_manifest_revalidates_cached_objects_and_new_prompt(self):
+        from src.domain import prompts
+        from src.infrastructure.prompt_manager import Prompt
+        from src.infrastructure.prompt_metadata import validate_prompt_manifest
+        objects = [value for value in vars(prompts).values() if isinstance(value, Prompt)]
+        self.assertEqual(len(objects), 9)
+        entries = {p.name: {"name": p.name, "id": "id", "arn": f"arn:aws:bedrock:us-east-2:123456789012:prompt/{p.name}:1",
+                           "version": "1", "content_hash": hashlib.sha256(p.prompt.encode()).hexdigest()} for p in objects}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/"manifest.json"
+            with patch.dict(os.environ, {"PROMPT_MANIFEST_PATH": str(path), "REQUIRE_PROMPT_MANIFEST": "true", "PROMPT_SYNC_MODE": "false"}):
+                path.write_text(json.dumps({"schemaVersion": 1, "prompts": entries}), encoding="utf-8")
+                result = validate_prompt_manifest()
+                self.assertEqual(result["prompt_count"], 9)
+                self.assertIn("RAG_MULTIPART_PLAN_PROMPT", result["prompts"])
+                missing = {k: v for k, v in entries.items() if k != "RAG_MULTIPART_PLAN_PROMPT"}
+                path.write_text(json.dumps({"schemaVersion": 1, "prompts": missing}), encoding="utf-8")
+                with self.assertRaisesRegex(RuntimeError, "missing"):
+                    validate_prompt_manifest()
+                entries["RAG_MULTIPART_PLAN_PROMPT"]["content_hash"] = "wrong"
+                path.write_text(json.dumps({"schemaVersion": 1, "prompts": entries}), encoding="utf-8")
+                with self.assertRaisesRegex(RuntimeError, "differs"):
+                    validate_prompt_manifest()
+
     def test_manifest_returns_pinned_metadata_after_hash_validation(self):
         prompt_text = "Hello {{customer_name}}"
         prompt_hash = hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()

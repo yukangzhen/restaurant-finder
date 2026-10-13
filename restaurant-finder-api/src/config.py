@@ -44,6 +44,7 @@ class Settings(BaseSettings):
 
     # --- Controlled document RAG (runtime reads only) ---
     DOCUMENT_RAG_ENABLED: bool = False
+    DOCUMENT_MULTIPART_ENABLED: bool = False
     RAG_DOCUMENT_BUCKET: str = ""
     RAG_VECTOR_INDEX_ARN: str = ""
     RAG_ACTIVE_MANIFEST_KEY: str = "rag/active.json"

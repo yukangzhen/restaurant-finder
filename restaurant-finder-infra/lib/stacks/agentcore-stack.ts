@@ -14,6 +14,7 @@ export interface AgentCoreStackProps extends BaseStackProps {
   ragDocumentBucketName: string;
   ragDocumentBucketArn: string;
   ragVectorIndexArn: string;
+  documentMultipartEnabled?: boolean;
 }
 
 export class AgentCoreStack extends cdk.Stack {
@@ -458,6 +459,7 @@ export class AgentCoreStack extends cdk.Stack {
           // Require the generated immutable Bedrock prompt manifest at runtime.
           REQUIRE_PROMPT_MANIFEST: "true",
           DOCUMENT_RAG_ENABLED: "true",
+          DOCUMENT_MULTIPART_ENABLED: props.documentMultipartEnabled === true ? "true" : "false",
           RAG_DOCUMENT_BUCKET: props.ragDocumentBucketName,
           RAG_VECTOR_INDEX_ARN: props.ragVectorIndexArn,
           RAG_ACTIVE_MANIFEST_KEY: "rag/active.json",

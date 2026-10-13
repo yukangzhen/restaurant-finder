@@ -5,6 +5,18 @@ import { EcrStack, AgentCoreStack, RagStack } from "../lib/stacks";
 
 const app = new cdk.App();
 
+// Explicit opt-in for the bounded multi-part document workflow. CDK context
+// supplied via -c is a string; programmatic context may use a boolean.
+const multipartContext: unknown = app.node.tryGetContext("documentMultipartEnabled");
+let documentMultipartEnabled = false;
+if (typeof multipartContext === "boolean") {
+  documentMultipartEnabled = multipartContext;
+} else if (multipartContext === "true" || multipartContext === "false") {
+  documentMultipartEnabled = multipartContext === "true";
+} else if (multipartContext !== undefined) {
+  throw new Error("documentMultipartEnabled must be true or false; omission defaults to false.");
+}
+
 // Override image URI via context variable:
 //   npx cdk deploy --all -c imageUri=<account>.dkr.ecr.<region>.amazonaws.com/restaurantfinder-agent:<tag>
 const existingImageUri = app.node.tryGetContext("imageUri") as
@@ -44,6 +56,7 @@ const agentCoreStack = new AgentCoreStack(
   {
     ...deploymentProps,
     imageUri: imageUri,
+    documentMultipartEnabled,
     ragDocumentBucketName: ragStack.documentBucket.bucketName,
     ragDocumentBucketArn: ragStack.documentBucket.bucketArn,
     ragVectorIndexArn: ragStack.vectorIndex.attrIndexArn,

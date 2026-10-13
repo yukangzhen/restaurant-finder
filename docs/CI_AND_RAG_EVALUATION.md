@@ -85,6 +85,24 @@ Reports explicitly identify `offline_regression` and `simulated_dependencies`. L
 
 Additional API tests cover ties, decimal prices, unsupported currencies/formats, different serving units, retrieved conflicts, quote qualifiers, deadline/page/attempt limits, parallel execution, cancellation, output moderation, follow-up scope and parent memory. UI tests verify two distinct PDF/Markdown originals and one-source partial responses through the existing citation transport. Synthetic arithmetic edge inputs are labeled as contract tests and do not alter the corpus originals.
 
+### Separate multi-part document regression
+
+`src/evaluation/datasets/document_multipart.json` adds 40 cases (M01-M40) while retaining the original 17 single-document and 20 comparison cases. It covers the five bounded compound forms, aliases/order, missing dishes, policy failures, complete/truncated records, planner omissions/duplicates/scope changes, schema extras, conflicting evidence, wrong provenance, shared deadlines, pointer changes, disabled gates and legacy comparison dispatch.
+
+The real compiler, structured-plan validator, LangGraph subgraph, retriever, evidence validators and renderer run with fake stores/embeddings/vector hits/planner/selector. Fake providers receive separate scripted inputs, not expected answers. Gold specifies task order, status/reason, literal complete records, original locations, numeric facts and exact operation counts. The scorer independently constructs the entire expected answer and citations. Missing/extra/duplicate observations and fabricated coverage, arithmetic, text, or sources cannot pass.
+
+Run from `restaurant-finder-api` in the credential-free offline process environment described in the handoff:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.evaluation.document_multipart --offline --output .generated/evaluation/document-multipart.json
+```
+
+The JSON/Markdown reports include safe case/check summaries and measured logical operation counts, with CLI exits 0 for success, 1 for failed checks and 2 for invalid input. They omit raw questions, quotations, provider error bodies and credentials. All cloud-client construction is forbidden. Live Jev/planner/selector accuracy, semantic vector ranking, latency and cost remain unmeasured.
+
+The new flag is enabled only in explicit offline fixtures. Parent integration tests check one final guardrail/memory save, coverage resets and private checkpoint boundaries. Tests exercise maximum-two overlap, actual timeout/client cleanup, complete policy conditions, four-source original bytes/page/lines, late source failures and old source controls. These are functional checks, not a performance benchmark.
+
+CI's existing API job runs this third evaluator and includes its two report files in the existing allowlisted artifact and readable summary. Actions, permissions, infrastructure and quality jobs are preserved. Local workflow edits do not establish a remote CI result; this feature has not been published or deployed.
+
 ### Original single-restaurant report
 
 The original RAG report is labeled `offline_regression` and `simulated_dependencies`. It establishes reproducible workflow/contract behavior. It does **not** measure current Jev routing accuracy, Haiku answer selection, Titan vector ranking, live hallucination rate, latency or cost.

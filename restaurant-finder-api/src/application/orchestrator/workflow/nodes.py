@@ -205,20 +205,20 @@ async def output_guardrail_node(
         id=(final_message.id if final_message and final_message.id else str(uuid.uuid4())),
     )
     update = {"messages": replacement, "response_status": response_status,
-              "rag_pending_citations": [], "rag_approved_citations": []}
+              "rag_pending_citations": [], "rag_approved_citations": [],
+              "rag_pending_coverage": None, "rag_approved_coverage": None}
     if (response_status == "approved" and approved_text == raw_text
             and state.get("intent") == "document_qa" and state.get("rag_status") in {"answered", "partial"}):
-        from src.domain.document_rag import DocumentCitation
+        from src.domain.document_rag import validate_approved_document_payload
         pending = state.get("rag_pending_citations", [])
-        if len(pending) > 3:
-            raise ValueError("Too many pending citations")
-        if state.get("rag_status") == "partial" and (state.get("rag_mode") != "comparison" or len(pending) != 1):
-            raise ValueError("Partial citations require one-source comparison")
-        update["rag_approved_citations"] = [DocumentCitation.model_validate(c).model_dump() for c in pending]
+        references, coverage = validate_approved_document_payload(state.get("rag_mode"), state.get("rag_status"),
+            state.get("rag_generation"), pending, state.get("rag_pending_coverage"))
+        update["rag_approved_citations"] = [c.model_dump() for c in references]
+        update["rag_approved_coverage"] = coverage.model_dump() if coverage else None
     if response_status == "approved":
         update["last_approved_intent"] = state.get("intent")
     # Only an approved document turn advances scope. All per-turn fields reset upstream.
-    if response_status == "approved" and state.get("rag_mode") == "comparison":
+    if response_status == "approved" and state.get("rag_mode") in {"comparison", "multipart"}:
         update["rag_approved_scope"] = None
     elif response_status == "approved" and state.get("rag_pending_scope"):
         update["rag_approved_scope"] = state["rag_pending_scope"]

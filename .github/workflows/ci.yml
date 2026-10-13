@@ -59,6 +59,8 @@ jobs:
         run: uv run --no-sync python -m src.evaluation.rag --offline --output .generated/evaluation/document-rag.json
       - name: Evaluate document comparison with simulated dependencies
         run: uv run --no-sync python -m src.evaluation.document_comparison --offline --output .generated/evaluation/document-comparison.json
+      - name: Evaluate multi-part documents with simulated dependencies
+        run: uv run --no-sync python -m src.evaluation.document_multipart --offline --output .generated/evaluation/document-multipart.json
       - name: Publish readable RAG summary
         if: always()
         run: |
@@ -72,6 +74,11 @@ jobs:
           else
             echo 'Comparison report was not produced; inspect the failing step.' >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ -f .generated/evaluation/document-multipart.md ]; then
+            cat .generated/evaluation/document-multipart.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Multi-part report was not produced; inspect the failing step.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Save fictional RAG report and test log
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -82,6 +89,8 @@ jobs:
             restaurant-finder-api/.generated/evaluation/document-rag.md
             restaurant-finder-api/.generated/evaluation/document-comparison.json
             restaurant-finder-api/.generated/evaluation/document-comparison.md
+            restaurant-finder-api/.generated/evaluation/document-multipart.json
+            restaurant-finder-api/.generated/evaluation/document-multipart.md
             restaurant-finder-api/api-tests.log
           include-hidden-files: true
           if-no-files-found: warn

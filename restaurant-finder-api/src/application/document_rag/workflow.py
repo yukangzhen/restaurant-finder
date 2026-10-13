@@ -95,11 +95,15 @@ def make_retriever():
 
 
 async def answer_document_question(state, config, retriever=None, query_chain=None, answer_chain=None,
-                                   *, comparison_dependencies=None, deadline=None):
+                                   *, comparison_dependencies=None, multipart_dependencies=None, deadline=None):
     if not settings.DOCUMENT_RAG_ENABLED:
         return RagOutcome(status="disabled", text="Document answering is currently disabled.")
     obs = get_observability_manager()
     question = next((extract_text_content(m.content) for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
+    from src.application.document_rag.multipart import is_multipart_candidate
+    if is_multipart_candidate(question):
+        from src.application.document_rag.multipart_workflow import answer_multipart
+        return await answer_multipart(question, config, dependencies=multipart_dependencies, deadline=deadline)
     from src.application.document_rag.comparison import is_comparison_candidate
     if is_comparison_candidate(question):
         from src.application.document_rag.comparison_workflow import answer_comparison
@@ -151,11 +155,12 @@ async def answer_document_question(state, config, retriever=None, query_chain=No
 async def document_qa_node(state, config):
     started = time.monotonic()
     from src.application.document_rag.comparison import is_comparison_candidate
+    from src.application.document_rag.multipart import is_multipart_candidate
     question = next((extract_text_content(m.content) for m in reversed(state.get("messages", [])) if isinstance(m, HumanMessage)), "")
-    mode = "comparison" if is_comparison_candidate(question) else "single"
+    mode = "multipart" if is_multipart_candidate(question) else "comparison" if is_comparison_candidate(question) else "single"
     try:
         async with asyncio.timeout(settings.RAG_REQUEST_TIMEOUT_SECONDS):
-            options = {"deadline": started+settings.RAG_REQUEST_TIMEOUT_SECONDS} if mode == "comparison" else {}
+            options = {"deadline": started+settings.RAG_REQUEST_TIMEOUT_SECONDS} if mode in {"comparison", "multipart"} else {}
             outcome = await answer_document_question(state, config, **options)
     except asyncio.CancelledError:
         raise
@@ -169,4 +174,5 @@ async def document_qa_node(state, config):
     return {"messages": AIMessage(content=outcome.text, additional_kwargs={"document_rag_response":True}), "rag_mode": mode, "rag_status": outcome.status, "rag_generation": outcome.generation_id,
             "rag_pending_scope": outcome.restaurant_id if outcome.status in {"answered", "insufficient_evidence"} else None,
             "rag_retrieval_count": outcome.retrieval_count,
-            "rag_pending_citations": [c.model_dump() for c in outcome.citations]}
+            "rag_pending_citations": [c.model_dump() for c in outcome.citations],
+            "rag_pending_coverage": outcome.coverage.model_dump() if outcome.coverage else None}

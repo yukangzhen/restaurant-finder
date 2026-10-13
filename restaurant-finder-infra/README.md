@@ -89,3 +89,17 @@ The two easiest ways to invoke your runtime after deploying:
 `restaurantFinder-RagStack` creates a retained private/versioned S3 corpus bucket, retained S3 vector bucket, and retained float32/512/cosine index. Outputs supply document bucket name, vector bucket/index ARNs and active pointer key. AgentCore declares a dependency and receives exact read IAM plus Titan V2 invocation; ingestion remains an explicit owner CLI operation.
 
 For the initial manual rollout, review/deploy the RAG stack first, then review/deploy AgentCore with a unique validated ARM64 image. Do not redeploy ECR or change existing Lambda/Gateway/Memory/guardrails/tracing. See [the RAG guide](../docs/DOCUMENT_RAG.md) and [approved handoff](../docs/HANDOFF_PRD_DOCUMENT_RAG.md) for bounds and rollback.
+
+## Multi-part document workflow configuration
+
+The new Runtime environment key `DOCUMENT_MULTIPART_ENABLED` defaults to `"false"`. Opt in explicitly through CDK context `documentMultipartEnabled=true`; omission or explicit false keeps it off. Boolean context values and the CLI strings `true`/`false` are accepted; other values fail before stack construction.
+
+For the approved rollout, synthesize the existing AgentCore stack with the selected release image and explicit enablement:
+
+```powershell
+npx --no-install cdk synth restaurantFinder-AgentCoreStack --no-lookups -c "imageUri=$taskImageUri" -c documentMultipartEnabled=true --output $taskReleaseSynth
+```
+
+Review the actual CloudFormation change set before execution. This release allows only the existing Runtime's image and multipart flag to change. Do not deploy all stacks or dispatch the existing image workflow. The code requires a separately synchronized, validated nine-prompt manifest, including `RAG_MULTIPART_PLAN_PROMPT`, even when the flag is off.
+
+A later CDK deployment without this context will request `false`; the previous CLI opt-in is not remembered. Rollback restores the fresh baseline image and the exact prior flag value/presence, preserving all other configuration. See the [publication and rollout PRD](../docs/HANDOFF_PRD_MULTIPART_PUBLICATION_AND_ROLLOUT.md) for the source allowlist, CI gate, bounded live checks and recovery procedure.

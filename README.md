@@ -6,6 +6,8 @@ Adapted from [Joud Awad's original restaurant finder](https://github.com/JoudAwa
 
 Offline GitHub checks cover the API, UI and infrastructure. A 17-case document RAG dataset checks extractive answers, pinned source citations and safe failure/scope behavior with explicitly simulated model dependencies. See [automated checks and RAG evaluation](docs/CI_AND_RAG_EVALUATION.md) for commands, report interpretation and the distinction between offline regression and measured live model quality.
 
+The local multi-part document extension can combine menu-price and cancellation-policy questions for one or two named fictional restaurants. It checks a structured task plan, retrieves at most four tasks with concurrency two, and returns verified records with up to four inspectable originals. It is disabled by default (`DOCUMENT_MULTIPART_ENABLED=false`), has a separate 40-case offline evaluation, and has not been deployed. See the [multi-part implementation handoff](docs/HANDOFF_PRD_MULTIPART_DOCUMENT_WORKFLOW.md). The planner adds a model call; no measured cost or performance improvement is claimed.
+
 ## Architecture
 
 The document RAG extension is described in the [engineering guide](docs/DOCUMENT_RAG.md), with deployment evidence and rollback in the [approved handoff](docs/HANDOFF_PRD_DOCUMENT_RAG.md). The 2026-10-08 rollout verified scoped menu/policy retrieval, exact citations, an RM28-to-RM32 corpus update, Chainlit delivery, and fresh CloudWatch RAG spans. This is a controlled fictional corpus demo.

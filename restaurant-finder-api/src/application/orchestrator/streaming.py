@@ -14,7 +14,7 @@ from loguru import logger
 from src.application.orchestrator.identity import resolve_request_identity
 from src.application.orchestrator.workflow.graph import create_orchestrator_graph
 from src.infrastructure.model import extract_text_content
-from src.domain.document_rag import DocumentCitation
+from src.domain.document_rag import DocumentCitation, validate_approved_document_payload
 
 
 @dataclass(frozen=True)
@@ -56,6 +56,8 @@ async def run_orchestrator_turn(
         "rag_retrieval_count": 0,
         "rag_pending_citations": [],
         "rag_approved_citations": [],
+        "rag_pending_coverage": None,
+        "rag_approved_coverage": None,
     }
 
     logger.info("Starting one workflow turn (conversation_id={})", identity.conversation_id)
@@ -66,8 +68,9 @@ async def run_orchestrator_turn(
 
     approved = result.get("response_status") == "approved"
     references = result.get("rag_approved_citations", []) if approved else []
-    if len(references) > 3:
-        raise ValueError("Too many approved citations")
+    if references:
+        references, _ = validate_approved_document_payload(result.get("rag_mode"), result.get("rag_status"),
+            result.get("rag_generation"), references, result.get("rag_approved_coverage"))
     return TurnResult(
         text=response_text,
         blocked=result.get("response_status") == "blocked",
