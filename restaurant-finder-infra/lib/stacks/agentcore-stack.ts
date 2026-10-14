@@ -15,6 +15,23 @@ export interface AgentCoreStackProps extends BaseStackProps {
   ragDocumentBucketArn: string;
   ragVectorIndexArn: string;
   documentMultipartEnabled?: boolean;
+  guardrailId?: string;
+  guardrailVersion?: string;
+}
+
+/** Validate both CLI contexts and programmatic props before constructing resources. */
+export function validateGuardrailBinding(guardrailId: unknown, guardrailVersion: unknown): {
+  guardrailId?: string;
+  guardrailVersion?: string;
+} {
+  if (guardrailId === undefined && guardrailVersion === undefined) return {};
+  if (
+    typeof guardrailId !== "string" || guardrailId.trim() !== guardrailId || !/^[a-z0-9]{1,2048}$/.test(guardrailId) ||
+    typeof guardrailVersion !== "string" || guardrailVersion.trim() !== guardrailVersion || !/^[1-9][0-9]{0,7}$/.test(guardrailVersion)
+  ) {
+    throw new Error("guardrailId and guardrailVersion must be supplied together as a valid ID and positive numbered version.");
+  }
+  return { guardrailId, guardrailVersion };
 }
 
 export class AgentCoreStack extends cdk.Stack {
@@ -25,6 +42,7 @@ export class AgentCoreStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props: AgentCoreStackProps) {
     super(scope, id, props);
+    const guardrailBinding = validateGuardrailBinding(props.guardrailId, props.guardrailVersion);
 
     const region = cdk.Stack.of(this).region;
     const accountId = cdk.Stack.of(this).account;
@@ -472,6 +490,10 @@ export class AgentCoreStack extends cdk.Stack {
           // Feature Flags
           ENABLE_BROWSER_TOOLS: "true",
           GUARDRAIL_ENABLED: "true",
+          ...(guardrailBinding.guardrailId !== undefined ? {
+            BEDROCK_GUARDRAIL_ID: guardrailBinding.guardrailId,
+            BEDROCK_GUARDRAIL_VERSION: guardrailBinding.guardrailVersion!,
+          } : {}),
 
           // OpenTelemetry Observability Configuration
           // These enable CloudWatch GenAI Observability integration

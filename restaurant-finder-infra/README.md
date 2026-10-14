@@ -103,3 +103,26 @@ npx --no-install cdk synth restaurantFinder-AgentCoreStack --no-lookups -c "imag
 Review the actual CloudFormation change set before execution. This release allows only the existing Runtime's image and multipart flag to change. Do not deploy all stacks or dispatch the existing image workflow. The code requires a separately synchronized, validated nine-prompt manifest, including `RAG_MULTIPART_PLAN_PROMPT`, even when the flag is off.
 
 A later CDK deployment without this context will request `false`; the previous CLI opt-in is not remembered. Rollback restores the fresh baseline image and the exact prior flag value/presence, preserving all other configuration. See the [publication and rollout PRD](../docs/HANDOFF_PRD_MULTIPART_PUBLICATION_AND_ROLLOUT.md) for the source allowlist, CI gate, bounded live checks and recovery procedure.
+
+
+## Immutable guardrail binding
+
+Set `guardrailId` and `guardrailVersion` together. Both must be strings: a lowercase alphanumeric Bedrock guardrail ID and a positive numbered version (up to eight digits). Partial pairs, DRAFT, empty values and malformed values are rejected before synthesis. When omitted, neither environment key is emitted and deliberate automatic create/get-by-name setup remains available.
+
+Local synthesis example (no deployment):
+
+```powershell
+npx --no-install cdk synth --all --no-lookups -c imageUri=<reviewed-image-uri> -c guardrailId=<guardrail-id> -c guardrailVersion=1
+```
+
+The stack emits `BEDROCK_GUARDRAIL_ID` and `BEDROCK_GUARDRAIL_VERSION`. Startup validates exactly that immutable pair with GetGuardrail and requires matching ID/version and READY status. Validation failure stops startup with a sanitized error; it does not list, create, update, publish or select a different guardrail. Successful validation is cached, and input/output moderation use the same pair. With guardrails intentionally disabled, local setup performs no guardrail call.
+
+The accepted competitor topic definition permits restaurant-owned menu/policy provenance while continuing to deny competing platform requests. It only affects newly created default policies; existing guardrails are never updated automatically by this change. Existing DRAFT automatic setup remains cached within the initialized process. Enabled setup failures also stop startup rather than accepting requests without moderation.
+
+### Reviewed multipart rollout and recovery
+
+The [binding PRD](../docs/HANDOFF_PRD_PINNED_GUARDRAIL_AND_MULTIPART_RETRY.md) separates local implementation/tests (Gate A) from later publication/deployment (Gate B). The validated target is `ih5xpt3qi946:1` in us-east-2; the current deployment is unchanged.
+
+Gate B requires review of exactly four Runtime leaves: the audited release image, `DOCUMENT_MULTIPART_ENABLED=true`, and the guardrail ID/version pair. Preserve every other property, environment value/key presence, IAM permission and resource. Full synthesis must not be used to apply unrelated deployed drift. Verify the existing role's GetGuardrail/ApplyGuardrail permissions before rollout; no IAM expansion is planned.
+
+Capture the fresh original template, image and exact presence/value of all three environment keys, plus the owned UI source/configuration. A newly authorized conditional rollback restores that baseline and verifies stable Runtime/DEFAULT readiness and retained corpus state. The numeric Runtime version can increase during rollback. Retain candidate versions, images, prompts and evidence; do not delete resources or send extra model/moderation probes. Review the six-send acceptance allowance and rollback separately before deployment.

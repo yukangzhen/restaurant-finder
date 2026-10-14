@@ -24,6 +24,7 @@ from src.application.document_rag.retrieval import router_catalog
 from src.infrastructure.guardrails import (
     apply_output_guardrail,
     get_blocked_output_message,
+    guardrail_span_attributes,
 )
 
 
@@ -180,8 +181,18 @@ async def output_guardrail_node(
     with observability.create_span(
         "guardrail.output",
         attributes={"output.length": len(raw_text)},
-    ):
-        result = await asyncio.to_thread(apply_output_guardrail, raw_text)
+    ) as guardrail_span:
+        result = None
+        try:
+            result = await asyncio.to_thread(apply_output_guardrail, raw_text)
+        finally:
+            if guardrail_span is not None:
+                try:
+                    for key, value in guardrail_span_attributes(result, raw_text).items():
+                        guardrail_span.set_attribute(key, value)
+                except Exception:
+                    # Telemetry failure cannot change approval or expose data.
+                    pass
 
     if result.allowed:
         approved_text = result.output
@@ -189,14 +200,14 @@ async def output_guardrail_node(
         if approved_text != raw_text:
             observability.add_span_event(
                 "guardrail.anonymized",
-                attributes={"action": result.action},
+                attributes={"action": result.action if result.action in {"NONE", "GUARDRAIL_INTERVENED"} else "unknown"},
             )
     else:
         approved_text = get_blocked_output_message()
         response_status = "blocked"
         observability.add_span_event(
             "guardrail.blocked",
-            attributes={"action": result.action},
+            attributes={"action": result.action if result.action in {"NONE", "GUARDRAIL_INTERVENED"} else "unknown"},
         )
 
     replacement = AIMessage(

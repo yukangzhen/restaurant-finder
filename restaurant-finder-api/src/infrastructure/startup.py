@@ -8,7 +8,7 @@ and observability before the application starts accepting requests.
 from loguru import logger
 
 from src.config import settings
-from src.infrastructure.guardrails import get_guardrail_manager
+from src.infrastructure.guardrails import GuardrailUnavailableError, get_guardrail_manager
 from src.infrastructure.observability import initialize_observability
 
 
@@ -90,12 +90,10 @@ async def initialize_infrastructure() -> dict:
                 f"Guardrails initialized: {guardrail_info['id']} "
                 f"(version: {guardrail_info['version']})"
             )
-        except Exception as e:
-            logger.error(f"Failed to initialize guardrails: {e}")
-            results["guardrails"] = {
-                "status": "error",
-                "error": str(e),
-            }
+        except Exception:
+            logger.error("Guardrail initialization unavailable; startup stopped.")
+            # Do not mark startup complete or accept requests without moderation.
+            raise GuardrailUnavailableError("Guardrail initialization unavailable.") from None
     else:
         results["guardrails"] = {"status": "disabled"}
         logger.info("Guardrails disabled by configuration")

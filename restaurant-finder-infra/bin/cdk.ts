@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
 import { BaseStackProps } from "../lib/types";
-import { EcrStack, AgentCoreStack, RagStack } from "../lib/stacks";
+import { EcrStack, AgentCoreStack, RagStack, validateGuardrailBinding } from "../lib/stacks";
 
 const app = new cdk.App();
+const guardrailBinding = validateGuardrailBinding(
+  app.node.tryGetContext("guardrailId"),
+  app.node.tryGetContext("guardrailVersion"),
+);
 
 // Explicit opt-in for the bounded multi-part document workflow. CDK context
 // supplied via -c is a string; programmatic context may use a boolean.
@@ -57,6 +61,7 @@ const agentCoreStack = new AgentCoreStack(
     ...deploymentProps,
     imageUri: imageUri,
     documentMultipartEnabled,
+    ...guardrailBinding,
     ragDocumentBucketName: ragStack.documentBucket.bucketName,
     ragDocumentBucketArn: ragStack.documentBucket.bucketArn,
     ragVectorIndexArn: ragStack.vectorIndex.attrIndexArn,

@@ -67,11 +67,11 @@ class Settings(BaseSettings):
     )
     BEDROCK_GUARDRAIL_ID: str = Field(
         default="",
-        description="The Bedrock guardrail ID (auto-populated on startup if empty).",
+        description="Explicit Bedrock guardrail ID requires a positive numbered version. Empty ID with DRAFT enables automatic setup.",
     )
     BEDROCK_GUARDRAIL_VERSION: str = Field(
         default="DRAFT",
-        description="The Bedrock guardrail version (e.g., 'DRAFT', '1', '2').",
+        description="Immutable positive numbered version for an explicit ID; DRAFT is only for unconfigured automatic setup.",
     )
     GUARDRAIL_ENABLED: bool = Field(
         default=True,

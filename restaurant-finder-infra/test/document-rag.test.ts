@@ -1,6 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
-import { RagStack, AgentCoreStack } from "../lib/stacks";
+import { RagStack, AgentCoreStack, validateGuardrailBinding, AgentCoreStackProps } from "../lib/stacks";
 
 const env = { account: "123456789012", region: "us-east-2" };
 
@@ -73,4 +73,59 @@ test("toggling multipart changes only its runtime environment key", () => {
     delete runtime.Properties.EnvironmentVariables.DOCUMENT_MULTIPART_ENABLED;
   }
   expect(enabled).toEqual(disabled);
+});
+
+
+function bindingTemplate(binding: Partial<AgentCoreStackProps> = {}) {
+  const stack = new AgentCoreStack(new cdk.App(), "Agent", {
+    appName: "restaurantFinder", env, imageUri: "demo:image",
+    ragDocumentBucketName: "demo-corpus", ragDocumentBucketArn: "arn:aws:s3:::demo-corpus",
+    ragVectorIndexArn: "arn:aws:s3vectors:us-east-2:123456789012:bucket/demo/index/documents",
+    ...binding,
+  });
+  return Template.fromStack(stack).toJSON();
+}
+
+function runtimeEnvironment(template: any) {
+  const runtime = Object.values(template.Resources).find((r: any) => r.Type === "AWS::BedrockAgentCore::Runtime") as any;
+  return runtime.Properties.EnvironmentVariables;
+}
+
+test("omitted guardrail contexts/props emit neither environment key", () => {
+  expect(validateGuardrailBinding(undefined, undefined)).toEqual({});
+  const environment = runtimeEnvironment(bindingTemplate());
+  expect(environment.BEDROCK_GUARDRAIL_ID).toBeUndefined();
+  expect(environment.BEDROCK_GUARDRAIL_VERSION).toBeUndefined();
+  expect(environment.DOCUMENT_MULTIPART_ENABLED).toBe("false");
+  expect(environment.GUARDRAIL_ENABLED).toBe("true");
+});
+
+test.each(["1", "2", "99999999"])("numbered guardrail version %s serializes only the binding pair", version => {
+  const binding = validateGuardrailBinding("candidate123", version);
+  const baseline = bindingTemplate();
+  const pinned = bindingTemplate(binding);
+  const environment = runtimeEnvironment(pinned);
+  expect(environment.BEDROCK_GUARDRAIL_ID).toBe("candidate123");
+  expect(environment.BEDROCK_GUARDRAIL_VERSION).toBe(version);
+  delete environment.BEDROCK_GUARDRAIL_ID;
+  delete environment.BEDROCK_GUARDRAIL_VERSION;
+  // Whole-template comparison also covers IAM, corpus/resources and outputs.
+  expect(pinned).toEqual(baseline);
+});
+
+const invalidBindings: Array<[unknown, unknown]> = [
+  ["candidate123", undefined], [undefined, "1"], ["", "1"], ["candidate123", ""],
+  ["candidate123", "DRAFT"], ["candidate123", "0"], ["candidate123", "01"],
+  ["candidate123", "-1"], ["candidate123", "100000000"], ["candidate123", 1],
+  ["UPPER", "1"], ["candidate123 ", "1"], ["candidate123\n", "1"],
+  ["candidate123", "1\n"], ["arn:aws:bedrock:x", "1"], [null, "1"],
+  ["candidate123", null], [true, "1"], ["a".repeat(2049), "1"],
+];
+
+test.each(invalidBindings)("invalid context binding %p / %p is rejected", (id, version) => {
+  expect(() => validateGuardrailBinding(id, version)).toThrow("must be supplied together");
+});
+
+test.each(invalidBindings)("invalid programmatic binding %p / %p is rejected", (id, version) => {
+  expect(() => bindingTemplate({ guardrailId: id as string, guardrailVersion: version as string })).toThrow("must be supplied together");
 });
