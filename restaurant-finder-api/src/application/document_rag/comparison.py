@@ -82,12 +82,16 @@ def parse_price(price_sentence):
 
 
 def validate_selection(plan, restaurant_id, draft, evidence, manifest):
+    return validate_menu_selection(plan.item, plan.generation_id, restaurant_id, draft, evidence, manifest)
+
+
+def validate_menu_selection(requested_item, generation_id, restaurant_id, draft, evidence, manifest):
     """Revalidate provenance and relevant complete item records before deriving values."""
     from src.application.document_rag.workflow import render_document_answer
     draft = RagAnswerDraft.model_validate(draft)
     prices = set()
     for passage in evidence:
-        for _, sentence, _ in _records(passage.text, plan.item):
+        for _, sentence, _ in _records(passage.text, requested_item):
             fact = parse_price(sentence)
             prices.add((fact.amount, fact.currency, fact.unit) if fact else canonical_text(sentence).casefold())
     if len(prices) > 1:
@@ -102,10 +106,10 @@ def validate_selection(plan, restaurant_id, draft, evidence, manifest):
         raise ValueError("Selection is outside branch scope")
     # This establishes exact quote and pinned original provenance, including location.
     render_document_answer(draft, evidence, manifest)
-    if item.generation_id != plan.generation_id:
+    if item.generation_id != generation_id:
         raise ValueError("Selection generation mismatch")
     quote = canonical_text(selection.quote)
-    candidates = list(_records(item.text, plan.item))
+    candidates = list(_records(item.text, requested_item))
     record = next((value for value in candidates if value[0] == quote), None)
     if record is None:
         raise ValueError("Selected quote is not the complete requested item record")

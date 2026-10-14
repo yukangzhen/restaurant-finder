@@ -10,6 +10,7 @@ from importlib.metadata import version as package_version
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from src.domain.document_conversation import DocumentContextDraft
 
 
 class EvidenceIntegrityError(ValueError):
@@ -203,7 +204,7 @@ class DocumentCitation(Contract):
     """A server-built reference to one immutable original, never a model URL."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
-    label: Literal["Source 1", "Source 2", "Source 3"]
+    label: Literal["Source 1", "Source 2", "Source 3", "Source 4"]
     generation_id: str = Field(pattern=r"^[a-f0-9]{64}$")
     document_id: str = Field(pattern=r"^[a-z0-9-]{1,128}$")
     chunk_id: str = Field(pattern=r"^[a-f0-9]{64}$")
@@ -230,23 +231,119 @@ class DocumentCitation(Contract):
         return self
 
 
+class RagTaskSummary(Contract):
+    """Safe per-turn coverage metadata, without drafts or document text."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+    task_id: str = Field(pattern=r"^task-[1-4]$")
+    restaurant_id: str = Field(pattern=r"^demo-[a-z0-9-]+$", max_length=128)
+    criterion: Literal["menu_item_price", "cancellation_policy"]
+    status: Literal["supported", "missing", "unavailable", "invalid"]
+    reason: Literal["verified", "unsupported_price_format", "missing_evidence", "unsupported_policy_layout",
+                    "provider_error", "deadline_exhausted", "invalid_evidence", "invalid_selection", "conflicting_evidence"]
+    source_label: Literal["Source 1", "Source 2", "Source 3", "Source 4"] | None = None
+
+    @model_validator(mode="after")
+    def coherent(self):
+        reasons = {"supported": {"verified", "unsupported_price_format"},
+                   "missing": {"missing_evidence", "unsupported_policy_layout"},
+                   "unavailable": {"provider_error", "deadline_exhausted"},
+                   "invalid": {"invalid_evidence", "invalid_selection", "conflicting_evidence"}}
+        if self.reason not in reasons[self.status] or (self.source_label is not None) != (self.status == "supported"):
+            raise ValueError("Task summary status/reason/source mismatch")
+        if self.criterion == "cancellation_policy" and self.reason == "unsupported_price_format":
+            raise ValueError("Policy task cannot carry a price reason")
+        if self.criterion == "menu_item_price" and self.reason == "unsupported_policy_layout":
+            raise ValueError("Menu task cannot carry a policy layout reason")
+        return self
+
+
+class RagCoverage(Contract):
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+    tasks: list[RagTaskSummary] = Field(min_length=2, max_length=4)
+    required: int = Field(ge=2, le=4)
+    supported: int = Field(ge=0, le=4)
+
+    @model_validator(mode="after")
+    def coherent(self):
+        supported = [task for task in self.tasks if task.status == "supported"]
+        if self.required != len(self.tasks) or self.supported != len(supported):
+            raise ValueError("Coverage differs from task summaries")
+        if [task.task_id for task in self.tasks] != [f"task-{i}" for i in range(1, self.required + 1)]:
+            raise ValueError("Coverage task IDs must be complete and ordered")
+        if len({(task.restaurant_id, task.criterion) for task in self.tasks}) != self.required:
+            raise ValueError("Duplicate coverage task scope")
+        if len({task.restaurant_id for task in self.tasks}) > 2:
+            raise ValueError("Too many coverage restaurants")
+        ids = list(dict.fromkeys(t.restaurant_id for t in self.tasks))
+        if ({t.criterion for t in self.tasks} != {"menu_item_price", "cancellation_policy"}
+                or {t.restaurant_id for t in self.tasks if t.criterion == "menu_item_price"} != set(ids)
+                or self.tasks != sorted(self.tasks, key=lambda t: (ids.index(t.restaurant_id), t.criterion != "menu_item_price"))):
+            raise ValueError("Coverage must have canonical mixed tasks")
+        if [task.source_label for task in supported] != [f"Source {i}" for i in range(1, len(supported) + 1)]:
+            raise ValueError("Coverage sources must be sequential")
+        return self
+
+
 class RagOutcome(Contract):
     status: Literal["answered", "partial", "clarify", "insufficient_evidence", "disabled", "unavailable", "invalid_answer"]
     text: str
     generation_id: str | None = None
     restaurant_id: str | None = None
     retrieval_count: int = 0
-    citations: list[DocumentCitation] = Field(default_factory=list, max_length=3)
+    citations: list[DocumentCitation] = Field(default_factory=list, max_length=4)
+    mode: Literal["single", "comparison", "multipart"] | None = None
+    coverage: RagCoverage | None = None
+    context_candidate: DocumentContextDraft | None = None
 
     @model_validator(mode="after")
     def citation_status(self):
+        if self.context_candidate is not None:
+            candidate = self.context_candidate
+            if (self.status not in {"answered", "partial"} or not self.citations
+                    or candidate.generation_id != self.generation_id
+                    or (self.mode is not None and candidate.origin_mode != self.mode)
+                    or (candidate.origin_mode == "single" and candidate.restaurant_ids != (self.restaurant_id,))):
+                raise ValueError("Context differs from validated answer")
         if self.citations and self.status not in {"answered", "partial"}:
             raise ValueError("Only answered/partial outcomes can have citations")
-        if self.status == "partial" and (len(self.citations) != 1 or self.restaurant_id is not None):
+        cap = {None: 3, "single": 3, "comparison": 2, "multipart": 4}[self.mode]
+        if len(self.citations) > cap:
+            raise ValueError("Citation count exceeds mode limit")
+        if self.mode != "multipart" and self.coverage is not None:
+            raise ValueError("Coverage requires multipart mode")
+        if self.mode != "multipart" and self.status == "partial" and (
+                self.mode == "single" or len(self.citations) != 1 or self.restaurant_id is not None):
             raise ValueError("Partial comparison requires one source and no single scope")
         if any(c.generation_id != self.generation_id for c in self.citations):
             raise ValueError("Citation generation differs from the answer")
+        if self.mode == "multipart":
+            if self.restaurant_id is not None:
+                raise ValueError("Multipart outcomes cannot advance single scope")
+            if self.status in {"answered", "partial"}:
+                if self.coverage is None or self.generation_id is None:
+                    raise ValueError("Multipart answers require pinned coverage")
+                count, total = self.coverage.supported, self.coverage.required
+                expected_status = "answered" if count == total else "partial" if 0 < count < total else None
+                if self.status != expected_status or any(task.status == "invalid" for task in self.coverage.tasks):
+                    raise ValueError("Multipart status differs from coverage")
+                labels = [task.source_label for task in self.coverage.tasks if task.status == "supported"]
+                if [citation.label for citation in self.citations] != labels:
+                    raise ValueError("Multipart citation coverage mismatch")
+            elif self.coverage is not None and self.coverage.supported:
+                raise ValueError("Failure outcome cannot publish supported coverage")
         return self
+
+
+def validate_approved_document_payload(mode, status, generation_id, citations, coverage=None):
+    """Recheck the parent approval boundary and final-turn extraction identically."""
+    references = [DocumentCitation.model_validate(c) for c in citations]
+    # Older callers do not carry a generation field in their turn fixtures.
+    generation = generation_id if mode == "multipart" else generation_id or (
+        references[0].generation_id if references else None)
+    outcome = RagOutcome(mode=mode, status=status or "answered", text="approved",
+                         generation_id=generation, citations=references, coverage=coverage)
+    return outcome.citations, outcome.coverage
 
 
 class QueryRewrite(Contract):

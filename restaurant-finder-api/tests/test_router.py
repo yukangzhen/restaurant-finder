@@ -40,6 +40,37 @@ class _Observability:
 
 
 class RouterNodeTests(unittest.TestCase):
+    def test_enabled_recognized_followup_uses_no_provider_and_truthful_metadata(self):
+        obs=_Observability()
+        with patch.object(nodes.settings,"DOCUMENT_FOLLOWUPS_ENABLED",True),patch.object(nodes.settings,"DOCUMENT_RAG_ENABLED",True),\
+             patch.object(nodes,"get_observability_manager",return_value=obs),\
+             patch("src.infrastructure.rag_observability.get_observability_manager",return_value=obs),\
+             patch.object(nodes,"classify_with_jev",new_callable=AsyncMock) as jev,\
+             patch.object(nodes,"get_router_chain") as fallback:
+            result=asyncio.run(nodes.router_node({"messages":[HumanMessage(content="Which is cheaper?")]},
+                {"configurable":{"thread_id":"fresh","actor_id":"portfolio"}}))
+        self.assertEqual(result["intent"],"document_qa")
+        self.assertEqual(result["rag_followup_resolution"]["decision"],"clarify")
+        jev.assert_not_awaited();fallback.assert_not_called()
+        self.assertEqual(obs.steps[-1]["metadata"]["provider"],"document_followup")
+        self.assertNotIn("model",obs.steps[-1]["metadata"])
+        self.assertNotIn("Which is cheaper?",str([s.attributes for s in obs.spans]))
+
+    def test_enabled_complete_question_retains_jev_and_bedrock_fallback(self):
+        for unavailable in (False,True):
+            jev=AsyncMock(side_effect=JevRouterUnavailable("offline") if unavailable else None,
+                          return_value=SimpleNamespace(intent="document_qa",confidence=.9))
+            fallback=SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content="document_qa")))
+            with patch.object(nodes.settings,"DOCUMENT_FOLLOWUPS_ENABLED",True),patch.object(nodes.settings,"DOCUMENT_RAG_ENABLED",True),\
+                 patch.object(nodes,"get_observability_manager",return_value=_Observability()),\
+                 patch.object(nodes,"classify_with_jev",jev),patch.object(nodes,"get_router_chain",return_value=fallback):
+                result=asyncio.run(nodes.router_node({"messages":[HumanMessage(content="Compare mushroom pasta prices at Harbor and Sakura.")]},
+                    {"configurable":{"thread_id":"ordinary","actor_id":"portfolio"}}))
+            self.assertEqual(result["intent"],"document_qa")
+            self.assertIsNone(result["rag_followup_resolution"])
+            jev.assert_awaited_once()
+            self.assertEqual(fallback.ainvoke.await_count,int(unavailable))
+
     def run_router(self, jev_result=None, jev_error=None, bedrock_text=None, observability=None):
         observability = observability or _Observability()
         jev = AsyncMock()

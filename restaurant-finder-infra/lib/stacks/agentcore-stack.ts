@@ -14,6 +14,32 @@ export interface AgentCoreStackProps extends BaseStackProps {
   ragDocumentBucketName: string;
   ragDocumentBucketArn: string;
   ragVectorIndexArn: string;
+  documentMultipartEnabled?: boolean;
+  documentFollowupsEnabled?: boolean;
+  guardrailId?: string;
+  guardrailVersion?: string;
+}
+
+/** Strict opt-in accepted from CLI string context or programmatic boolean context. */
+export function validateDocumentFollowupsEnabled(value: unknown): boolean {
+  if (value === undefined || value === false || value === "false") return false;
+  if (value === true || value === "true") return true;
+  throw new Error("documentFollowupsEnabled must be true or false; omission defaults to false.");
+}
+
+/** Validate both CLI contexts and programmatic props before constructing resources. */
+export function validateGuardrailBinding(guardrailId: unknown, guardrailVersion: unknown): {
+  guardrailId?: string;
+  guardrailVersion?: string;
+} {
+  if (guardrailId === undefined && guardrailVersion === undefined) return {};
+  if (
+    typeof guardrailId !== "string" || guardrailId.trim() !== guardrailId || !/^[a-z0-9]{1,2048}$/.test(guardrailId) ||
+    typeof guardrailVersion !== "string" || guardrailVersion.trim() !== guardrailVersion || !/^[1-9][0-9]{0,7}$/.test(guardrailVersion)
+  ) {
+    throw new Error("guardrailId and guardrailVersion must be supplied together as a valid ID and positive numbered version.");
+  }
+  return { guardrailId, guardrailVersion };
 }
 
 export class AgentCoreStack extends cdk.Stack {
@@ -24,6 +50,10 @@ export class AgentCoreStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props: AgentCoreStackProps) {
     super(scope, id, props);
+    const guardrailBinding = validateGuardrailBinding(props.guardrailId, props.guardrailVersion);
+    if (props.documentFollowupsEnabled !== undefined && typeof props.documentFollowupsEnabled !== "boolean") {
+      throw new Error("documentFollowupsEnabled prop must be a boolean.");
+    }
 
     const region = cdk.Stack.of(this).region;
     const accountId = cdk.Stack.of(this).account;
@@ -458,6 +488,8 @@ export class AgentCoreStack extends cdk.Stack {
           // Require the generated immutable Bedrock prompt manifest at runtime.
           REQUIRE_PROMPT_MANIFEST: "true",
           DOCUMENT_RAG_ENABLED: "true",
+          DOCUMENT_MULTIPART_ENABLED: props.documentMultipartEnabled === true ? "true" : "false",
+          DOCUMENT_FOLLOWUPS_ENABLED: props.documentFollowupsEnabled === true ? "true" : "false",
           RAG_DOCUMENT_BUCKET: props.ragDocumentBucketName,
           RAG_VECTOR_INDEX_ARN: props.ragVectorIndexArn,
           RAG_ACTIVE_MANIFEST_KEY: "rag/active.json",
@@ -470,6 +502,10 @@ export class AgentCoreStack extends cdk.Stack {
           // Feature Flags
           ENABLE_BROWSER_TOOLS: "true",
           GUARDRAIL_ENABLED: "true",
+          ...(guardrailBinding.guardrailId !== undefined ? {
+            BEDROCK_GUARDRAIL_ID: guardrailBinding.guardrailId,
+            BEDROCK_GUARDRAIL_VERSION: guardrailBinding.guardrailVersion!,
+          } : {}),
 
           // OpenTelemetry Observability Configuration
           // These enable CloudWatch GenAI Observability integration

@@ -85,6 +85,42 @@ Reports explicitly identify `offline_regression` and `simulated_dependencies`. L
 
 Additional API tests cover ties, decimal prices, unsupported currencies/formats, different serving units, retrieved conflicts, quote qualifiers, deadline/page/attempt limits, parallel execution, cancellation, output moderation, follow-up scope and parent memory. UI tests verify two distinct PDF/Markdown originals and one-source partial responses through the existing citation transport. Synthetic arithmetic edge inputs are labeled as contract tests and do not alter the corpus originals.
 
+### Separate multi-part document regression
+
+`src/evaluation/datasets/document_multipart.json` adds 40 cases (M01-M40) while retaining the original 17 single-document and 20 comparison cases. It covers the five bounded compound forms, aliases/order, missing dishes, policy failures, complete/truncated records, planner omissions/duplicates/scope changes, schema extras, conflicting evidence, wrong provenance, shared deadlines, pointer changes, disabled gates and legacy comparison dispatch.
+
+The real compiler, structured-plan validator, LangGraph subgraph, retriever, evidence validators and renderer run with fake stores/embeddings/vector hits/planner/selector. Fake providers receive separate scripted inputs, not expected answers. Gold specifies task order, status/reason, literal complete records, original locations, numeric facts and exact operation counts. The scorer independently constructs the entire expected answer and citations. Missing/extra/duplicate observations and fabricated coverage, arithmetic, text, or sources cannot pass.
+
+Run from `restaurant-finder-api` in the credential-free offline process environment described in the handoff:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.evaluation.document_multipart --offline --output .generated/evaluation/document-multipart.json
+```
+
+The JSON/Markdown reports include safe case/check summaries and measured logical operation counts, with CLI exits 0 for success, 1 for failed checks and 2 for invalid input. They omit raw questions, quotations, provider error bodies and credentials. All cloud-client construction is forbidden. Live Jev/planner/selector accuracy, semantic vector ranking, latency and cost remain unmeasured.
+
+The new flag is enabled only in explicit offline fixtures. Parent integration tests check one final guardrail/memory save, coverage resets and private checkpoint boundaries. Tests exercise maximum-two overlap, actual timeout/client cleanup, complete policy conditions, four-source original bytes/page/lines, late source failures and old source controls. These are functional checks, not a performance benchmark.
+
+CI's existing API job runs this third evaluator and includes its two report files in the existing allowlisted artifact and readable summary. Actions, permissions and quality jobs are preserved. The 2026-10-13 publication also adds three default-off flag checks to the infrastructure suite. The [release push run](https://github.com/yukangzhen/restaurant-finder/actions/runs/38342463448), for source `c3bcd83ed864290098c01464927727fe2f0dee5a`, and its [PR run](https://github.com/yukangzhen/restaurant-finder/actions/runs/38342701260) passed all four jobs. Downloaded push artifacts confirmed 196 API, 31 UI and 6 infrastructure tests; complete 17/20/40 cases and 374/260/609 measured checks, with no failed or missing cases. These evaluations remain simulated dependencies.
+
+That offline success did not establish live acceptance. The first trial's initial request was blocked by final moderation and its approved rollback restored Runtime 15; the [trial record](HANDOFF_PRD_MULTIPART_PUBLICATION_AND_ROLLOUT.md) preserves that failure. The separately approved pinned-guardrail retry on 2026-10-14 passed all six actual UI/Runtime cases, including four-source delivery and hash-verified original downloads, and retained READY Runtime/DEFAULT 16 with `ih5xpt3qi946:1`. See the [accepted retry record](HANDOFF_PRD_PINNED_GUARDRAIL_AND_MULTIPART_RETRY.md#14-gate-b-execution-and-acceptance---2026-10-14). This verifies those controlled live scenarios; ranking accuracy, latency, throughput and dollar cost remain unmeasured.
+
+### Separate document conversation regression
+
+`src/evaluation/datasets/document_followups.json` adds 24 conversations, with 28 explicitly named variants and 63 simulated turns. The parent graph executes every seed and follow-up, including final moderation and memory, using `InMemorySaver`. The resolver, dispatch, retrieval, record validation and rendering are real; stores, embeddings, vectors, Jev/fallback, planner/selector, moderation and durable memory are injected simulations. Cloud-client construction is forbidden.
+
+```powershell
+.\.venv\Scripts\python.exe -m src.evaluation.document_followups --offline --output .generated/evaluation/document-followups.json
+```
+
+Use the credential-free safeguards described in the [approved follow-up PRD](HANDOFF_PRD_DOCUMENT_CONVERSATION_FOLLOWUPS.md#11-local-verification-commands-after-phase-a-approval). Its temporary verification runner uses an isolated working directory without real `.env` files and the existing locked interpreters. Feature enablement occurs inside explicit fixtures, leaving process/CI defaults off.
+
+Independent gold and provider scripts occupy separate fields. The scorer checks every turn's entire answer, original citation fields, mode, scope/item, approval, clarification consumption, context and measured logical calls. Every named variant is required. Missing/duplicate/unknown cases, missing/reordered turns, changed evidence/arithmetic and fabricated operation counts cannot pass. Reports expose safe case/check summaries and label their dependencies as simulated; they omit user text, quotations, private context and provider payloads. CLI exits are 0 for a complete pass, 1 for failed checks and 2 for invalid input/execution failure.
+
+The original 17/20/40 datasets remain unchanged. Release `11590ea927076e96c92b251912f8747ba0732085` published the extension behind default-off `DOCUMENT_FOLLOWUPS_ENABLED`. Its [push CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/38532357388) and [PR CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/38532361571) passed all four jobs. Downloaded artifacts confirmed 258 API, 32 UI and 53 infrastructure tests, and complete 17/20/40/24 cases with 374/260/609/1,147 checks.
+
+The separately approved live rollout passed seven actual UI/Runtime requests and retained READY Runtime/DEFAULT 17 with the extension enabled. Correlated traces show two Jev seed classifications, five deterministic shortcuts, eight logical selections, one multipart planner, and seven input/final-output moderation paths. All final outputs were approved unchanged. Three original UI downloads were hash-verified. Six observed SDK retries occurred in AgentCore ListEvents/CreateEvent operations; no UI request was resent. See the [accepted rollout record](HANDOFF_PRD_FOLLOWUP_PUBLICATION_AND_ROLLOUT.md#12-phase-b-execution-and-acceptance). These checks establish this controlled matrix, not measured latency/cost savings, all underlying HTTP attempts or durable event totals.
+
 ### Original single-restaurant report
 
 The original RAG report is labeled `offline_regression` and `simulated_dependencies`. It establishes reproducible workflow/contract behavior. It does **not** measure current Jev routing accuracy, Haiku answer selection, Titan vector ranking, live hallucination rate, latency or cost.

@@ -8,7 +8,7 @@ import subprocess
 import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
@@ -40,6 +40,9 @@ class _Observability:
         pass
 
     def record_workflow_step(self, *_args, **_kwargs):
+        pass
+
+    def record_memory_operation(self, *_args, **_kwargs):
         pass
 
 
@@ -184,6 +187,221 @@ class RestaurantResponseNormalizationTests(unittest.TestCase):
         self.assertEqual(sources, [{"title": "A Thai food guide", "snippet": "An article", "url": "https://example.test/guide"}])
 
 
+class GuardrailBindingTests(unittest.TestCase):
+    def setUp(self):
+        self.settings_id = patch.object(guardrails.settings, "BEDROCK_GUARDRAIL_ID", "candidate123")
+        self.settings_version = patch.object(guardrails.settings, "BEDROCK_GUARDRAIL_VERSION", "1")
+        self.settings_id.start()
+        self.settings_version.start()
+        self.addCleanup(self.settings_id.stop)
+        self.addCleanup(self.settings_version.stop)
+        self.client = Mock()
+        self.client.get_guardrail.return_value = {
+            "guardrailId": "candidate123", "version": "1", "status": "READY",
+        }
+
+    def manager(self):
+        with patch.object(guardrails.boto3, "client", return_value=self.client):
+            return guardrails.GuardrailManager()
+
+    def assert_no_setup(self):
+        self.client.get_paginator.assert_not_called()
+        self.client.create_guardrail.assert_not_called()
+        self.client.update_guardrail.assert_not_called()
+        self.client.create_guardrail_version.assert_not_called()
+
+    def test_exact_pair_lookup_ready_and_cached(self):
+        manager = self.manager()
+        self.assertIsNone(manager.guardrail_id)
+        expected = {"id": "candidate123", "version": "1"}
+        self.assertEqual(manager.create_or_get_guardrail(), expected)
+        self.assertEqual(manager.create_or_get_guardrail(), expected)
+        self.client.get_guardrail.assert_called_once_with(guardrailIdentifier="candidate123", guardrailVersion="1")
+        self.assert_no_setup()
+
+    def test_initialization_client_has_bounded_timeouts_and_no_retries(self):
+        with patch.object(guardrails.boto3, "client", return_value=self.client) as factory:
+            guardrails.GuardrailManager()
+        self.assertEqual(factory.call_args.args, ("bedrock",))
+        config = factory.call_args.kwargs["config"]
+        self.assertEqual((config.connect_timeout, config.read_timeout), (5, 15))
+        self.assertEqual(config.retries, {"total_max_attempts": 1})
+
+    def test_invalid_or_partial_pair_fails_before_client_creation(self):
+        pairs = [("candidate123", "DRAFT"), ("candidate123", ""), ("", "1"),
+                 ("candidate123", "0"), ("candidate123", "01"), ("candidate123", "-1"),
+                 ("candidate123", "100000000"), ("candidate123", "1\n"),
+                 ("candidate123 ", "1"), ("UPPER", "1"), ("arn:aws:bedrock:x", "1"),
+                 (None, "1"), ("candidate123", None), ("candidate123", 1)]
+        for guardrail_id, version in pairs:
+            with self.subTest(pair=(guardrail_id, version)), patch.object(guardrails.settings, "BEDROCK_GUARDRAIL_ID", guardrail_id), patch.object(guardrails.settings, "BEDROCK_GUARDRAIL_VERSION", version), patch.object(guardrails.boto3, "client") as factory:
+                with self.assertRaisesRegex(GuardrailUnavailableError, "^Guardrail initialization unavailable\.$"):
+                    guardrails.GuardrailManager()
+                factory.assert_not_called()
+
+    def test_nonready_malformed_or_mismatched_lookup_does_not_cache(self):
+        responses = [None, [], {}, {"guardrailId": "other", "version": "1", "status": "READY"},
+                     {"guardrailId": "candidate123", "version": "2", "status": "READY"},
+                     {"guardrailId": "candidate123", "version": 1, "status": "READY"},
+                     *[{"guardrailId": "candidate123", "version": "1", "status": status} for status in (None, "CREATING", "FAILED", "ready")]]
+        for response in responses:
+            with self.subTest(response=response):
+                manager = self.manager()
+                self.client.get_guardrail.return_value = response
+                with self.assertRaises(GuardrailUnavailableError): manager.create_or_get_guardrail()
+                self.assertIsNone(manager.guardrail_id)
+                self.assertIsNone(manager.guardrail_version)
+                self.assert_no_setup()
+
+    def test_provider_failures_are_sanitized_without_fallback(self):
+        from botocore.exceptions import ClientError, ReadTimeoutError
+        secret = "PRIVATE_BINDING_SENTINEL_request_credentials"
+        errors = [ClientError({"Error": {"Code": code, "Message": secret}}, "GetGuardrail") for code in ("ResourceNotFoundException", "AccessDeniedException")]
+        errors += [ReadTimeoutError(endpoint_url=secret), ValueError(secret)]
+        for error in errors:
+            with self.subTest(error_type=type(error).__name__):
+                manager = self.manager()
+                self.client.get_guardrail.side_effect = error
+                with self.assertRaises(GuardrailUnavailableError) as caught: manager.create_or_get_guardrail()
+                self.assertNotIn(secret, str(caught.exception))
+                self.assertTrue(caught.exception.__suppress_context__)
+                self.assertIsNone(manager.guardrail_id)
+                self.assert_no_setup()
+
+    def test_client_creation_failure_is_sanitized(self):
+        with patch.object(guardrails.boto3, "client", side_effect=RuntimeError("PRIVATE_BINDING_SENTINEL")):
+            with self.assertRaisesRegex(GuardrailUnavailableError, "^Guardrail initialization unavailable\.$") as caught:
+                guardrails.GuardrailManager()
+        self.assertTrue(caught.exception.__suppress_context__)
+
+    def test_failed_lookup_can_validate_later_without_cached_failure(self):
+        manager = self.manager()
+        self.client.get_guardrail.side_effect = [TimeoutError("private"), {"guardrailId": "candidate123", "version": "1", "status": "READY"}]
+        with self.assertRaises(GuardrailUnavailableError): manager.create_or_get_guardrail()
+        self.assertEqual(manager.create_or_get_guardrail(), {"id": "candidate123", "version": "1"})
+        self.assertEqual(self.client.get_guardrail.call_count, 2)
+        self.assert_no_setup()
+
+    def test_input_and_output_use_validated_pair_without_metadata_lookup_per_turn(self):
+        manager = self.manager()
+        manager.create_or_get_guardrail()
+        runtime = Mock()
+        runtime.apply_guardrail.return_value = {"action": "NONE", "outputs": [], "assessments": []}
+        with patch.object(guardrails.settings, "GUARDRAIL_ENABLED", True), patch.object(guardrails, "get_guardrail_manager", return_value=manager), patch.object(guardrails.boto3, "client", return_value=runtime):
+            self.assertTrue(guardrails.apply_input_guardrail("controlled question").allowed)
+            self.assertTrue(guardrails.apply_output_guardrail("controlled answer").allowed)
+            self.assertEqual(manager.get_guardrail_config(), {"guardrailIdentifier": "candidate123", "guardrailVersion": "1"})
+        self.assertEqual([call.kwargs["source"] for call in runtime.apply_guardrail.call_args_list], ["INPUT", "OUTPUT"])
+        for call in runtime.apply_guardrail.call_args_list:
+            self.assertEqual(call.kwargs["guardrailIdentifier"], "candidate123")
+            self.assertEqual(call.kwargs["guardrailVersion"], "1")
+        self.client.get_guardrail.assert_called_once()
+        self.assert_no_setup()
+
+    def test_configured_binding_cannot_publish_or_change_version(self):
+        manager = self.manager()
+        manager.create_or_get_guardrail()
+        with self.assertRaises(GuardrailUnavailableError): manager.publish_version()
+        self.assertEqual(manager.guardrail_version, "1")
+        self.assert_no_setup()
+
+    def test_default_lookup_keeps_automatic_setup_cache_after_settings_population(self):
+        with patch.object(guardrails.settings, "BEDROCK_GUARDRAIL_ID", ""), patch.object(guardrails.settings, "BEDROCK_GUARDRAIL_VERSION", "DRAFT"):
+            manager = self.manager()
+            self.client.get_paginator.return_value.paginate.return_value = [{"guardrails": [{"name": manager.guardrail_name, "id": "automatic123", "version": "DRAFT"}]}]
+            expected = {"id": "automatic123", "version": "DRAFT"}
+            self.assertEqual(manager.create_or_get_guardrail(), expected)
+            guardrails.settings.BEDROCK_GUARDRAIL_ID = "automatic123"
+            self.assertEqual(manager.create_or_get_guardrail(), expected)
+            self.client.get_paginator.assert_called_once_with("list_guardrails")
+            self.client.get_guardrail.assert_not_called()
+            self.client.create_guardrail.assert_not_called()
+
+    def test_default_missing_guardrail_creates_with_reviewed_definition_only(self):
+        with patch.object(guardrails.settings, "BEDROCK_GUARDRAIL_ID", ""), patch.object(guardrails.settings, "BEDROCK_GUARDRAIL_VERSION", "DRAFT"):
+            manager = self.manager()
+            self.client.get_paginator.return_value.paginate.return_value = [{"guardrails": []}]
+            self.client.create_guardrail.return_value = {"guardrailId": "automatic123", "version": "DRAFT", "guardrailArn": "controlled"}
+            self.assertEqual(manager.create_or_get_guardrail(), {"id": "automatic123", "version": "DRAFT"})
+            request = self.client.create_guardrail.call_args.kwargs
+            definition = request["topicPolicyConfig"]["topicsConfig"][0]["definition"]
+            self.assertEqual(definition, "Using, recommending or comparing competing third-party delivery, review or booking platforms. Excludes restaurants' own menu/policy records and their document provenance.")
+            self.assertEqual(len(definition), 170)
+            self.client.get_guardrail.assert_not_called()
+
+
+class GuardrailStartupTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        from src.infrastructure import startup
+        self.startup = startup
+        patches = [patch.object(startup, "_startup_complete", False),
+                   patch.object(guardrails, "_guardrail_manager", None),
+                   patch.object(startup.settings, "AGENT_OBSERVABILITY_ENABLED", False),
+                   patch.object(startup.settings, "GUARDRAIL_ENABLED", True),
+                   patch.object(startup.settings, "BEDROCK_GUARDRAIL_ID", "candidate123"),
+                   patch.object(startup.settings, "BEDROCK_GUARDRAIL_VERSION", "1")]
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+
+    async def test_success_preserves_pair_and_idempotence(self):
+        client = Mock()
+        client.get_guardrail.return_value = {"guardrailId": "candidate123", "version": "1", "status": "READY"}
+        with patch.object(guardrails.boto3, "client", return_value=client):
+            result = await self.startup.initialize_infrastructure()
+            self.assertEqual(result["guardrails"]["status"], "success")
+            self.assertEqual(await self.startup.initialize_infrastructure(), {"status": "already_initialized"})
+        self.assertTrue(self.startup.is_initialized())
+        self.assertEqual((self.startup.settings.BEDROCK_GUARDRAIL_ID, self.startup.settings.BEDROCK_GUARDRAIL_VERSION), ("candidate123", "1"))
+        client.get_guardrail.assert_called_once()
+        client.create_guardrail.assert_not_called()
+
+    async def test_failure_stops_startup_without_raw_error_or_configuration_change(self):
+        secret = "PRIVATE_STARTUP_SENTINEL_request_credentials"
+        with patch.object(self.startup, "get_guardrail_manager", side_effect=RuntimeError(secret)), patch.object(self.startup, "logger") as logs:
+            with self.assertRaises(GuardrailUnavailableError) as caught:
+                await self.startup.initialize_infrastructure()
+        self.assertFalse(self.startup.is_initialized())
+        self.assertEqual((self.startup.settings.BEDROCK_GUARDRAIL_ID, self.startup.settings.BEDROCK_GUARDRAIL_VERSION), ("candidate123", "1"))
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertNotIn(secret, str(logs.mock_calls))
+        self.assertTrue(caught.exception.__suppress_context__)
+
+    async def test_invalid_pair_stops_startup_without_client(self):
+        with patch.object(self.startup.settings, "BEDROCK_GUARDRAIL_VERSION", "DRAFT"), patch.object(guardrails.boto3, "client") as factory:
+            with self.assertRaises(GuardrailUnavailableError): await self.startup.initialize_infrastructure()
+        self.assertFalse(self.startup.is_initialized())
+        factory.assert_not_called()
+
+    async def test_disabled_setup_skips_validation_and_all_clients(self):
+        with patch.object(self.startup.settings, "GUARDRAIL_ENABLED", False), patch.object(self.startup.settings, "BEDROCK_GUARDRAIL_VERSION", "DRAFT"), patch.object(guardrails.boto3, "client") as factory:
+            result = await self.startup.initialize_infrastructure()
+            self.assertTrue(guardrails.apply_input_guardrail("controlled").allowed)
+            self.assertTrue(guardrails.apply_output_guardrail("controlled").allowed)
+        self.assertEqual(result["guardrails"]["status"], "disabled")
+        self.assertTrue(self.startup.is_initialized())
+        factory.assert_not_called()
+
+    async def test_automatic_setup_repeated_startup_is_compatible(self):
+        client = Mock()
+        client.get_paginator.return_value.paginate.return_value = [{"guardrails": [{"name": guardrails.settings.BEDROCK_GUARDRAIL_NAME, "id": "automatic123", "version": "DRAFT"}]}]
+        with patch.object(self.startup.settings, "BEDROCK_GUARDRAIL_ID", ""), patch.object(self.startup.settings, "BEDROCK_GUARDRAIL_VERSION", "DRAFT"), patch.object(guardrails.boto3, "client", return_value=client):
+            await self.startup.initialize_infrastructure()
+            self.assertEqual(await self.startup.initialize_infrastructure(), {"status": "already_initialized"})
+            self.assertEqual(guardrails.get_guardrail_manager().create_or_get_guardrail(), {"id": "automatic123", "version": "DRAFT"})
+        client.get_guardrail.assert_not_called()
+        client.get_paginator.assert_called_once()
+
+    async def test_api_lifespan_never_yields_or_initializes_jev_on_binding_failure(self):
+        from src.infrastructure import api
+        with patch.object(self.startup, "get_guardrail_manager", side_effect=RuntimeError("PRIVATE_LIFESPAN_SENTINEL")), patch.object(api, "initialize_jev_router", new_callable=AsyncMock) as jev, patch.object(api, "close_jev_router", new_callable=AsyncMock) as close:
+            with self.assertRaises(GuardrailUnavailableError):
+                async with api.lifespan(None): self.fail("Requests accepted after failed guardrail initialization")
+        self.assertFalse(self.startup.is_initialized())
+        jev.assert_not_awaited()
+        close.assert_not_awaited()
+
+
 class GuardrailSafetyTests(unittest.TestCase):
     def test_anonymized_output_is_allowed_only_with_returned_mask(self):
         response = {
@@ -236,6 +454,246 @@ class GuardrailSafetyTests(unittest.TestCase):
         self.assertEqual(state["response_status"], "approved")
         self.assertEqual(state["messages"].id, "assistant-1")
         self.assertEqual(state["messages"].content, "Call [PHONE]")
+
+
+class GuardrailTelemetryTests(unittest.TestCase):
+    SECRET = "PRIVATE_SENTINEL_answer_match_reason_regex_credentials"
+
+    def call_adapter(self, response, text="controlled answer"):
+        operation = Mock(return_value=response)
+        with (
+            patch.object(guardrails.settings, "GUARDRAIL_ENABLED", True),
+            patch.object(guardrails, "get_guardrail_manager", return_value=SimpleNamespace(guardrail_id="g", guardrail_version="DRAFT")),
+            patch.object(guardrails.boto3, "client", return_value=SimpleNamespace(apply_guardrail=operation)),
+        ):
+            result = guardrails.apply_output_guardrail(text)
+        operation.assert_called_once()
+        self.assertNotIn("outputScope", operation.call_args.kwargs)
+        return result
+
+    def test_known_policy_entries_are_safe_and_nondetections_are_not_active(self):
+        assessments = [{
+            "contentPolicy": {"filters": [{"type": "HATE", "action": "BLOCKED", "detected": False, "confidence": "NONE"}]},
+            "topicPolicy": {"topics": [{"name": "competitor-services", "action": "BLOCKED", "detected": True, "definition": self.SECRET}]},
+            "wordPolicy": {"customWords": [{"match": self.SECRET, "action": "BLOCKED", "detected": True}],
+                           "managedWordLists": [{"match": self.SECRET, "type": "PROFANITY", "action": "NONE", "detected": False}]},
+            "sensitiveInformationPolicy": {"piiEntities": [{"match": self.SECRET, "type": "EMAIL", "action": "ANONYMIZED", "detected": True}],
+                                           "regexes": [{"name": self.SECRET, "regex": self.SECRET, "match": self.SECRET, "action": "BLOCKED", "detected": True}]},
+            "invocationMetrics": {"anything": self.SECRET},
+        }]
+        with patch.object(guardrails.boto3, "client", side_effect=AssertionError("no AWS client")):
+            summary = guardrails.summarize_guardrail_assessments(assessments)
+        self.assertEqual(summary["entry_count"], 6)
+        self.assertEqual((summary["detected_count"], summary["nondetected_count"]), (4, 2))
+        self.assertEqual(summary["blocked_categories"], ["custom_word", "regex", "topic:competitor_services"])
+        self.assertEqual(summary["anonymized_types"], ["EMAIL"])
+        self.assertFalse(summary["summary_incomplete"])
+        self.assertNotIn(self.SECRET, json.dumps(summary))
+
+    def test_unknown_fields_enums_and_names_never_enter_serialization(self):
+        assessments = [{
+            "topicPolicy": {"topics": [{"name": self.SECRET, "action": self.SECRET, "detected": self.SECRET}]},
+            "sensitiveInformationPolicy": {"piiEntities": [{"type": self.SECRET, "match": self.SECRET, "action": "BLOCKED"}]},
+            "contentPolicy": {"filters": [{"type": self.SECRET, "confidence": self.SECRET, "action": "BLOCKED"}]},
+            "unrecognizedPolicy": {"nested": {"actionReason": self.SECRET}},
+            "actionReason": self.SECRET,
+        }]
+        result = GuardrailResult(False, self.SECRET, self.SECRET, assessments)
+        serialized = json.dumps({"summary": result.safe_summary, "span": guardrails.guardrail_span_attributes(result, self.SECRET)})
+        self.assertNotIn(self.SECRET, serialized)
+        self.assertTrue(result.safe_summary["summary_incomplete"])
+        self.assertTrue(result.safe_summary["other_policy_present"])
+        self.assertEqual(guardrails.guardrail_span_attributes(result, self.SECRET)["guardrail.action"], "unknown")
+
+    def test_malformed_types_have_bounded_safe_summaries(self):
+        for value in (None, self.SECRET, {}, 3, [None, {"contentPolicy": self.SECRET}], [{"topicPolicy": {"topics": self.SECRET}}]):
+            with self.subTest(value_type=type(value).__name__):
+                summary = guardrails.summarize_guardrail_assessments(value)
+                self.assertTrue(summary["summary_incomplete"])
+                self.assertNotIn(self.SECRET, json.dumps(summary))
+
+    def test_oversized_lists_and_deep_ignored_fields_do_not_recurse(self):
+        nested = self.SECRET
+        for _ in range(1500):
+            nested = {"ignored": nested}
+        leaf = {"type": "HATE", "confidence": "HIGH", "action": "BLOCKED", "detected": True, "ignored": nested}
+        summary = guardrails.summarize_guardrail_assessments([{"contentPolicy": {"filters": [leaf] * 1000}}] * 1000)
+        self.assertEqual((summary["assessment_count"], summary["entry_count"]), (20, 100))
+        self.assertEqual(len(summary["entries"]), 100)
+        self.assertTrue(summary["summary_incomplete"])
+        self.assertNotIn(self.SECRET, json.dumps(summary))
+
+    def test_optional_detection_and_full_diagnostics_preserve_current_decision(self):
+        for detected in (None, False, True):
+            leaf = {"type": "HATE", "confidence": "HIGH", "action": "BLOCKED"}
+            if detected is not None:
+                leaf["detected"] = detected
+            result = self.call_adapter({"action": "GUARDRAIL_INTERVENED", "assessments": [{"contentPolicy": {"filters": [leaf]}}]})
+            self.assertFalse(result.allowed)
+            self.assertEqual(bool(result.safe_summary["blocked_categories"]), detected is not False)
+            self.assertEqual(result.safe_summary["unknown_detection_count"], int(detected is None))
+
+    def test_summary_failure_and_constructor_compatibility_preserve_approval(self):
+        result = GuardrailResult(True, "controlled answer", "NONE")
+        with patch.object(guardrails, "summarize_guardrail_assessments", side_effect=RuntimeError(self.SECRET)):
+            fields = guardrails.guardrail_span_attributes(result, "controlled answer")
+        self.assertTrue(result.allowed)
+        self.assertEqual(fields["guardrail.decision"], "approved")
+        self.assertTrue(fields["guardrail.summary_unavailable"])
+        self.assertNotIn(self.SECRET, json.dumps(fields))
+
+    def test_missing_or_malformed_transformed_outputs_never_release_original(self):
+        for outputs in (None, [], [{"text": None}], [self.SECRET], [{"text": 42}]):
+            result = self.call_adapter({"action": "GUARDRAIL_INTERVENED", "outputs": outputs,
+                                       "assessments": [{"sensitiveInformationPolicy": {"piiEntities": [{"type": "PHONE", "action": "ANONYMIZED"}]}}]})
+            self.assertFalse(result.allowed)
+        approved = self.call_adapter({"action": "NONE", "assessments": []})
+        self.assertTrue(approved.allowed)
+        self.assertEqual(approved.output, "controlled answer")
+
+    def test_unknown_provider_action_is_sanitized_in_logs(self):
+        with patch.object(guardrails.logger, "info") as log:
+            result = self.call_adapter({"action": self.SECRET, "actionReason": self.SECRET, "outputs": [{"text": self.SECRET}]})
+        self.assertFalse(result.allowed)
+        self.assertNotIn(self.SECRET, json.dumps(log.call_args_list))
+        log.assert_called_once_with("Guardrail blocked {} content (action={})", "output", "unknown")
+
+
+class GuardrailSpanFinalizationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from src.evaluation import document_multipart as evaluation
+        from src.evaluation.rag_offline import NoTelemetry, cloud_clients_forbidden
+        dataset = evaluation.load_dataset()
+        cls.case = dataset.cases[0]
+        cls.manifest = evaluation.compile_dataset(dataset)[cls.case.id][0]
+        harness = evaluation.MultipartHarness(cls.manifest, cls.case.simulation)
+        with cloud_clients_forbidden(), patch("src.infrastructure.rag_observability.get_observability_manager", return_value=NoTelemetry()):
+            cls.outcome = asyncio.run(harness.run(cls.case.question))
+
+    def state(self):
+        outcome = self.outcome
+        return {"messages": [HumanMessage(content=self.case.question), AIMessage(content=outcome.text, id="final")],
+                "intent": "document_qa", "rag_mode": "multipart", "rag_status": outcome.status,
+                "rag_generation": outcome.generation_id, "rag_pending_citations": [c.model_dump() for c in outcome.citations],
+                "rag_pending_coverage": outcome.coverage.model_dump(), "rag_approved_scope": "demo-harbor-pasta"}
+
+    def telemetry(self, *, fail=False):
+        entries, events = {}, []
+        active = [False]
+        class Telemetry(_Observability):
+            @contextmanager
+            def create_span(self, name, attributes=None):
+                if name != "guardrail.output":
+                    yield None
+                    return
+                entries.update(attributes or {})
+                active[0] = True
+                def set_attribute(key, value):
+                    if not active[0]:
+                        raise AssertionError("attribute after span closed")
+                    if fail:
+                        raise RuntimeError(GuardrailTelemetryTests.SECRET)
+                    entries[key] = value
+                try:
+                    yield SimpleNamespace(set_attribute=set_attribute)
+                finally:
+                    active[0] = False
+            def add_span_event(self, name, attributes=None):
+                events.append((name, attributes))
+        return Telemetry(), entries, events
+
+    def test_full_answer_once_and_source_memory_gates_are_unchanged(self):
+        from src.evaluation.rag_offline import cloud_clients_forbidden
+        for allowed, text, expected_decision in ((True, self.outcome.text, "approved"), (True, "masked", "anonymized"), (False, "", "blocked")):
+            telemetry, fields, events = self.telemetry()
+            operation = Mock(return_value=GuardrailResult(allowed, text, "NONE"))
+            with cloud_clients_forbidden(), patch.object(nodes, "get_observability_manager", return_value=telemetry), patch.object(nodes, "apply_output_guardrail", operation):
+                result = asyncio.run(nodes.output_guardrail_node(self.state(), {}))
+            operation.assert_called_once_with(self.outcome.text)
+            self.assertEqual(fields["guardrail.decision"], expected_decision)
+            self.assertEqual(len(result["rag_approved_citations"]), 4 if expected_decision == "approved" else 0)
+            self.assertEqual(result["rag_approved_coverage"] is not None, expected_decision == "approved")
+            self.assertEqual(edges.route_after_output_guardrail(result), "memory_post_hook" if allowed else "end")
+            self.assertIsNone(result["rag_pending_coverage"])
+            self.assertEqual(result["messages"].id, "final")
+            self.assertNotIn("chunk_id", str(result["messages"].additional_kwargs))
+
+    def test_span_or_summary_failure_does_not_change_final_approval(self):
+        for broken_summary, broken_span in ((True, False), (False, True)):
+            telemetry, fields, events = self.telemetry(fail=broken_span)
+            with patch.object(nodes, "get_observability_manager", return_value=telemetry),\
+                 patch.object(nodes, "apply_output_guardrail", return_value=GuardrailResult(True, self.outcome.text, "NONE")) as operation,\
+                 patch.object(guardrails, "summarize_guardrail_assessments", side_effect=RuntimeError(GuardrailTelemetryTests.SECRET) if broken_summary else None, wraps=guardrails.summarize_guardrail_assessments):
+                result = asyncio.run(nodes.output_guardrail_node(self.state(), {}))
+            operation.assert_called_once()
+            self.assertEqual(result["messages"].content, self.outcome.text)
+            self.assertEqual(len(result["rag_approved_citations"]), 4)
+            self.assertNotIn(GuardrailTelemetryTests.SECRET, json.dumps({"fields": fields, "events": events}))
+
+    def test_unavailable_span_is_recorded_and_no_unapproved_state_returns(self):
+        telemetry, fields, _ = self.telemetry()
+        with patch.object(nodes, "get_observability_manager", return_value=telemetry),\
+             patch.object(nodes, "apply_output_guardrail", side_effect=GuardrailUnavailableError()) as operation,\
+             patch.object(nodes, "get_memory_instance") as memory:
+            with self.assertRaises(GuardrailUnavailableError):
+                asyncio.run(nodes.output_guardrail_node(self.state(), {}))
+        operation.assert_called_once()
+        memory.assert_not_called()
+        self.assertEqual(fields["guardrail.decision"], "unavailable")
+
+    def test_blocked_provider_secrets_do_not_enter_span_events_or_logs(self):
+        telemetry, fields, events = self.telemetry()
+        secret = GuardrailTelemetryTests.SECRET
+        result = GuardrailResult(False, secret, secret, [{"contentPolicy": {"filters": [{"type": "HATE", "confidence": "HIGH", "action": "BLOCKED", "detected": True, "match": secret}]}, "actionReason": secret}])
+        with patch.object(nodes, "get_observability_manager", return_value=telemetry), patch.object(nodes, "apply_output_guardrail", return_value=result):
+            update = asyncio.run(nodes.output_guardrail_node(self.state(), {}))
+        serialized = json.dumps({"fields": fields, "events": events, "summary": result.safe_summary})
+        self.assertNotIn(secret, serialized)
+        self.assertEqual(fields["guardrail.blocked_categories"], ["content:HATE"])
+        self.assertEqual(events[0][1]["action"], "unknown")
+        self.assertEqual(update["rag_approved_citations"], [])
+        self.assertNotIn(secret, update["messages"].content)
+
+    def test_parent_graph_mask_block_and_unavailability_preserve_memory_boundary(self):
+        from langgraph.checkpoint.memory import InMemorySaver
+        from src.application.document_rag import multipart_workflow as execution
+        from src.application.orchestrator.workflow import graph
+        from src.evaluation import document_multipart as evaluation
+        from src.evaluation.rag_offline import NoTelemetry, cloud_clients_forbidden
+        from src.infrastructure.jev_router import JevClassification
+        for decision in ("anonymized", "blocked", "unavailable"):
+            with self.subTest(decision=decision):
+                harness = evaluation.MultipartHarness(self.manifest, self.case.simulation)
+                memory = SimpleNamespace(process_turn=Mock(return_value={"success": True}))
+                operation = Mock(side_effect=GuardrailUnavailableError()) if decision == "unavailable" else Mock(
+                    return_value=GuardrailResult(decision == "anonymized", "masked", "GUARDRAIL_INTERVENED"))
+                async def run():
+                    compiled = graph.create_orchestrator_graph(force_recreate=True)
+                    config = {"configurable": {"thread_id": "guardrail-offline-"+decision, "actor_id": "demo"}}
+                    if decision == "unavailable":
+                        with self.assertRaises(GuardrailUnavailableError):
+                            await compiled.ainvoke({"messages": [HumanMessage(content=self.case.question)]}, config)
+                    else:
+                        result = await compiled.ainvoke({"messages": [HumanMessage(content=self.case.question)]}, config)
+                        self.assertEqual(result["rag_approved_citations"], [])
+                        self.assertIsNone(result["rag_approved_coverage"])
+                        self.assertTrue({"manifest", "plan", "rows", "result", "ledger"}.isdisjoint(result))
+                    operation.assert_called_once()
+                with cloud_clients_forbidden(), patch("src.infrastructure.rag_observability.get_observability_manager", return_value=NoTelemetry()),\
+                     patch.object(nodes, "get_observability_manager", return_value=_Observability()),\
+                     patch.object(guardrails.settings, "DOCUMENT_RAG_ENABLED", True), patch.object(guardrails.settings, "DOCUMENT_MULTIPART_ENABLED", True),\
+                     patch.object(graph, "_graph_instance", None), patch.object(graph, "get_orchestrator_tools", return_value=[]),\
+                     patch.object(graph, "ShortTermMemory", return_value=SimpleNamespace(get_memory=lambda: InMemorySaver())),\
+                     patch.object(nodes, "classify_with_jev", return_value=JevClassification("document_qa", .9)),\
+                     patch.object(nodes, "apply_output_guardrail", operation), patch.object(nodes, "get_memory_instance", return_value=memory),\
+                     patch.object(execution, "MultipartDependencies", return_value=harness.dependencies):
+                    asyncio.run(run())
+                if decision == "anonymized":
+                    memory.process_turn.assert_called_once()
+                    self.assertEqual(memory.process_turn.call_args.kwargs["agent_response"], "masked")
+                else:
+                    memory.process_turn.assert_not_called()
 
 
 class TurnLifecycleTests(unittest.TestCase):

@@ -206,8 +206,13 @@ async def answer_comparison(question, config, *, dependencies=None, deadline=Non
                                      {**config, "max_concurrency": 2}))["result"]
         if dependencies.result_observer:
             dependencies.result_observer(result)
+        candidate = None
+        if settings.DOCUMENT_FOLLOWUPS_ENABLED and result.status in {"answered", "partial"}:
+            from src.application.document_rag.conversation import context_draft
+            candidate = context_draft(plan.restaurant_ids, plan.item, "comparison", plan.generation_id)
         return RagOutcome(status=result.status, text=result.text, generation_id=plan.generation_id,
-                          retrieval_count=sum(row.retrieval_started for row in result.rows), citations=result.citations)
+                          retrieval_count=sum(row.retrieval_started for row in result.rows), citations=result.citations,
+                          mode="comparison" if candidate else None, context_candidate=candidate)
     except asyncio.CancelledError:
         pin_stopped.set()
         raise

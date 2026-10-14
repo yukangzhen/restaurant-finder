@@ -24,6 +24,7 @@ from src.application.document_rag.retrieval import router_catalog
 from src.infrastructure.guardrails import (
     apply_output_guardrail,
     get_blocked_output_message,
+    guardrail_span_attributes,
 )
 
 
@@ -180,8 +181,18 @@ async def output_guardrail_node(
     with observability.create_span(
         "guardrail.output",
         attributes={"output.length": len(raw_text)},
-    ):
-        result = await asyncio.to_thread(apply_output_guardrail, raw_text)
+    ) as guardrail_span:
+        result = None
+        try:
+            result = await asyncio.to_thread(apply_output_guardrail, raw_text)
+        finally:
+            if guardrail_span is not None:
+                try:
+                    for key, value in guardrail_span_attributes(result, raw_text).items():
+                        guardrail_span.set_attribute(key, value)
+                except Exception:
+                    # Telemetry failure cannot change approval or expose data.
+                    pass
 
     if result.allowed:
         approved_text = result.output
@@ -189,14 +200,14 @@ async def output_guardrail_node(
         if approved_text != raw_text:
             observability.add_span_event(
                 "guardrail.anonymized",
-                attributes={"action": result.action},
+                attributes={"action": result.action if result.action in {"NONE", "GUARDRAIL_INTERVENED"} else "unknown"},
             )
     else:
         approved_text = get_blocked_output_message()
         response_status = "blocked"
         observability.add_span_event(
             "guardrail.blocked",
-            attributes={"action": result.action},
+            attributes={"action": result.action if result.action in {"NONE", "GUARDRAIL_INTERVENED"} else "unknown"},
         )
 
     replacement = AIMessage(
@@ -205,23 +216,28 @@ async def output_guardrail_node(
         id=(final_message.id if final_message and final_message.id else str(uuid.uuid4())),
     )
     update = {"messages": replacement, "response_status": response_status,
-              "rag_pending_citations": [], "rag_approved_citations": []}
+              "rag_pending_citations": [], "rag_approved_citations": [],
+              "rag_pending_coverage": None, "rag_approved_coverage": None}
+    references, coverage = [], None
     if (response_status == "approved" and approved_text == raw_text
             and state.get("intent") == "document_qa" and state.get("rag_status") in {"answered", "partial"}):
-        from src.domain.document_rag import DocumentCitation
+        from src.domain.document_rag import validate_approved_document_payload
         pending = state.get("rag_pending_citations", [])
-        if len(pending) > 3:
-            raise ValueError("Too many pending citations")
-        if state.get("rag_status") == "partial" and (state.get("rag_mode") != "comparison" or len(pending) != 1):
-            raise ValueError("Partial citations require one-source comparison")
-        update["rag_approved_citations"] = [DocumentCitation.model_validate(c).model_dump() for c in pending]
+        references, coverage = validate_approved_document_payload(state.get("rag_mode"), state.get("rag_status"),
+            state.get("rag_generation"), pending, state.get("rag_pending_coverage"))
+        update["rag_approved_citations"] = [c.model_dump() for c in references]
+        update["rag_approved_coverage"] = coverage.model_dump() if coverage else None
     if response_status == "approved":
         update["last_approved_intent"] = state.get("intent")
     # Only an approved document turn advances scope. All per-turn fields reset upstream.
-    if response_status == "approved" and state.get("rag_mode") == "comparison":
+    if response_status == "approved" and state.get("rag_mode") in {"comparison", "multipart"}:
         update["rag_approved_scope"] = None
     elif response_status == "approved" and state.get("rag_pending_scope"):
         update["rag_approved_scope"] = state["rag_pending_scope"]
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED:
+        from src.application.document_rag.conversation import approved_context_update
+        update.update(approved_context_update(state, config, replacement,
+            response_status == "approved" and approved_text == raw_text, references, coverage))
     return update
 
 
@@ -249,6 +265,30 @@ async def router_node(
 
     messages = list(state["messages"])
 
+    routing_scope = state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED and settings.DOCUMENT_RAG_ENABLED:
+        from src.application.document_rag.conversation import eligible_context, latest_question, resolve_followup
+        from src.infrastructure.rag_observability import rag_span
+        resolution = resolve_followup(latest_question(state), state, config)
+        context = eligible_context(state, config)
+        try:
+            with rag_span("rag.followup.resolve") as span:
+                if span is not None:
+                    for name, value in {"rag.followup.decision": resolution.decision, "rag.followup.reason": resolution.reason,
+                        "rag.followup.operation": resolution.operation or "none", "rag.followup.restaurant_count": len(resolution.restaurant_ids),
+                        "rag.followup.context_valid": context is not None, "rag.followup.resumed": resolution.reason == "resumed",
+                        "rag.followup.mode": resolution.mode}.items():
+                        span.set_attribute(name, value)
+        except Exception:
+            # Optional resolver telemetry cannot change the admission decision.
+            pass
+        routing_scope = context.restaurant_ids[0] if context and len(context.restaurant_ids) == 1 else None
+        if resolution.decision != "not_applicable":
+            observability.record_workflow_step(step_name="router", step_type="node", duration_ms=(time.time()-start_time)*1000,
+                success=True, metadata={"intent": "document_qa", "provider": "document_followup", "decision": resolution.decision})
+            return {"intent": "document_qa", "rag_followup_resolution": resolution.model_dump(mode="json"),
+                    "rag_pending_context": None, "rag_pending_followup": None}
+
     with observability.create_span(
         "router.classify",
         attributes={"message.count": len(messages)},
@@ -263,7 +303,7 @@ async def router_node(
                 "router.jev",
                 attributes={"router.model": model},
             ):
-                classification = await classify_with_jev(messages, approved_document_scope=(state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None))
+                classification = await classify_with_jev(messages, approved_document_scope=routing_scope)
             intent = cast(IntentType, classification.intent)
             confidence = classification.confidence
         except Exception as error:
@@ -283,7 +323,7 @@ async def router_node(
                 },
             ):
                 response = await get_router_chain().ainvoke(
-                    {"messages": bedrock_routing_messages(messages), "router_context": str({"fictional_catalog": router_catalog(), "approved_document_scope": (state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None)})},
+                    {"messages": bedrock_routing_messages(messages), "router_context": str({"fictional_catalog": router_catalog(), "approved_document_scope": routing_scope})},
                     config,
                 )
 
@@ -332,6 +372,8 @@ async def router_node(
         fallback_reason or "none",
     )
 
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED:
+        return {"intent": intent, "rag_followup_resolution": None, "rag_pending_context": None, "rag_pending_followup": None}
     return {"intent": intent}
 
 

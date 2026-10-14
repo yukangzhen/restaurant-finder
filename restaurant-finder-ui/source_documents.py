@@ -22,7 +22,7 @@ class Citation(BaseModel):
     """Validate the SSE boundary independently of the API's Python package."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
-    label: Literal["Source 1", "Source 2", "Source 3"]
+    label: Literal["Source 1", "Source 2", "Source 3", "Source 4"]
     generation_id: str = Field(pattern=r"^[a-f0-9]{64}$")
     document_id: str = Field(pattern=r"^[a-z0-9-]{1,128}$")
     chunk_id: str = Field(pattern=r"^[a-f0-9]{64}$")
@@ -54,7 +54,7 @@ class Citation(BaseModel):
 
 
 def validate_citations(values, answer):
-    if not isinstance(values, list) or not 1 <= len(values) <= 3:
+    if not isinstance(values, list) or not 1 <= len(values) <= 4:
         raise ValueError("Invalid citation list")
     citations = [Citation.model_validate(value) for value in values]
     for index, citation in enumerate(citations, 1):

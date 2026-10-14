@@ -345,10 +345,12 @@ class GraphTests(unittest.TestCase):
         with patch.object(streaming,"create_orchestrator_graph",return_value=fake):
             asyncio.run(streaming.run_orchestrator_turn("x",conversation_id="rag-offline",actor_id="rag-demo"))
         data=fake.ainvoke.await_args.kwargs["input"]
-        for name in ["rag_status","rag_generation","rag_pending_scope"]:
+        for name in ["rag_status","rag_generation","rag_pending_scope","rag_followup_resolution","rag_pending_context","rag_pending_followup"]:
             self.assertIsNone(data[name])
         self.assertEqual(data["rag_retrieval_count"],0)
         self.assertNotIn("rag_approved_scope",data)
+        self.assertNotIn("rag_approved_context",data)
+        self.assertNotIn("rag_approved_followup",data)
 
     def test_router_does_not_receive_document_passages(self):
         from src.infrastructure.jev_router import _message_for_jev, bedrock_routing_messages

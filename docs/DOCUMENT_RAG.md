@@ -6,6 +6,18 @@ The upstream agent used web/browser tools and conversational memory. This fork a
 
 The sample venues are fictional: Harbor Pasta Lab, Sakura Table Lab, and Spice Garden Lab. Six English documents include a text-based PDF. They are engineering fixtures, not real restaurant recommendations.
 
+## Bounded document conversation follow ups
+
+The extension is opt-in with `DOCUMENT_FOLLOWUPS_ENABLED=true`; the default is false. Ordinary questions still use Jev and its Bedrock fallback. Recognized continuations use a deterministic resolver, with no routing or query-rewrite model call. The accepted 2026-10-14 rollout enables it at READY Runtime/DEFAULT 17, preserving multipart and immutable guardrail `ih5xpt3qi946:1`. Seven controlled UI requests passed, including clarification/resumption and a fresh chat with no context. Three actual original downloads matched their pinned hashes; earlier answer controls retained their associations. See the [rollout record](HANDOFF_PRD_FOLLOWUP_PUBLICATION_AND_ROLLOUT.md#12-phase-b-execution-and-acceptance).
+
+After an approved Harbor price-and-policy answer, “And what about its cancellation fee?” resolves to Harbor. After a comparison of mushroom pasta at Harbor and Sakura, “Which is cheaper?” retrieves that same item at both venues. “What about its cancellation policy?” after two venues asks which one; an immediate “Harbor” reply resumes that operation. A greeting or another intervening turn expires the pending request.
+
+The server checkpoints only structured targets, an admitted item where available, source generation and owner/producer consistency fields. It seals context after unchanged output approval and source validation. Context contains no prices, fees, quotations or source URLs. Masked, blocked, invalid or unavailable outcomes cannot advance it; a general single answer records its venue without guessing a dish. Old checkpoints without the new fields require a new explicit seed question when the extension is enabled.
+
+Every resolved answer pins the current active corpus and validates fresh evidence. A v1-to-v2 update can therefore change Harbor's answer from RM28 to RM32 with a new original-source citation. Context does not cache the old price or force the prior generation. Serving-unit arithmetic, complete policy conditions and menu qualifiers use the existing validators. Unsupported additions such as parking are clarified as a whole request.
+
+This is a bounded grammar, not a general conversation planner. Dish changes, policy-only comparison across two venues and references such as “the cheaper one” require explicit questions. Actor/thread hashes check context consistency; caller-supplied identifiers do not provide authentication for a public shared service. See the [follow-up PRD](HANDOFF_PRD_DOCUMENT_CONVERSATION_FOLLOWUPS.md) for forms, lifecycle and local acceptance.
+
 ## Ingestion
 
 ```mermaid
@@ -113,7 +125,7 @@ Extractive answers intentionally sacrifice conversational paraphrasing for inspe
 
 New unchanged, approved document answers include optional structured citation references in the same complete SSE chunk. The API resolves them from the selected evidence and pinned manifest; the model still supplies only chunk IDs and exact quotes. Blocked, modified/anonymized, invalid and wholly unsupported answers carry no clickable references. A partial comparison attaches only its supported restaurant's source. Pending and approved references reset on every turn.
 
-The local Chainlit server fetches each distinct original once from `rag/generations/<generation>/sources/<document-id>.<pdf-or-md>`, verifies its SHA-256 and 5 MiB size bound, then attaches a clickable `Source 1`/`Source 2`/`Source 3` element. PDFs open at their cited page. Markdown opens as complete literal text with original line numbers and the cited section/range. Original downloads contain the unmodified verified bytes. The loader uses bounded I/O, a 30-second preparation timeout and no SDK or agent retries. Failure preserves the approved answer and plain citation with a source-unavailable notice.
+The local Chainlit server fetches each distinct original once from `rag/generations/<generation>/sources/<document-id>.<pdf-or-md>`, verifies its SHA-256 and 5 MiB size bound, then attaches a clickable `Source 1` through `Source 4` element. Single answers remain limited to three references and comparisons to two; only validated multi-part answers may publish four. PDFs open at their cited page. Markdown opens as complete literal text with original line numbers and the cited section/range. Original downloads contain the unmodified verified bytes. The loader uses bounded I/O, a 30-second preparation timeout and no SDK or agent retries. Failure preserves the approved answer and plain citation with a source-unavailable notice.
 
 Configure `DOCUMENT_SOURCE_VIEWER_ENABLED=true` and `RAG_DOCUMENT_BUCKET=<DocumentBucketName>` in the UI environment. Its AWS profile needs read access to original objects in the existing private bucket; Runtime's RAG permissions still exclude originals. Source loading makes no extra model or embedding calls. No presigned/public S3 URLs or browser AWS keys are used.
 
@@ -122,6 +134,58 @@ The UI pins Chainlit 2.12.0 for its bundled PDF.js renderer; the earlier iframe 
 References pin the full generation and hash, so an older citation cannot silently open the latest source after a corpus update. Existing answers without metadata retain plain citations. Native elements belong to the current Chainlit session; permanent links after a restart/history restore are not provided.
 
 Opening a source discloses the complete controlled fictional document, beyond the quotation checked by the answer guardrail. Markdown is displayed as literal data, with no document HTML/scripts/remote links executed. Keep this anonymous demonstration on loopback. Private documents or public visitors require a separate authentication/authorization design. See the [clickable-citation PRD](HANDOFF_PRD_CLICKABLE_RAG_SOURCES.md) for rollout evidence and criteria.
+
+## Bounded multi-part document questions — implementation and rollout
+
+The multi-part path combines one menu item's listed price with cancellation policies for one or two explicitly named fictional catalog restaurants. It requires both `DOCUMENT_RAG_ENABLED` and `DOCUMENT_MULTIPART_ENABLED`; the second flag defaults to false. Real `.env` files and the deployed Runtime were not changed during local implementation.
+
+Supported forms (names may use registered aliases; ordinary case, whitespace, possessive apostrophe and terminal punctuation variations are accepted):
+
+1. `Compare mushroom pasta prices at Harbor and Sakura, and explain both restaurants' cancellation policies.`
+2. `For Harbor and Sakura, compare mushroom pasta prices and their cancellation policies.`
+3. `For Harbor, what is the mushroom pasta price and cancellation policy?`
+4. `What is the mushroom pasta price at Harbor, and what is its cancellation policy?`
+5. `Compare mushroom pasta prices at Harbor and Sakura, and explain Harbor's cancellation policy.`
+
+One optional `Show the sources.` sentence is accepted. These are bounded forms, not unrestricted natural-language planning. Unknown/third venues, multiple dishes, extra requirements and oversized inputs clarify without new provider operations. Two historical shapes keep their existing behavior: `According to ... menu and policy ...` uses the single-question workflow, while `Compare ... prices and cancellation policy at ...` keeps the comparison workflow's clarification. This compatibility distinction preserves the original curated regressions.
+
+```mermaid
+flowchart LR
+  Admit[Pure full-request admission] --> Pin[One immutable generation]
+  Pin --> Planner[One structured Haiku plan]
+  Planner --> Check[Exact task-set validation]
+  Check --> Workers[2-4 tasks; concurrency 2]
+  Workers --> Verify[Scoped retrieval and whole-record validation]
+  Verify --> Assemble[Deterministic answer and price arithmetic]
+  Assemble --> Approval[Parent output guardrail once]
+  Approval --> Sources[Approved original-document references]
+```
+
+The compiler defines the expected work independently of the planner. Draft tasks must match the exact restaurant/criterion/item set: omissions, extra tasks, duplicate tasks, changed dishes, or additional schema fields fail before retrieval. Server code assigns task IDs, scope filters and retrieval queries. Jev remains the intent router. The planner cannot create tools, URLs or source keys. A deterministic planner could also handle this grammar; the additional model call demonstrates a checked planning stage, without a claimed efficiency gain.
+
+Each task has its own retrieval session and model operation. The whole workflow pins one manifest; workers never pin again. Every task has at most one embedding, one vector query page, five hits, and one selector. At most four tasks run, with two active. Retrieval context is bounded to 9,000 characters per task and 36,000 total. Planner output is limited to 1,000 tokens; selectors retain the existing 1,600-token limit. SDK total attempts are one. No replan, repair, web fallback, or free-form synthesis model is used.
+
+The parent document-node timeout remains at most 60 seconds. Planning has at most five seconds, and workers share at most 45 seconds with assembly time reserved. Up to 250 ms of that reserve allows the graph to account for queued results after workers stop provider operations. In-flight synchronous SDK calls cannot be instantly cancelled; stop flags prevent subsequent operations, SDK timeouts bound I/O, and operation-owned clients close in their owning thread when the call exits.
+
+Menu tasks reuse the existing complete-record and `Decimal` price validators, including allergens and dinner-only qualifiers. Cancellation tasks support only a complete Markdown `Reservations and cancellation` section represented by one chunk, with its entire body at most 600 characters. Stripping the known heading is permitted; dropping a sentence/condition is rejected. Split/long/unrecognized layouts are explicitly unsupported, and conflicting complete policies invalidate the entire factual answer. Canonical chunks do not retain arbitrary paragraph boundaries, so this feature does not reconstruct general document paragraphs.
+
+Source order follows restaurant first appearance, with price before policy for each restaurant; completion timing does not affect labels. An answered four-part request has four citations. If Spice's mushroom-pasta price lacks evidence while Harbor's price and both policies are supported, the answer says `Answered 3 of 4 requested parts`, retains three sources, and omits the price difference. If a policy alone fails but both menu prices are supported, the partial answer can still calculate the menu-price difference. No policy fee is compared to a dish price.
+
+Any provenance/selection conflict rejects all public facts and citations. Operational failures can retain supported parts; every required task has an explicit result. Only unchanged approved final text releases citations and safe coverage metadata. Masked/blocked answers release neither. The parent saves approved final memory once; workers do not save memory or emit public tokens. Approved multi-part turns clear the single-restaurant follow-up scope, including one-venue compounds: name the restaurant again for a later pronoun question.
+
+The viewer still checks sequential source markers, one generation, derived immutable keys and original SHA256 hashes. Four originals are bounded to 20 MiB in total, with the existing 30-second preparation deadline. A late source error retains earlier verified viewers and shows a source notice without repeating the agent request.
+
+Adding `RAG_MULTIPART_PLAN_PROMPT` increases the current registry to nine prompts. Both synchronization and read-only manifest validation include it. Packaging this code against an old eight-prompt manifest will fail; even a feature-disabled image needs an approved updated manifest. Historical rollout sections elsewhere in this guide refer to their original eight-prompt releases. No prompt sync, image publication or Runtime deployment was performed for this local feature.
+
+See the [approved multi-part PRD](HANDOFF_PRD_MULTIPART_DOCUMENT_WORKFLOW.md) for acceptance evidence and the [evaluation guide](CI_AND_RAG_EVALUATION.md) for the separate 40-case offline regression.
+
+### Trial deployment and rollback — 2026-10-13
+
+Release source `c3bcd83ed864290098c01464927727fe2f0dee5a` was published in [draft PR #1](https://github.com/yukangzhen/restaurant-finder/pull/1). Its [exact-source push CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/38342463448) passed all four jobs; downloaded artifacts confirmed 196 API, 31 UI and 6 infrastructure tests, plus complete 17/20/40-case offline evaluations. One prompt sync created the ninth immutable planner prompt and preserved the prior eight entries. The audited ARM64 image was deployed through a two-field Runtime update, reaching READY Runtime/DEFAULT 14 with the flag enabled.
+
+Only L1 of the six approved attempts was sent. Its correlated trace established Jev document routing, one planner, four supported workers with one retrieval/selector each, maximum two overlapping worker spans, and a four-citation internal aggregate. Final output moderation blocked the complete answer, so the public response had no facts or citations. Document execution took approximately 4.7 seconds in this single failed acceptance attempt; this is neither a benchmark nor evidence of improved performance. No named approved parent memory-save span was present. The specific blocking rule and public accuracy, arithmetic, source viewing and L2-L6 behavior remain unmeasured.
+
+The stop rule prevented L2-L6 and further diagnostic inference. One reviewed rollback restored the exact captured baseline template: the prior comparison image and absent multipart key, with unchanged resources, other settings and active corpus pointer. Runtime/DEFAULT are READY at 15. The prior UI source/configuration was restored on loopback without a post-rollback Runtime request. The new image and planner prompt remain retained. See the [publication/rollout PRD](HANDOFF_PRD_MULTIPART_PUBLICATION_AND_ROLLOUT.md) for identities, individual criteria and the repair boundary. The feature has not passed live acceptance and must not be described as a working deployed four-source workflow.
 
 ## Configuration and infrastructure
 
