@@ -1,6 +1,8 @@
 # Handoff PRD: Pin the validated guardrail and retry multipart acceptance
 
-**Status:** Gate A COMPLETE. Gate B execution explicitly approved by the owner on 2026-10-14; publication/image/rollout/live acceptance are in progress. Their outcome remains unmeasured until receipts establish it.
+**Status:** Gate A COMPLETE. Gate B publication, audited ARM64 image, four-leaf deployment and all six live acceptance cases PASS. Retain Runtime/DEFAULT READY 16 with immutable guardrail `ih5xpt3qi946:1`. Documentation closeout publication/CI and safe cleanup are recorded separately after this commit. Stop before the demo walkthrough.
+
+Sections 1-12 preserve preparation and earlier verification states. Sections 13-14 supersede their pending authorization/deployment/acceptance statements; the historical receipts remain retained.
 
 **Outcome:** Bind the Restaurant Finder to the validated immutable guardrail, preserving safe failure, masking and citation release; then complete bounded multipart acceptance before any demo walkthrough.
 
@@ -81,7 +83,7 @@ Required tests: exact lookup/pair propagation into input/output checks; no fallb
 6. Review diff/privacy/provider-call prohibitions, original datasets/manifest hashes and all preserved owner assets. Existing guardrail decisions must remain unchanged.
 7. Prepare exact commit/PR file list and safe description, release/image/manifest/template/budget/rollback package for Gate B. Exclude `.generated`, secrets/configuration and `docs/HANDOFF_PRD_RUNTIME_WARNINGS.md`. Stop before publication/mutation.
 
-## 7. Gate B rollout — not yet authorized
+## 7. Gate B rollout — approved; completed execution in section 14
 
 Reuse the [prior rollout's procedures](HANDOFF_PRD_MULTIPART_PUBLICATION_AND_ROLLOUT.md) for image/prompt provenance, readiness, change-set review, traces, source inspection and cleanup. This gate needs fresh authorization; prior two-field/budget/rollback authority is spent.
 
@@ -140,7 +142,7 @@ Use PASS/FAIL/BLOCKED/UNMEASURED. Gate A can pass with P05-P08 unmeasured. Polic
 
 **Next sign-off:** Gate B review package in sections 7 and 10: reviewed publication, one audited ARM64 image, minimal four-leaf Runtime update, six fresh attempted sends, original-source inspections/downloads, owned UI restart if needed and one conditional rollback. Gate A is complete. Final commit/image digest/Runtime version are future measured values and must be verified before deployment.
 
-**Stopping point:** candidate `ih5xpt3qi946:1` remains unbound in AWS. Gate A local source/tests and fresh read-only AWS verification pass. Publication/rollout has not been executed.
+**Historical Gate A stopping point:** the candidate was unbound before Gate B. The current retained deployment and acceptance are recorded in section 14.
 
 
 ## 9. Gate A execution record - 2026-10-13
@@ -233,3 +235,76 @@ The owner answered **"Proceed with Gate B"** to the concrete request covering pu
 The normal Docker Desktop start was accepted, but its Linux engine remained unavailable and a status check timed out. When asked about one supported restart, the owner chose **"I'll restore Docker manually"**. No restart/reset/WSL action is authorized or performed; independent publication and read-only rollback preparation can continue.
 
 Private operation receipts are under `.generated/guardrail-rollout-20261014005846/`. Reserve each live ledger slot before sending. Previous allowances and used rollbacks do not transfer. Preserve owner warning work, credentials/configuration, locks, corpus, immutable prompts, candidate/version and historical receipts. Source/image/CI and the actual minimal change set must match before mutation; stop on drift/failure and follow the new conditional rollback rule.
+
+
+## 14. Gate B execution and acceptance - 2026-10-14
+
+**Result:** The six exact approved requests passed through the actual loopback UI and deployed Runtime. Retain READY Runtime/DEFAULT 16; no rollback was needed or sent. The six-send allowance is exhausted. No demo walkthrough, benchmark, merge, upstream push, deletion, new prompt version, corpus change or IAM expansion occurred.
+
+### Release and deployment evidence
+
+| Item | Inspected outcome |
+| --- | --- |
+| Packaged release source | `3771a4ca4fa661da384e2e8f1ba92e7eb7008ab9`, parent `0845b8bb4c1fa74e933470274d7272dc1561c5f0`. Exactly the 11 reviewed paths committed and pushed normally to origin. Owner warning work excluded. Existing PR #1 remains draft against `feat/jev-router`. |
+| Exact-source CI | [Push run 38494272778](https://github.com/yukangzhen/restaurant-finder/actions/runs/38494272778) and [PR run 38494277025](https://github.com/yukangzhen/restaurant-finder/actions/runs/38494277025) completed successfully. All four jobs inspected; downloaded push artifacts confirm 226 API, 31 UI and 48 infrastructure tests, plus complete 17/20/40 cases with 374/260/609 checks. |
+| Prompt provenance | Retained nine-prompt manifest SHA `68e9d44e8e073d301d63fd00619ce0aefc867d66df235da9bfe809a2a25f82d9`; all nine immutable prompt read-backs matched. No synchronization or prompt publication. Old eight-prompt worktree manifest preserved. |
+| Audited image | Tag `pinned-guardrail-3771a4c-20261014012132-arm64`. Registry OCI index digest `sha256:2572b4e938d4926da62f906441f7098d8640c329d2db90e567b2f4db4708ba6c`; runnable linux/arm64 child `sha256:fd6038162d816d08f0baebce564bcdffd5f4a3e34fe3af9ba40bd4f5881d9544`. Exact 82 packaged runtime source files, sole generated manifest, UID 1000 and normal instrumented command verified offline with networking disabled and no agent startup. |
+| Build recovery/publication | Docker disconnected before the first image completed. The owner restored it manually; reconciliation proved the tag absent. The inherited rollout's one permitted corrected pre-publication retry succeeded on unchanged source/manifest. Two build attempts, one successful unique image, one push. No agent-performed Docker restart/reset. Scoped temporary authentication cleared; global Docker configuration preserved. |
+| Rollback baseline | Fresh Runtime/DEFAULT 15; previous comparison image digest `sha256:671e5c9c1ecc477aca287b4cefa83e06e9ef07e1eea678547d44181490f0da5a` remained fetchable after the push. All three feature/binding keys were absent. Baseline local UI was not running. |
+| Reviewed deployment | Change set `guardrail-3771a4c-20261014015409` modified one existing Runtime, without replacement. Exactly the image, multipart true, guardrail ID and numbered version changed. One execution; full deployed template equals the reviewed proposal, all 18 physical resource mappings and outputs preserved, other Runtime configuration unchanged. |
+| Retained readiness | Stack UPDATE_COMPLETE; Runtime/DEFAULT READY and live at 16. Image/flag/pair match; immutable pair READY. Active generation `29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a` and pointer ETag unchanged. Readiness sent no warm-up or model request. |
+| Actual UI | Exact committed UI source launched on `127.0.0.1:8010` using the installed locked interpreter and isolated AWS/profile/source-viewer settings. Real `.env` files unchanged. Anonymous actor/conversation A retained for L1-L3; B, C and D used distinct identities. |
+
+The initial long source export exceeded Windows path limits; a shorter owned staging directory verified all 136 tracked files. Infrastructure source synthesis used compiled committed TypeScript and installed locked dependencies; no lookup or dependency update. Read-only helper schema assumptions about symbolic CloudFormation values, Runtime protocol and managed CHAT prompt variants were reconciled before deployment. Docker 29's local image ID identifies the OCI index; registry child/config digests were verified explicitly. These tooling failures did not consume extra Runtime sends or change application source.
+
+### Exact live cases
+
+| Slot | Verified public response and workflow |
+| --- | --- |
+| L1 | PASS: answered 4/4; Harbor RM32 and Sakura RM36 per serving; wheat/milk qualifiers and Sakura dinner-only qualifier preserved; RM4 difference; complete Harbor 24-hour/RM20 and Sakura 12-hour/RM15 policies; four sources. |
+| L2 | PASS in A: answered 2/2 for Harbor; RM32/full policy, two sources and no two-venue arithmetic. All four retained L1 controls still opened their correct documents; L2 controls targeted its distinct answer labels. |
+| L3 | PASS in A: asked which fictional restaurant to use; no new sources, planner, embedding, vector query, selector or rewrite. Scope metadata inspection occurred, without document retrieval. |
+| L4 | PASS in B: partial 3/4; Spice's requested pasta price explicitly unavailable, no computed price difference; full supported Harbor price/policy and Spice 6-hour/RM10 policy; three correct source controls. |
+| L5 | PASS in C: whole-request clarification for unsupported parking/six-part request. No planner, pin, embedding, vector query, selector or source. |
+| L6 | PASS in D: original comparison path, 2/2; RM32/RM36 with full qualifiers, RM4 difference, two correctly opening sources; no multipart planner. |
+
+Each slot was reserved before its single attempted send. Errors/uncertainty would have consumed a slot; no greeting, warm-up, automatic resend, standalone guardrail probe, extra agent reproduction, live evaluator or post-acceptance inference was sent. Exactly six correlated invocation spans matched the ledger; zero remaining sends and zero rollback attempts.
+
+### Originals and traces
+
+All four L1 source controls were clicked in the actual UI: Harbor PDF page 1, both policy Markdown records at section `Reservations and cancellation`, lines 5-8, and Sakura menu section `Main dishes`, lines 5-11. Four actual UI original downloads matched the fresh pinned document/version/generation/hash references:
+
+| Original | Bytes | SHA-256 |
+| --- | --- | --- |
+| harbor-menu-v2.pdf | 1,975 | `501c1300d00c571e8f94920a6ab25bd0a4ae54976e79ed047bce8e9dc8f6bb10` |
+| harbor-policy.md | 534 | `d3d4b1ca9ca945c0f0db133c50bf02ae8c75c8736b32232a902634a8faa79471` |
+| sakura-menu.md | 383 | `0ac797361e4fc9abc433685b26693e6d877ed6ad873c94110cd0e3a7be7e9637` |
+| sakura-policy.md | 466 | `e61b5aa2a3c6969061866379a754fbd7a3d07aef4e82a39c5dc89ddea4c6668f` |
+
+Earlier answer associations were re-opened after L2 in the same session, before moving to a fresh actor. L4's three and L6's two source controls were also inspected. PDF rendering is asynchronous: an initial text assertion ran before load, a text-layer locator could not find content that was present in the accessibility snapshot, and one optional screenshot timed out. Fresh source snapshots reconciled those automation limitations; no source/model resend or source code change was used. Four retained L1 association screenshots and bounded browser snapshots remain private. Cross-session permanent links are not claimed.
+
+The combined six correlated traces establish:
+
+- Jev routed all six requests to `document_qa`; no Bedrock router fallback.
+- Three multipart planner calls, ten multipart workers/selectors, and two existing-comparison workers/selectors. Twelve logical embeddings and vector pages total, maximum two overlapping workers per request, one attempt per multipart worker/selector.
+- Supported aggregates 4/4, 2/2 and 3/4 for L1/L2/L4; the intended pinned generation throughout worker spans. Clarifications performed no model rewrite.
+- Six input checks and six final output-moderation operations. All final decisions were approved, unchanged, with no active blocked/anonymized categories; citations followed the existing approval gate.
+- Six approved parent `memory.save` spans. SDK CreateEvent spans also include checkpoint activity and do not establish durable conversation-event totals.
+- No observed web/browser/tool, nested comparison in multipart, repair or replan spans; observed SDK retry attributes were zero. Duplicate model instrumentation spans were not counted as additional logical selectors.
+
+Exact live vector-filter payloads/pin-read counts, SDK thread termination after timeout, durable memory/checkpoint event totals, uncaptured HTTP attempts, dollar cost, benchmark/performance gain and all possible future classifier behavior remain UNMEASURED. The controlled six-case matrix establishes this rollout's functional acceptance, not those broader claims.
+
+### Criteria and closeout
+
+| Criterion | Result |
+| --- | --- |
+| P01 | PASS: 11 reviewed release paths only; 24 protected identities verified before documentation closeout, including owner warning, real configuration, locks, datasets, originals and manifests. |
+| P02-P04 | PASS: exact immutable binding/failure contracts, paired CDK/default/invalid cases, and the approved local suites/offline reports. |
+| P05 | PASS: published exact source, inspected CI/artifacts, nine prompts and audited registry provenance align. |
+| P06 | PASS: exact four-leaf template/readiness/guardrail read-back; other properties, resources, outputs and corpus preserved. |
+| P07 | PASS: all six exact scenarios, four original UI downloads, document locations and retained-answer associations. |
+| P08 | Retain decision, budgets and stopping point PASS. Safe closeout documentation publication/CI and scratch cleanup receive a separate receipt after this commit. |
+
+The image remains tied to release `3771a4c`; later documentation commits do not cause a rebuild or Runtime update. The draft PR records the closeout commit and its independently inspected CI. Candidate/version, release image, immutable prompts, corpus, provenance, rollback baseline, safe traces and source-download evidence are retained. Only owned temporary helpers/auth/cache/build scratch are removed after containment checks; the verified live UI source and evidence remain. No cloud/image deletion is approved.
+
+Private receipts: `.generated/guardrail-rollout-20261014005846/`. Preserve all prior failure receipts and owner work. Additional inference, another rollout/rollback, Docker recovery, feature implementation or demonstration needs its applicable reviewed scope. Stop before the demo walkthrough.
