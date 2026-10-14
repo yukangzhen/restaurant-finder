@@ -8,7 +8,7 @@ The sample venues are fictional: Harbor Pasta Lab, Sakura Table Lab, and Spice G
 
 ## Bounded document conversation follow ups
 
-The local extension is opt-in with `DOCUMENT_FOLLOWUPS_ENABLED=true`; the default is false. Ordinary questions still use Jev and its Bedrock fallback. Recognized continuations use a deterministic resolver, with no routing or query-rewrite model call. The accepted Runtime 16 does not yet include this extension.
+The extension is opt-in with `DOCUMENT_FOLLOWUPS_ENABLED=true`; the default is false. Ordinary questions still use Jev and its Bedrock fallback. Recognized continuations use a deterministic resolver, with no routing or query-rewrite model call. The accepted 2026-10-14 rollout enables it at READY Runtime/DEFAULT 17, preserving multipart and immutable guardrail `ih5xpt3qi946:1`. Seven controlled UI requests passed, including clarification/resumption and a fresh chat with no context. Three actual original downloads matched their pinned hashes; earlier answer controls retained their associations. See the [rollout record](HANDOFF_PRD_FOLLOWUP_PUBLICATION_AND_ROLLOUT.md#12-phase-b-execution-and-acceptance).
 
 After an approved Harbor price-and-policy answer, “And what about its cancellation fee?” resolves to Harbor. After a comparison of mushroom pasta at Harbor and Sakura, “Which is cheaper?” retrieves that same item at both venues. “What about its cancellation policy?” after two venues asks which one; an immediate “Harbor” reply resumes that operation. A greeting or another intervening turn expires the pending request.
 

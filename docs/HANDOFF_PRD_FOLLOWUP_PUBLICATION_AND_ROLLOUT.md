@@ -1,6 +1,6 @@
 # Handoff PRD: Publish and Roll Out Document Conversation Follow-ups
 
-**Status:** Phase B approved on 2026-10-14; execution started. Phase A implementation and offline acceptance are complete locally. Publication, CI, audited image, two-leaf deployment, seven attempted requests and conditional rollback are authorized within this PRD's bounds. All Phase B acceptance criteria remain pending until measured.
+**Status:** Phase B publication, release CI, audited image, two-leaf rollout and seven live acceptance requests PASS on 2026-10-14. Retain READY Runtime/DEFAULT 17; no rollback was needed. Documentation closeout publication/CI and owned cleanup are recorded independently after this commit. Stop before the demo walkthrough.
 
 **Deliverable:** Publish the reviewed follow-up extension to the owner's existing draft PR, deploy one audited ARM64 image with the extension enabled, and establish functional acceptance through seven controlled UI requests and inspectable original sources. Retain the release only if the required checks pass; otherwise use the single conditional rollback defined here. Stop before the demo walkthrough.
 
@@ -363,3 +363,77 @@ At PRD preparation: local inspection and this document only. The 24 Phase A sour
 The owner's subsequent **proceed** authorized this reviewed Phase B scope on 2026-10-14. The allowance is seven attempted UI requests, one audited unique image with at most one reconciled pre-publication build retry, one conforming forward Runtime update and one conditional rollback. Existing guardrail/multipart/prompts/corpus/IAM remain preserved. Docker recovery and application repairs require their own decision. Stop before the demo walkthrough.
 
 Private operation receipts: `restaurant-finder-api/.generated/followup-rollout-20261014075434/`. Reserve every live slot before sending; do not inherit prior spent allowances.
+
+## 12. Phase B execution and acceptance
+
+**Decision:** Retain READY Runtime/DEFAULT 17. All seven exact requests passed through the owned actual UI and deployed Runtime. The allowance is exhausted: seven attempted sends, zero remaining, zero UI resends and zero rollback attempts. No demonstration or benchmark started.
+
+### Release and deployment provenance
+
+| Item | Observed outcome |
+| --- | --- |
+| Source publication | Release `11590ea927076e96c92b251912f8747ba0732085`, parent `574cc6304b1be4060cb8d281657c84303e6eb357`. Exactly the 30 reviewed paths, one normal release push to origin; owner warning excluded. Existing PR #1 remains draft against `feat/jev-router`. |
+| Exact-release CI | [Push run 38532357388](https://github.com/yukangzhen/restaurant-finder/actions/runs/38532357388) and [PR run 38532361571](https://github.com/yukangzhen/restaurant-finder/actions/runs/38532361571) passed all four jobs. Downloaded reports/logs confirm 258 API, 32 UI, 53 infrastructure tests and full 17/20/40/24 evaluation coverage with 374/260/609/1,147 checks. |
+| Prompts | The retained nine-prompt manifest SHA is `68e9d44e8e073d301d63fd00619ce0aefc867d66df235da9bfe809a2a25f82d9`. All nine immutable CHAT versions matched committed system text, user placeholder, variables and metadata. No synchronization or new prompt version. |
+| Image | `447393541969.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:document-followups-11590ea-20261014082247-arm64`. One successful build, one image push, no build retry. Offline network-disabled audit verified all 87 packaged files, including 76 runtime source files, sole generated manifest, UID 1000 and normal instrumented command without agent startup. |
+| Registry digest chain | OCI index `sha256:fe3763ab8be2b66a3c7e3b99b25d1cab14c6bdc6dc52532c4b12ab1ac1866163`; runnable linux/arm64 child `sha256:258c7d60a341c20df5cf8954618d5e5e18dcf302a088c33aa50f6925862dfd9b`; config `sha256:722a0dd0b52a065ba8b1a4607f1e2a277172789a6f798bd9b04f100c0e47e9a0`. Registry config and exact revision label verified. No byte-identical rebuild claim. |
+| Rollback authority | Fresh READY Runtime/DEFAULT 16, accepted pinned-guardrail image, follow-up key absent. Baseline image remained fetchable after the new push and final deployment check. No older trial/comparison image substituted. |
+| Forward change | Reviewed change set `followups-11590ea-20261014084304`: one existing Runtime Modify, Replacement False, both property changes RequireRecreation Never. Exactly ContainerUri and follow-up flag changed; one execution. |
+| Retained state | Stack UPDATE_COMPLETE; Runtime and DEFAULT READY/live at 17. Full deployed template matches proposal, all 18 physical mappings/outputs and both captured inline IAM policies preserved. Multipart true, follow-ups true, immutable pair `ih5xpt3qi946:1`; active generation and pointer ETag unchanged. |
+| UI | Verified existing owned UI on `127.0.0.1:8010`, correct profile/region/Runtime/source viewer and committed application bytes. No UI restart or Docker recovery was required. One isolated browser session used the actual New Chat controls for A, B and C. |
+
+### Exact public and workflow acceptance
+
+| Slot | Inspected result |
+| --- | --- |
+| L1 | PASS: Harbor two-part seed, answered 2/2; full RM32-per-serving/wheat/milk record and complete 24-hour/RM20-per-booking policy; two sources. |
+| L2 | PASS: same A, resolved singular fee follow-up; full newly selected Harbor policy, one new source. Both retained L1 controls still opened their own documents after L2. |
+| L3 | PASS: fresh B, existing comparison; RM32/RM36 per serving, wheat/milk and Sakura dinner-only qualifier; Harbor RM4 lower; two sources. |
+| L4 | PASS: same B, `Which is cheaper?`; same admitted pair/item through a fresh comparison, correct complete prices/difference and two new sources. |
+| L5 | PASS: same B, targeted `Harbor Pasta Lab or Sakura Table Lab?` clarification; zero new sources and no retrieval/planner/selector/rewrite. |
+| L6 | PASS: immediate `Harbor` reply; resumed Harbor policy only, full conditions and one citation. Actual displayed human input remained `Harbor`; both older L3 controls remained correctly associated. |
+| L7 | PASS: genuinely fresh C, `no_context` clarification requesting explicit restaurant(s)/item; zero sources or retrieval/model generation. Three distinct session identities were verified from correlated traces. |
+
+All 12 specified citation opens/reopens passed with correct document/page/section/line records. Twelve bounded source screenshots were retained privately. Three unique original downloads were performed by actual UI clicks; duplicate local saves of the same browser download do not represent additional fetches:
+
+| Original | Bytes | Verified SHA-256 |
+| --- | --- | --- |
+| harbor-menu-v2.pdf | 1,975 | `501c1300d00c571e8f94920a6ab25bd0a4ae54976e79ed047bce8e9dc8f6bb10` |
+| harbor-policy.md | 534 | `d3d4b1ca9ca945c0f0db133c50bf02ae8c75c8736b32232a902634a8faa79471` |
+| sakura-menu.md | 383 | `0ac797361e4fc9abc433685b26693e6d877ed6ad873c94110cd0e3a7be7e9637` |
+
+### Correlated traces and limits
+
+The bounded acceptance-window read retained 305 sanitized spans. Seven invocation/workflow traces match the attempt ledger and the A2/B4/C1 session pattern. The two explicit seeds used Jev; five continuations/clarifications recorded `document_followup`, with no router or query-rewrite call. Observed resolver reasons were not_applicable, resolved, not_applicable, resolved, ambiguous_venue, resumed and no_context.
+
+Logical execution comprises one multipart planner, two multipart workers, four comparison workers/selections, two single-policy selections, eight embeddings and eight vector queries. Maximum observed worker overlap was two. Nineteen captured generation attributes matched the active generation. Eighteen chat-model instrumentation spans represent overlapping instrumentation of these nine planner/selection paths; they are not reported as eighteen logical generation calls.
+
+There were seven input checks, seven approved unchanged final output gates and seven parent `memory.save` spans. Six observed SDK retry attributes belong to AgentCore ListEvents/CreateEvent operations, which completed successfully. No UI send was retried. The 84 SDK CreateEvent spans include checkpoints and do not establish 84 durable conversation events, or a separate durable-event total.
+
+All seven observed application resolver attribute sets matched the committed fixed enum/count/boolean contract plus session correlation. A one-event raw schema review identified three additional standard exporter keys: `PlatformType`, `aws.local.environment` and `aws.local.service`; raw values were not saved. No private context, owner hashes, user/effective-question text, quotes, source keys or provider bodies were added by the resolver's committed setter. The raw exporter schema was inspected for one known event; no account-wide log scrape or checkpoint dump occurred.
+
+Exact vector-filter payloads/pin-read counts, every uncaptured HTTP attempt, SDK thread termination, durable checkpoint/conversation event totals, long-session/concurrent-user coverage, live generation switching, latency/throughput and dollar cost remain unmeasured. Changed-generation behavior is established by the separate offline fixture, not this unchanged-corpus rollout.
+
+### Tooling reconciliation and preservation
+
+Routine helper assumptions were corrected without application changes: Git status leading whitespace, retained stack receipt shape, guardrail fingerprint projection, response metadata in lifecycle comparison, Windows dependency-path walking and the installed CDK executable name. GitHub's delayed PR-head read-back was reconciled after the single successful push. Initial Docker login failed before any image push; the prior proven owner-only scoped auth-file method succeeded, and its temporary credentials were removed. Global Docker configuration was preserved.
+
+One response read occurred before citation controls finished attaching; the completed UI state was inspected without resending. The targeted clarification used the catalog's full aliases rather than the verifier's initial short-name expectation. Cloud/client timestamp skew required symmetric bounded correlation; no timing/performance gain was inferred. CloudWatch continuation tokens and standard exporter labels were reconciled separately from the application contract.
+
+Automatic approval review rejected broadening sandbox ACL access to the private evidence directory. That change was not performed. The directory remained owner-only; non-sensitive helpers/build exports used a separate owned staging directory and authorized owner execution handled private receipts. No user credentials/configuration, owner warning, locks, original datasets/documents, corpus pointer, prompts or IAM permissions were changed.
+
+### Criteria before documentation closeout
+
+| ID | Status |
+| --- | --- |
+| B01 | PASS: exact 30-path release publication and draft PR read-back. |
+| B02 | PASS: both release runs and downloaded artifacts inspected. |
+| B03 | PASS: fresh baseline/rollback, immutable policy and IAM fingerprint, corpus, originals, prompts and UI verified. |
+| B04 | PASS: audited unique ARM64 image, registry/source/manifest provenance and cleared auth. |
+| B05 | PASS: exactly two leaves, one execution, READY/live 17, full-template/resource/settings/pointer preservation. |
+| B06 | PASS: seven exact public requests, approved unchanged, three distinct conversations. |
+| B07 | PASS: 12 source inspections, retained associations and three hash-verified original downloads. |
+| B08 | PASS: correlated routes, resolver decisions, fresh retrieval/selection, moderation and bounded safe evidence. |
+| B09 | PENDING until documentation-only publication/CI, final protected-file verification and owned cleanup are inspected. |
+
+The packaged image remains tied to release `11590ea`; the later documentation commit does not trigger a rebuild or Runtime mutation. Its exact SHA and subsequently completed CI are recorded in the private closeout receipt and existing PR body because a commit cannot contain its own future SHA/run result. Stop before the demo walkthrough.

@@ -1,6 +1,6 @@
 # Handoff PRD for document conversation follow ups
 
-**Status:** Phase A implementation and offline acceptance complete. AC01-AC14 passed locally; final protected-file and cleanup verification is recorded in the private closeout receipt. Publication and rollout remain separate decisions.
+**Status:** Phase A implementation and offline acceptance complete. AC01-AC14 passed locally. The separately approved Phase B publication and seven-request live acceptance also passed on 2026-10-14; retain READY Runtime/DEFAULT 17 with the extension enabled. See the [rollout record](HANDOFF_PRD_FOLLOWUP_PUBLICATION_AND_ROLLOUT.md#12-phase-b-execution-and-acceptance) for source/image provenance, bounded attempts, preserved settings and documentation closeout.
 
 **Prepared:** 2026-10-14, Asia/Kuala_Lumpur.
 
