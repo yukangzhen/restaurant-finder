@@ -218,6 +218,7 @@ async def output_guardrail_node(
     update = {"messages": replacement, "response_status": response_status,
               "rag_pending_citations": [], "rag_approved_citations": [],
               "rag_pending_coverage": None, "rag_approved_coverage": None}
+    references, coverage = [], None
     if (response_status == "approved" and approved_text == raw_text
             and state.get("intent") == "document_qa" and state.get("rag_status") in {"answered", "partial"}):
         from src.domain.document_rag import validate_approved_document_payload
@@ -233,6 +234,10 @@ async def output_guardrail_node(
         update["rag_approved_scope"] = None
     elif response_status == "approved" and state.get("rag_pending_scope"):
         update["rag_approved_scope"] = state["rag_pending_scope"]
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED:
+        from src.application.document_rag.conversation import approved_context_update
+        update.update(approved_context_update(state, config, replacement,
+            response_status == "approved" and approved_text == raw_text, references, coverage))
     return update
 
 
@@ -260,6 +265,30 @@ async def router_node(
 
     messages = list(state["messages"])
 
+    routing_scope = state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED and settings.DOCUMENT_RAG_ENABLED:
+        from src.application.document_rag.conversation import eligible_context, latest_question, resolve_followup
+        from src.infrastructure.rag_observability import rag_span
+        resolution = resolve_followup(latest_question(state), state, config)
+        context = eligible_context(state, config)
+        try:
+            with rag_span("rag.followup.resolve") as span:
+                if span is not None:
+                    for name, value in {"rag.followup.decision": resolution.decision, "rag.followup.reason": resolution.reason,
+                        "rag.followup.operation": resolution.operation or "none", "rag.followup.restaurant_count": len(resolution.restaurant_ids),
+                        "rag.followup.context_valid": context is not None, "rag.followup.resumed": resolution.reason == "resumed",
+                        "rag.followup.mode": resolution.mode}.items():
+                        span.set_attribute(name, value)
+        except Exception:
+            # Optional resolver telemetry cannot change the admission decision.
+            pass
+        routing_scope = context.restaurant_ids[0] if context and len(context.restaurant_ids) == 1 else None
+        if resolution.decision != "not_applicable":
+            observability.record_workflow_step(step_name="router", step_type="node", duration_ms=(time.time()-start_time)*1000,
+                success=True, metadata={"intent": "document_qa", "provider": "document_followup", "decision": resolution.decision})
+            return {"intent": "document_qa", "rag_followup_resolution": resolution.model_dump(mode="json"),
+                    "rag_pending_context": None, "rag_pending_followup": None}
+
     with observability.create_span(
         "router.classify",
         attributes={"message.count": len(messages)},
@@ -274,7 +303,7 @@ async def router_node(
                 "router.jev",
                 attributes={"router.model": model},
             ):
-                classification = await classify_with_jev(messages, approved_document_scope=(state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None))
+                classification = await classify_with_jev(messages, approved_document_scope=routing_scope)
             intent = cast(IntentType, classification.intent)
             confidence = classification.confidence
         except Exception as error:
@@ -294,7 +323,7 @@ async def router_node(
                 },
             ):
                 response = await get_router_chain().ainvoke(
-                    {"messages": bedrock_routing_messages(messages), "router_context": str({"fictional_catalog": router_catalog(), "approved_document_scope": (state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None)})},
+                    {"messages": bedrock_routing_messages(messages), "router_context": str({"fictional_catalog": router_catalog(), "approved_document_scope": routing_scope})},
                     config,
                 )
 
@@ -343,6 +372,8 @@ async def router_node(
         fallback_reason or "none",
     )
 
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED:
+        return {"intent": intent, "rag_followup_resolution": None, "rag_pending_context": None, "rag_pending_followup": None}
     return {"intent": intent}
 
 

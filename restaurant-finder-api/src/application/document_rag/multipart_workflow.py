@@ -301,9 +301,15 @@ async def answer_multipart(question, config, *, dependencies=None, deadline=None
                 raise EvidenceIntegrityError("Invalid deadline task results") from None
         if dependencies.result_observer:
             dependencies.result_observer(result)
+        candidate = None
+        if settings.DOCUMENT_FOLLOWUPS_ENABLED and result.status in {"answered", "partial"}:
+            from src.application.document_rag.conversation import context_draft
+            candidate = context_draft(tuple(dict.fromkeys(t.restaurant_id for t in plan.tasks)),
+                                      next(t.item for t in plan.tasks if t.item), "multipart", manifest.generation_id)
         return RagOutcome(mode="multipart", status=result.status, text=result.text, generation_id=manifest.generation_id,
                           retrieval_count=sum(r.retrieval_started for r in result.rows), citations=list(result.citations),
-                          coverage=result_coverage(result) if result.status in {"answered", "partial", "unavailable", "insufficient_evidence"} else None)
+                          coverage=result_coverage(result) if result.status in {"answered", "partial", "unavailable", "insufficient_evidence"} else None,
+                          context_candidate=candidate)
     except asyncio.CancelledError:
         raise
     except EvidenceIntegrityError:

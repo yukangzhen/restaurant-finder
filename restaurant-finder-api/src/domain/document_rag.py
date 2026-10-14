@@ -10,6 +10,7 @@ from importlib.metadata import version as package_version
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from src.domain.document_conversation import DocumentContextDraft
 
 
 class EvidenceIntegrityError(ValueError):
@@ -293,9 +294,17 @@ class RagOutcome(Contract):
     citations: list[DocumentCitation] = Field(default_factory=list, max_length=4)
     mode: Literal["single", "comparison", "multipart"] | None = None
     coverage: RagCoverage | None = None
+    context_candidate: DocumentContextDraft | None = None
 
     @model_validator(mode="after")
     def citation_status(self):
+        if self.context_candidate is not None:
+            candidate = self.context_candidate
+            if (self.status not in {"answered", "partial"} or not self.citations
+                    or candidate.generation_id != self.generation_id
+                    or (self.mode is not None and candidate.origin_mode != self.mode)
+                    or (candidate.origin_mode == "single" and candidate.restaurant_ids != (self.restaurant_id,))):
+                raise ValueError("Context differs from validated answer")
         if self.citations and self.status not in {"answered", "partial"}:
             raise ValueError("Only answered/partial outcomes can have citations")
         cap = {None: 3, "single": 3, "comparison": 2, "multipart": 4}[self.mode]

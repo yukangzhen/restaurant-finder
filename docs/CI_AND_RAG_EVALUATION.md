@@ -103,7 +103,21 @@ The new flag is enabled only in explicit offline fixtures. Parent integration te
 
 CI's existing API job runs this third evaluator and includes its two report files in the existing allowlisted artifact and readable summary. Actions, permissions and quality jobs are preserved. The 2026-10-13 publication also adds three default-off flag checks to the infrastructure suite. The [release push run](https://github.com/yukangzhen/restaurant-finder/actions/runs/38342463448), for source `c3bcd83ed864290098c01464927727fe2f0dee5a`, and its [PR run](https://github.com/yukangzhen/restaurant-finder/actions/runs/38342701260) passed all four jobs. Downloaded push artifacts confirmed 196 API, 31 UI and 6 infrastructure tests; complete 17/20/40 cases and 374/260/609 measured checks, with no failed or missing cases. These evaluations remain simulated dependencies.
 
-That offline success did not establish live acceptance. The trial deployment's first request produced an internal four-supported-task aggregate but was blocked by final output moderation, exposing no facts or citations. The remaining five requests were stopped and the approved rollback restored the prior image/configuration at READY Runtime/DEFAULT 15. Live four-source transport, accurate public answers and the remaining scenarios are unverified. The [rollout record](HANDOFF_PRD_MULTIPART_PUBLICATION_AND_ROLLOUT.md) distinguishes the release source, later documentation identity, attempt ledger and telemetry gaps.
+That offline success did not establish live acceptance. The first trial's initial request was blocked by final moderation and its approved rollback restored Runtime 15; the [trial record](HANDOFF_PRD_MULTIPART_PUBLICATION_AND_ROLLOUT.md) preserves that failure. The separately approved pinned-guardrail retry on 2026-10-14 passed all six actual UI/Runtime cases, including four-source delivery and hash-verified original downloads, and retained READY Runtime/DEFAULT 16 with `ih5xpt3qi946:1`. See the [accepted retry record](HANDOFF_PRD_PINNED_GUARDRAIL_AND_MULTIPART_RETRY.md#14-gate-b-execution-and-acceptance---2026-10-14). This verifies those controlled live scenarios; ranking accuracy, latency, throughput and dollar cost remain unmeasured.
+
+### Separate document conversation regression
+
+`src/evaluation/datasets/document_followups.json` adds 24 conversations, with 28 explicitly named variants and 63 simulated turns. The parent graph executes every seed and follow-up, including final moderation and memory, using `InMemorySaver`. The resolver, dispatch, retrieval, record validation and rendering are real; stores, embeddings, vectors, Jev/fallback, planner/selector, moderation and durable memory are injected simulations. Cloud-client construction is forbidden.
+
+```powershell
+.\.venv\Scripts\python.exe -m src.evaluation.document_followups --offline --output .generated/evaluation/document-followups.json
+```
+
+Use the credential-free safeguards described in the [approved follow-up PRD](HANDOFF_PRD_DOCUMENT_CONVERSATION_FOLLOWUPS.md#11-local-verification-commands-after-phase-a-approval). Its temporary verification runner uses an isolated working directory without real `.env` files and the existing locked interpreters. Feature enablement occurs inside explicit fixtures, leaving process/CI defaults off.
+
+Independent gold and provider scripts occupy separate fields. The scorer checks every turn's entire answer, original citation fields, mode, scope/item, approval, clarification consumption, context and measured logical calls. Every named variant is required. Missing/duplicate/unknown cases, missing/reordered turns, changed evidence/arithmetic and fabricated operation counts cannot pass. Reports expose safe case/check summaries and label their dependencies as simulated; they omit user text, quotations, private context and provider payloads. CLI exits are 0 for a complete pass, 1 for failed checks and 2 for invalid input/execution failure.
+
+The original 17/20/40 datasets remain unchanged. This feature is a local implementation behind `DOCUMENT_FOLLOWUPS_ENABLED=false`; publication and live acceptance require a separate rollout. Deterministic shortcut call counts do not establish measured latency or cost savings.
 
 ### Original single-restaurant report
 

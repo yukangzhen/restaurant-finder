@@ -6,6 +6,18 @@ The upstream agent used web/browser tools and conversational memory. This fork a
 
 The sample venues are fictional: Harbor Pasta Lab, Sakura Table Lab, and Spice Garden Lab. Six English documents include a text-based PDF. They are engineering fixtures, not real restaurant recommendations.
 
+## Bounded document conversation follow ups
+
+The local extension is opt-in with `DOCUMENT_FOLLOWUPS_ENABLED=true`; the default is false. Ordinary questions still use Jev and its Bedrock fallback. Recognized continuations use a deterministic resolver, with no routing or query-rewrite model call. The accepted Runtime 16 does not yet include this extension.
+
+After an approved Harbor price-and-policy answer, “And what about its cancellation fee?” resolves to Harbor. After a comparison of mushroom pasta at Harbor and Sakura, “Which is cheaper?” retrieves that same item at both venues. “What about its cancellation policy?” after two venues asks which one; an immediate “Harbor” reply resumes that operation. A greeting or another intervening turn expires the pending request.
+
+The server checkpoints only structured targets, an admitted item where available, source generation and owner/producer consistency fields. It seals context after unchanged output approval and source validation. Context contains no prices, fees, quotations or source URLs. Masked, blocked, invalid or unavailable outcomes cannot advance it; a general single answer records its venue without guessing a dish. Old checkpoints without the new fields require a new explicit seed question when the extension is enabled.
+
+Every resolved answer pins the current active corpus and validates fresh evidence. A v1-to-v2 update can therefore change Harbor's answer from RM28 to RM32 with a new original-source citation. Context does not cache the old price or force the prior generation. Serving-unit arithmetic, complete policy conditions and menu qualifiers use the existing validators. Unsupported additions such as parking are clarified as a whole request.
+
+This is a bounded grammar, not a general conversation planner. Dish changes, policy-only comparison across two venues and references such as “the cheaper one” require explicit questions. Actor/thread hashes check context consistency; caller-supplied identifiers do not provide authentication for a public shared service. See the [follow-up PRD](HANDOFF_PRD_DOCUMENT_CONVERSATION_FOLLOWUPS.md) for forms, lifecycle and local acceptance.
+
 ## Ingestion
 
 ```mermaid

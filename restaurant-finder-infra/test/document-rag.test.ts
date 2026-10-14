@@ -91,6 +91,30 @@ function runtimeEnvironment(template: any) {
   return runtime.Properties.EnvironmentVariables;
 }
 
+test("followups default off and toggle only their runtime environment key", () => {
+  const baseline = bindingTemplate();
+  expect(runtimeEnvironment(baseline).DOCUMENT_FOLLOWUPS_ENABLED).toBe("false");
+  const enabled = bindingTemplate({ documentFollowupsEnabled: true, guardrailId: "candidate123", guardrailVersion: "1", documentMultipartEnabled: true });
+  const disabled = bindingTemplate({ documentFollowupsEnabled: false, guardrailId: "candidate123", guardrailVersion: "1", documentMultipartEnabled: true });
+  expect(runtimeEnvironment(enabled).DOCUMENT_FOLLOWUPS_ENABLED).toBe("true");
+  expect(runtimeEnvironment(enabled).DOCUMENT_MULTIPART_ENABLED).toBe("true");
+  for (const template of [enabled, disabled]) delete runtimeEnvironment(template).DOCUMENT_FOLLOWUPS_ENABLED;
+  expect(enabled).toEqual(disabled);
+});
+
+test("followups context accepts only omission or exact boolean forms", () => {
+  const { validateDocumentFollowupsEnabled } = require("../lib/stacks/agentcore-stack");
+  for (const value of [undefined, false, "false"]) expect(validateDocumentFollowupsEnabled(value)).toBe(false);
+  for (const value of [true, "true"]) expect(validateDocumentFollowupsEnabled(value)).toBe(true);
+  for (const value of [null, 0, 1, "TRUE", " true", "false\n", "", [], {}]) {
+    expect(() => validateDocumentFollowupsEnabled(value)).toThrow("must be true or false");
+  }
+});
+
+test.each(["true", 1, null])("non-boolean programmatic followups prop %p is rejected", value => {
+  expect(() => bindingTemplate({ documentFollowupsEnabled: value as unknown as boolean })).toThrow("prop must be a boolean");
+});
+
 test("omitted guardrail contexts/props emit neither environment key", () => {
   expect(validateGuardrailBinding(undefined, undefined)).toEqual({});
   const environment = runtimeEnvironment(bindingTemplate());

@@ -100,6 +100,14 @@ async def answer_document_question(state, config, retriever=None, query_chain=No
         return RagOutcome(status="disabled", text="Document answering is currently disabled.")
     obs = get_observability_manager()
     question = next((extract_text_content(m.content) for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
+    resolution = None
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED:
+        from src.application.document_rag.conversation import checked_resolution
+        resolution = checked_resolution(state, config)
+        if resolution and resolution.decision == "clarify":
+            return RagOutcome(status="clarify", text=resolution.clarification)
+        if resolution and resolution.decision == "resolved":
+            question = resolution.effective_question
     from src.application.document_rag.multipart import is_multipart_candidate
     if is_multipart_candidate(question):
         from src.application.document_rag.multipart_workflow import answer_multipart
@@ -111,11 +119,22 @@ async def answer_document_question(state, config, retriever=None, query_chain=No
     retriever = retriever or make_retriever()
     with rag_span("rag.scope"):
         manifest = await asyncio.to_thread(retriever.pin)
-        query = resolve_query(question, manifest, state.get("rag_approved_scope"))
+        scope = state.get("rag_approved_scope")
+        if settings.DOCUMENT_FOLLOWUPS_ENABLED:
+            from src.application.document_rag.conversation import eligible_context
+            context = eligible_context(state, config)
+            scope = context.restaurant_ids[0] if context and len(context.restaurant_ids) == 1 else None
+        # Enabled implicit scope is admitted only by the deterministic resolver.
+        # Ordinary named questions can still use the existing explicit rewrite path.
+        query = resolve_query(question, manifest, None if settings.DOCUMENT_FOLLOWUPS_ENABLED else scope)
+        if resolution and resolution.decision == "resolved" and (
+                query.restaurant_id != resolution.restaurant_ids[0]
+                or query.document_type != ("menu" if resolution.operation == "menu_item_price" else "policy")):
+            return RagOutcome(status="invalid_answer", text="I couldn't validate the document continuation. Please rephrase your question.")
         if query.clarification:
             return RagOutcome(status="clarify", text=query.clarification, generation_id=manifest.generation_id)
         # Explicit scope is resolved by server code first. The model may rewrite text only.
-        if is_followup(question) and state.get("rag_approved_scope"):
+        if is_followup(question) and scope and not (resolution and resolution.decision == "resolved"):
             previous = next((extract_text_content(m.content)[:1200] for m in reversed(state["messages"][:-1]) if isinstance(m, AIMessage) and not m.tool_calls), "")
             chain = query_chain or structured_chain(RAG_QUERY_PROMPT, QueryRewrite, 400)
             rewrite = await chain.ainvoke({"payload": json.dumps({"question": question, "resolved_restaurant": query.restaurant_id,
@@ -140,6 +159,14 @@ async def answer_document_question(state, config, retriever=None, query_chain=No
                 {"chunk_id": e.chunk_id, "text": e.text} for e in evidence]}, ensure_ascii=False)}, config)
             draft = RagAnswerDraft.model_validate(draft)
             with rag_span("rag.validate", attributes={"rag.quote_count": len(draft.selections)}):
+                if resolution and resolution.decision == "resolved" and draft.status == "answered":
+                    from src.application.document_rag.multipart import validate_task_selection
+                    from src.domain.document_multipart import MultipartTask
+                    task = MultipartTask(task_id="task-1", restaurant_id=query.restaurant_id,
+                        restaurant_name=next(r.name for r in manifest.restaurants if r.restaurant_id == query.restaurant_id),
+                        criterion="menu_item_price" if resolution.operation == "menu_item_price" else "cancellation_policy",
+                        item=resolution.item)
+                    validate_task_selection(task, draft, evidence, manifest)
                 text, citations = render_document_answer(draft, evidence, manifest)
         except asyncio.CancelledError:
             raise
@@ -148,8 +175,13 @@ async def answer_document_question(state, config, retriever=None, query_chain=No
             obs.add_span_event("rag.answer.rejected", attributes={"error.type": type(error).__name__})
             return RagOutcome(status="invalid_answer", text="I couldn't validate a document answer. Please rephrase your question.",
                               generation_id=manifest.generation_id, restaurant_id=query.restaurant_id, retrieval_count=1)
+    candidate = None
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED and draft.status == "answered" and citations:
+        from src.application.document_rag.conversation import context_draft
+        candidate = context_draft((query.restaurant_id,), resolution.item if resolution and resolution.decision == "resolved" else None,
+                                  "single", manifest.generation_id)
     return RagOutcome(status=draft.status, text=text, generation_id=manifest.generation_id,
-                      restaurant_id=query.restaurant_id, retrieval_count=1, citations=citations)
+                      restaurant_id=query.restaurant_id, retrieval_count=1, citations=citations, context_candidate=candidate)
 
 
 async def document_qa_node(state, config):
@@ -157,7 +189,15 @@ async def document_qa_node(state, config):
     from src.application.document_rag.comparison import is_comparison_candidate
     from src.application.document_rag.multipart import is_multipart_candidate
     question = next((extract_text_content(m.content) for m in reversed(state.get("messages", [])) if isinstance(m, HumanMessage)), "")
+    resolution = None
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED and state.get("rag_followup_resolution"):
+        from src.application.document_rag.conversation import read_contract
+        from src.domain.document_conversation import FollowupResolution
+        resolution = read_contract(FollowupResolution, state["rag_followup_resolution"])
+        question = resolution.effective_question or question
     mode = "multipart" if is_multipart_candidate(question) else "comparison" if is_comparison_candidate(question) else "single"
+    if resolution and resolution.decision == "clarify":
+        mode = resolution.mode
     try:
         async with asyncio.timeout(settings.RAG_REQUEST_TIMEOUT_SECONDS):
             options = {"deadline": started+settings.RAG_REQUEST_TIMEOUT_SECONDS} if mode in {"comparison", "multipart"} else {}
@@ -175,4 +215,7 @@ async def document_qa_node(state, config):
             "rag_pending_scope": outcome.restaurant_id if outcome.status in {"answered", "insufficient_evidence"} else None,
             "rag_retrieval_count": outcome.retrieval_count,
             "rag_pending_citations": [c.model_dump() for c in outcome.citations],
-            "rag_pending_coverage": outcome.coverage.model_dump() if outcome.coverage else None}
+            "rag_pending_coverage": outcome.coverage.model_dump() if outcome.coverage else None,
+            "rag_pending_context": outcome.context_candidate.model_dump(mode="json") if outcome.context_candidate else None,
+            "rag_pending_followup": (resolution.pending.model_dump(mode="json")
+                if resolution and resolution.pending and outcome.status == "clarify" else None)}

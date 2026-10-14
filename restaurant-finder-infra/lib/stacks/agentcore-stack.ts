@@ -15,8 +15,16 @@ export interface AgentCoreStackProps extends BaseStackProps {
   ragDocumentBucketArn: string;
   ragVectorIndexArn: string;
   documentMultipartEnabled?: boolean;
+  documentFollowupsEnabled?: boolean;
   guardrailId?: string;
   guardrailVersion?: string;
+}
+
+/** Strict opt-in accepted from CLI string context or programmatic boolean context. */
+export function validateDocumentFollowupsEnabled(value: unknown): boolean {
+  if (value === undefined || value === false || value === "false") return false;
+  if (value === true || value === "true") return true;
+  throw new Error("documentFollowupsEnabled must be true or false; omission defaults to false.");
 }
 
 /** Validate both CLI contexts and programmatic props before constructing resources. */
@@ -43,6 +51,9 @@ export class AgentCoreStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AgentCoreStackProps) {
     super(scope, id, props);
     const guardrailBinding = validateGuardrailBinding(props.guardrailId, props.guardrailVersion);
+    if (props.documentFollowupsEnabled !== undefined && typeof props.documentFollowupsEnabled !== "boolean") {
+      throw new Error("documentFollowupsEnabled prop must be a boolean.");
+    }
 
     const region = cdk.Stack.of(this).region;
     const accountId = cdk.Stack.of(this).account;
@@ -478,6 +489,7 @@ export class AgentCoreStack extends cdk.Stack {
           REQUIRE_PROMPT_MANIFEST: "true",
           DOCUMENT_RAG_ENABLED: "true",
           DOCUMENT_MULTIPART_ENABLED: props.documentMultipartEnabled === true ? "true" : "false",
+          DOCUMENT_FOLLOWUPS_ENABLED: props.documentFollowupsEnabled === true ? "true" : "false",
           RAG_DOCUMENT_BUCKET: props.ragDocumentBucketName,
           RAG_VECTOR_INDEX_ARN: props.ragVectorIndexArn,
           RAG_ACTIVE_MANIFEST_KEY: "rag/active.json",

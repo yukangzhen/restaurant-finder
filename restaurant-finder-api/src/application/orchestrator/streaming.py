@@ -58,6 +58,9 @@ async def run_orchestrator_turn(
         "rag_approved_citations": [],
         "rag_pending_coverage": None,
         "rag_approved_coverage": None,
+        "rag_followup_resolution": None,
+        "rag_pending_context": None,
+        "rag_pending_followup": None,
     }
 
     logger.info("Starting one workflow turn (conversation_id={})", identity.conversation_id)

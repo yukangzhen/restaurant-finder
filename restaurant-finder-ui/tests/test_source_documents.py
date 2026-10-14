@@ -274,6 +274,42 @@ class SourceTests(unittest.TestCase):
 
 
 class CitationStreamTests(unittest.TestCase):
+    def test_followup_keeps_earlier_menu_and_new_policy_controls_bound_to_their_answers(self):
+        root=Path(__file__).resolve().parents[2]/"restaurant-finder-api/sample_documents"
+        pdf=(root/"harbor-menu-v2.pdf").read_bytes();policy=(root/"harbor-policy.md").read_bytes()
+        menu=reference(pdf,format="pdf",filename="harbor-menu-v2.pdf",document_id="harbor-menu",version="v2",
+                       page=1,section=None,line_start=None,line_end=None)
+        later=reference(policy,format="md",filename="harbor-policy.md",document_id="harbor-policy",version="v1",
+                        page=None,section="Reservations and cancellation",line_start=5,line_end=8,chunk_id="c"*64)
+        prepared=[]
+        async def prepare(values,answer,bucket,region,number):
+            prepared.append((number,values[0]["document_id"],values[0]["source_hash"]))
+            return await sources.prepare_source_elements(values,answer,bucket,region,number)
+        client=SimpleNamespace(get_object=lambda **kwargs:{"Body":Body(pdf if kwargs["Key"].endswith(".pdf") else policy),
+                                                          "ContentLength":len(pdf if kwargs["Key"].endswith(".pdf") else policy)})
+        messages=[_Message(),_Message()]
+        async def execute():
+            for number,value in enumerate((menu,later),1):
+                events=["data: "+json.dumps({"chunk":ANSWER,"citations":[value]}),'data: {"done":true}']
+                with patch.object(app,"_aws_sse_lines",return_value=_async_lines(events)):
+                    await app._invoke_agent(messages[number-1],"seed" if number==1 else "And what about its cancellation fee?",
+                                            "Guest","offline",answer_number=number)
+        with patch.object(app,"AGENT_CONNECTION_MODE","aws"),patch.object(app,"AGENT_RUNTIME_ARN","runtime"),\
+             patch.object(app,"DOCUMENT_SOURCE_VIEWER_ENABLED",True),patch.object(app,"RAG_DOCUMENT_BUCKET","bucket"),\
+             patch.object(app,"prepare_source_elements",side_effect=prepare),patch.object(sources,"_get_s3_client",return_value=client),\
+             patch.object(sources.cl,"Pdf",side_effect=lambda **kw:SimpleNamespace(**kw)),\
+             patch.object(sources.cl,"Text",side_effect=lambda **kw:SimpleNamespace(**kw)),\
+             patch.object(sources.cl,"File",side_effect=lambda **kw:SimpleNamespace(**kw)):
+            asyncio.run(execute())
+        self.assertEqual(messages[0].elements[0].content,pdf)
+        self.assertEqual(messages[0].elements[0].page,1)
+        self.assertEqual(messages[1].elements[1].content,policy)
+        self.assertIn("lines 5–8",messages[1].elements[0].content)
+        self.assertNotEqual(messages[0].elements[0].name,messages[1].elements[0].name)
+        self.assertEqual(prepared,[(1,"harbor-menu",menu["source_hash"]),(2,"harbor-policy",later["source_hash"])])
+        self.assertIn(messages[0].elements[0].name,messages[0].content)
+        self.assertIn(messages[1].elements[0].name,messages[1].content)
+
     def test_comparison_and_partial_source_lines_remain_clickable(self):
         for values, answer in [([reference(),reference(MD,label="Source 2")],ANSWER+"\nSource: Source 2 — second venue"),
                                ([reference()],"Partial comparison: other restaurant retrieval unavailable.\n"+ANSWER)]:

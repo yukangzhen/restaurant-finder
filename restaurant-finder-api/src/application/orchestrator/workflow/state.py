@@ -50,3 +50,9 @@ class OrchestratorState(TypedDict):
     rag_pending_coverage: dict | None
     rag_approved_coverage: dict | None
     last_approved_intent: IntentType | None
+    # Private continuation candidates reset each turn; approved values survive checkpoints.
+    rag_followup_resolution: dict | None
+    rag_pending_context: dict | None
+    rag_pending_followup: dict | None
+    rag_approved_context: dict | None
+    rag_approved_followup: dict | None

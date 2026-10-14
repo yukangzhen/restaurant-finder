@@ -38,6 +38,9 @@ class MultipartTests(unittest.TestCase):
         cls.grounded = evaluation.compile_dataset(cls.dataset)
 
     def setUp(self):
+        legacy_followups = patch.object(workflow.settings, "DOCUMENT_FOLLOWUPS_ENABLED", False)
+        legacy_followups.start()
+        self.addCleanup(legacy_followups.stop)
         self.case = self.dataset.cases[0]
         self.manifest = self.grounded[self.case.id][0]
 

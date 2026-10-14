@@ -2,8 +2,10 @@
 import * as cdk from "aws-cdk-lib";
 import { BaseStackProps } from "../lib/types";
 import { EcrStack, AgentCoreStack, RagStack, validateGuardrailBinding } from "../lib/stacks";
+import { validateDocumentFollowupsEnabled } from "../lib/stacks/agentcore-stack";
 
 const app = new cdk.App();
+const documentFollowupsEnabled = validateDocumentFollowupsEnabled(app.node.tryGetContext("documentFollowupsEnabled"));
 const guardrailBinding = validateGuardrailBinding(
   app.node.tryGetContext("guardrailId"),
   app.node.tryGetContext("guardrailVersion"),
@@ -61,6 +63,7 @@ const agentCoreStack = new AgentCoreStack(
     ...deploymentProps,
     imageUri: imageUri,
     documentMultipartEnabled,
+    documentFollowupsEnabled,
     ...guardrailBinding,
     ragDocumentBucketName: ragStack.documentBucket.bucketName,
     ragDocumentBucketArn: ragStack.documentBucket.bucketArn,
