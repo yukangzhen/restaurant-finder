@@ -91,6 +91,26 @@ function runtimeEnvironment(template: any) {
   return runtime.Properties.EnvironmentVariables;
 }
 
+test("hybrid retrieval is explicit and changes only its environment value", () => {
+  const common = { documentMultipartEnabled: true, documentFollowupsEnabled: true, guardrailId: "candidate123", guardrailVersion: "1" };
+  expect(runtimeEnvironment(bindingTemplate()).RAG_RETRIEVAL_MODE).toBe("vector");
+  const vector = bindingTemplate({ ...common, ragRetrievalMode: "vector" });
+  const hybrid = bindingTemplate({ ...common, ragRetrievalMode: "hybrid" });
+  expect(runtimeEnvironment(hybrid).RAG_RETRIEVAL_MODE).toBe("hybrid");
+  for (const template of [vector, hybrid]) delete runtimeEnvironment(template).RAG_RETRIEVAL_MODE;
+  expect(hybrid).toEqual(vector);
+});
+
+test("retrieval mode context and direct props reject coercion", () => {
+  const { validateRagRetrievalMode } = require("../lib/stacks/agentcore-stack");
+  expect(validateRagRetrievalMode(undefined)).toBe("vector");
+  for (const value of ["vector", "hybrid"]) expect(validateRagRetrievalMode(value)).toBe(value);
+  for (const value of [null, true, false, 1, 0, "", "HYBRID", " hybrid", "hybrid\n", [], {}]) {
+    expect(() => validateRagRetrievalMode(value)).toThrow("must be vector or hybrid");
+    expect(() => bindingTemplate({ ragRetrievalMode: value as any })).toThrow("must be vector or hybrid");
+  }
+});
+
 test("followups default off and toggle only their runtime environment key", () => {
   const baseline = bindingTemplate();
   expect(runtimeEnvironment(baseline).DOCUMENT_FOLLOWUPS_ENABLED).toBe("false");

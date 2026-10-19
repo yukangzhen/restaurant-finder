@@ -180,7 +180,7 @@ class DocumentQuery(Contract):
 
 class RetrievedEvidence(ChunkRecord):
     generation_id: str
-    distance: float
+    distance: float | None = Field(default=None, strict=True, allow_inf_nan=False)
     restaurant_name: str
 
 

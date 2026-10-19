@@ -5,9 +5,22 @@ import math
 import re
 import time
 from pathlib import Path
+from dataclasses import dataclass
 
 from src.domain.document_rag import ChunkRecord, DocumentQuery, EvidenceIntegrityError, GenerationManifest, RestaurantEntry, RetrievedEvidence, canonical_text
 from src.infrastructure.rag_observability import rag_span
+from src.application.document_rag.ranking import ALGORITHM_VERSION, FusedCandidate, KeywordCandidate, keyword_rank, reciprocal_rank_fusion, validate_top_k
+
+
+@dataclass(frozen=True)
+class HybridDiagnostics:
+    """Private observations for injected offline checks; never part of graph state."""
+    vector_keys: tuple[str, ...] = ()
+    vector_distances: tuple[float, ...] = ()
+    keyword: tuple[KeywordCandidate, ...] = ()
+    fused: tuple[FusedCandidate, ...] = ()
+    returned_keys: tuple[str, ...] = ()
+    chunk_reads: int = 0
 
 
 def router_catalog() -> list[dict]:
@@ -51,9 +64,17 @@ def resolve_query(question: str, manifest: GenerationManifest, approved_scope: s
 
 
 class DocumentRetriever:
-    def __init__(self, store, vectors, embeddings, *, active_key="rag/active.json", top_k=5, max_characters=9000):
+    def __init__(self, store, vectors, embeddings, *, active_key="rag/active.json", top_k=5, max_characters=9000,
+                 retrieval_mode="vector", diagnostics_observer=None):
+        if retrieval_mode not in ("vector", "hybrid"):
+            raise ValueError("Retrieval mode must be vector or hybrid")
+        if retrieval_mode == "hybrid":
+            validate_top_k(top_k)
+            if type(max_characters) is not int or not 0 < max_characters <= 9000:
+                raise ValueError("Invalid hybrid context bound")
         self.store, self.vectors, self.embeddings = store, vectors, embeddings
         self.active_key, self.top_k, self.max_characters = active_key, top_k, max_characters
+        self.retrieval_mode, self.diagnostics_observer = retrieval_mode, diagnostics_observer
 
     @staticmethod
     def check_deadline(deadline, clock):
@@ -82,6 +103,8 @@ class DocumentRetriever:
 
     def retrieve(self, query: DocumentQuery, manifest: GenerationManifest, *, deadline=None, clock=time.monotonic,
                  max_pages=None) -> list[RetrievedEvidence]:
+        if self.retrieval_mode == "hybrid":
+            return self._retrieve_hybrid(query, manifest, deadline=deadline, clock=clock, max_pages=max_pages)
         if query.clarification or query.restaurant_id not in {r.restaurant_id for r in manifest.restaurants}:
             raise ValueError("Retrieval requires an approved catalog scope")
         with rag_span("rag.embed", {"rag.embedding_model":self.embeddings.config.model_id}) as span:
@@ -125,4 +148,103 @@ class DocumentRetriever:
             characters += len(chunk.text)
             evidence.append(RetrievedEvidence(**chunk.model_dump(), generation_id=manifest.generation_id,
                                              distance=hit["distance"], restaurant_name=names[chunk.restaurant_id]))
+        return evidence
+
+    def _retrieve_hybrid(self, query, manifest, *, deadline, clock, max_pages):
+        guard = lambda: self.check_deadline(deadline, clock)
+        guard()
+        validate_top_k(self.top_k)
+        if max_pages is not None and (type(max_pages) is not int or max_pages != 1):
+            raise ValueError("Hybrid retrieval permits one vector page")
+        try:
+            manifest = GenerationManifest.model_validate(manifest.model_dump())
+            query = DocumentQuery.model_validate(query.model_dump())
+        except (ValueError, TypeError, AttributeError):
+            raise EvidenceIntegrityError("Invalid hybrid retrieval contract") from None
+        if manifest.config != self.embeddings.config:
+            raise EvidenceIntegrityError("Generation/model configuration mismatch")
+        if query.clarification or query.restaurant_id not in {r.restaurant_id for r in manifest.restaurants}:
+            raise ValueError("Retrieval requires an approved catalog scope")
+        pool = [c for c in manifest.chunks if c.restaurant_id == query.restaurant_id
+                and (query.document_type is None or c.document_type == query.document_type)]
+        if not pool:
+            if self.diagnostics_observer:
+                self.diagnostics_observer(HybridDiagnostics())
+            return []
+        attributes = {"rag.retrieval_mode": "hybrid", "rag.ranking_algorithm": ALGORITHM_VERSION,
+                      "rag.generation": manifest.generation_id, "rag.restaurant": query.restaurant_id,
+                      "rag.top_k": self.top_k}
+        with rag_span("rag.keyword_rank", attributes) as span:
+            keywords = keyword_rank(query.query, [(f"{manifest.generation_id}:{c.chunk_id}", c.text) for c in pool],
+                                    top_k=self.top_k, guard=guard)
+            if span:
+                span.set_attribute("rag.keyword_candidates", len(keywords))
+        with rag_span("rag.embed", {"rag.embedding_model": self.embeddings.config.model_id}) as span:
+            guard()
+            vector = self.embeddings.embed(query.query)
+            guard()
+            if span:
+                span.set_attribute("rag.query_tokens", self.embeddings.tokens)
+                span.set_attribute("rag.embedding_attempts", self.embeddings.attempts)
+        with rag_span("rag.vector_query", attributes):
+            guard()
+            hits = self.vectors.query(vector, manifest.generation_id, query.restaurant_id, query.document_type,
+                                      self.top_k, max_pages=1)
+            guard()
+        if not isinstance(hits, list) or len(hits) > self.top_k:
+            raise EvidenceIntegrityError("Invalid vector result bound")
+        references = {f"{manifest.generation_id}:{c.chunk_id}": c for c in pool}
+        distances = {}
+        for hit in hits:
+            guard()
+            if not isinstance(hit, dict) or not isinstance(hit.get("key"), str):
+                raise EvidenceIntegrityError("Invalid vector hit")
+            key = hit["key"]
+            ref = references.get(key)
+            if ref is None or key in distances:
+                raise EvidenceIntegrityError("Vector scope or uniqueness violation")
+            expected = {"generation_id": manifest.generation_id, "chunk_id": ref.chunk_id,
+                        "document_id": ref.document_id, "restaurant_id": ref.restaurant_id,
+                        "document_type": ref.document_type}
+            distance = hit.get("distance")
+            if hit.get("metadata") != expected or isinstance(distance, bool) or not isinstance(distance, (int, float)) or not math.isfinite(distance):
+                raise EvidenceIntegrityError("Invalid vector metadata/distance")
+            distances[key] = distance
+        vector_keys = tuple(sorted(distances, key=lambda key: (distances[key], key)))
+        # Every union member is verified, including candidates later excluded by rank/budget.
+        chunks = {}
+        for key in sorted(set(vector_keys) | {c.key for c in keywords}):
+            guard()
+            ref = references[key]
+            try:
+                data, _ = self.store.read_json(ref.key)
+                chunk = ChunkRecord.model_validate(data)
+            except (ValueError, TypeError):
+                raise EvidenceIntegrityError("Invalid retrieved chunk") from None
+            guard()
+            if chunk.model_dump() != ref.model_dump(exclude={"key"}):
+                raise EvidenceIntegrityError("Retrieved source text/location/hash is inconsistent")
+            chunks[key] = chunk
+        with rag_span("rag.fuse", attributes) as span:
+            fused = reciprocal_rank_fusion(vector_keys, [c.key for c in keywords], top_k=self.top_k, guard=guard)
+            names = {r.restaurant_id: r.name for r in manifest.restaurants}
+            evidence, returned, characters = [], [], 0
+            for candidate in fused[:self.top_k]:
+                guard()
+                chunk = chunks[candidate.key]
+                if characters + len(chunk.text) > self.max_characters:
+                    continue
+                characters += len(chunk.text)
+                evidence.append(RetrievedEvidence(**chunk.model_dump(), generation_id=manifest.generation_id,
+                                                 distance=distances.get(candidate.key), restaurant_name=names[chunk.restaurant_id]))
+                returned.append(candidate.key)
+            if span:
+                for name, count in {"vector_candidates": len(vector_keys), "keyword_candidates": len(keywords),
+                                    "candidate_union": len(chunks), "candidate_overlap": len(set(vector_keys) & {c.key for c in keywords}),
+                                    "passages": len(evidence), "context_characters": characters}.items():
+                    span.set_attribute("rag." + name, count)
+            guard()
+            if self.diagnostics_observer:
+                self.diagnostics_observer(HybridDiagnostics(vector_keys, tuple(distances[k] for k in vector_keys),
+                    keywords, fused, tuple(returned), len(chunks)))
         return evidence

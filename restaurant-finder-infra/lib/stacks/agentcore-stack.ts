@@ -16,6 +16,7 @@ export interface AgentCoreStackProps extends BaseStackProps {
   ragVectorIndexArn: string;
   documentMultipartEnabled?: boolean;
   documentFollowupsEnabled?: boolean;
+  ragRetrievalMode?: "vector" | "hybrid";
   guardrailId?: string;
   guardrailVersion?: string;
 }
@@ -25,6 +26,13 @@ export function validateDocumentFollowupsEnabled(value: unknown): boolean {
   if (value === undefined || value === false || value === "false") return false;
   if (value === true || value === "true") return true;
   throw new Error("documentFollowupsEnabled must be true or false; omission defaults to false.");
+}
+
+/** CLI contexts and direct props use the same exact retrieval mode strings. */
+export function validateRagRetrievalMode(value: unknown): "vector" | "hybrid" {
+  if (value === undefined || value === "vector") return "vector";
+  if (value === "hybrid") return "hybrid";
+  throw new Error("ragRetrievalMode must be vector or hybrid; omission defaults to vector.");
 }
 
 /** Validate both CLI contexts and programmatic props before constructing resources. */
@@ -51,6 +59,7 @@ export class AgentCoreStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AgentCoreStackProps) {
     super(scope, id, props);
     const guardrailBinding = validateGuardrailBinding(props.guardrailId, props.guardrailVersion);
+    const ragRetrievalMode = validateRagRetrievalMode(props.ragRetrievalMode);
     if (props.documentFollowupsEnabled !== undefined && typeof props.documentFollowupsEnabled !== "boolean") {
       throw new Error("documentFollowupsEnabled prop must be a boolean.");
     }
@@ -496,6 +505,7 @@ export class AgentCoreStack extends cdk.Stack {
           RAG_EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
           RAG_EMBEDDING_DIMENSIONS: "512",
           RAG_TOP_K: "5",
+          RAG_RETRIEVAL_MODE: ragRetrievalMode,
           RAG_MAX_CONTEXT_CHARACTERS: "9000",
           RAG_REQUEST_TIMEOUT_SECONDS: "60",
 

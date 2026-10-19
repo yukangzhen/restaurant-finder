@@ -91,7 +91,8 @@ def make_retriever():
     return DocumentRetriever(DocumentStore(settings.RAG_DOCUMENT_BUCKET, settings.AWS_REGION),
                              VectorStore(settings.RAG_VECTOR_INDEX_ARN, settings.AWS_REGION),
                              TitanEmbeddings(settings.AWS_REGION, max_attempts=1), active_key=settings.RAG_ACTIVE_MANIFEST_KEY,
-                             top_k=settings.RAG_TOP_K, max_characters=settings.RAG_MAX_CONTEXT_CHARACTERS)
+                             top_k=settings.RAG_TOP_K, max_characters=settings.RAG_MAX_CONTEXT_CHARACTERS,
+                             retrieval_mode=settings.RAG_RETRIEVAL_MODE)
 
 
 async def answer_document_question(state, config, retriever=None, query_chain=None, answer_chain=None,

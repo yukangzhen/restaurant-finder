@@ -1,5 +1,22 @@
 # Document RAG engineering guide
 
+## Hybrid retrieval
+
+The local hybrid extension adds `RAG_RETRIEVAL_MODE=hybrid`; omission or `vector` keeps the existing path. API settings, direct retriever construction and CDK context/props validate the mode. Hybrid mode requires `RAG_TOP_K` from 1 to 5. A future deployment can select CDK context `ragRetrievalMode=hybrid`; this local implementation does not change the accepted Runtime 17 deployment.
+
+The shared retriever ranks passages through two paths within the same generation/restaurant/document-type scope:
+
+1. Titan V2 and S3 Vectors return at most five semantic candidates in one query page.
+2. Local BM25 ranks the scoped manifest text using NFC normalization, case folding and Unicode alphanumeric tokens. It uses k1=1.2 and b=0.75, without stemming, synonyms or stop-word removal.
+3. Every member of the union passes stored-chunk validation. Cross-channel overlap is deduplicated; malformed provider hits or changed chunks fail the operation.
+4. Reciprocal Rank Fusion combines one-based ranks with constant 60. Equal scores use chunk-ID ordering. At most five whole passages and 9,000 characters reach the existing selector and validators.
+
+BM25 statistics come from the scoped passages only. The current manifest already contains at most 48 full passages, so keyword ranking requires no new persistent index, dependency or AWS permission. Verifying its extra candidates can add up to five chunk reads per retrieval. A successful empty vector response can still yield verified keyword evidence; a provider failure cannot silently become keyword success.
+
+A keyword-only passage has `distance=None`. Actual vector distances remain unchanged for vector candidates; fusion scores are private ranking details rather than confidence or factual evidence. Public citation payloads, source controls, moderation and conversation context are unchanged. Comparison/multipart workers and supported follow-ups use the same configured retrieval path, pinning evidence freshly for each answer workflow.
+
+The separate offline dataset exercises 24 cases and 57 frozen variants. Real keyword ranking, fusion, source checks and parent workflows execute with simulated semantic/model/service dependencies. Its synthetic competing documents remain local and never replace the sample originals. See [the execution plan and acceptance criteria](HANDOFF_PRD_HYBRID_DOCUMENT_RETRIEVAL.md). Live accuracy, cost and latency are unmeasured.
+
 ## What this adds
 
 The upstream agent used web/browser tools and conversational memory. This fork adds a separate, controlled document retrieval path. Jev classifies `document_qa` alongside the three existing intents; Haiku remains the routing fallback. Menus and policies live in S3, their Titan V2 embeddings in S3 Vectors. Conversation memory remains separate from the document corpus.

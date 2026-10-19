@@ -71,6 +71,22 @@ For example, `Harbor Pasta Lab cancellation policy` now selects **policy**: `Pas
 
 Both full-name and short-alias policy cases now require policy-only evidence. The scorer rejects a full-name policy observation if its recorded filter is changed back to the previous unrestricted value. This remains a keyword heuristic, not a general semantic classifier; contextual phrases such as policy `cost` can still match both keyword groups. See the [query-scoping PRD](HANDOFF_PRD_RAG_QUERY_SCOPE.md) for the scope and execution evidence. Deploying the corrected code requires a separate Runtime rollout.
 
+## Separate hybrid retrieval regression
+
+`src/evaluation/datasets/document_retrieval.json` contains 24 cases with 57 required named variants. It covers exact terms, vector-only paraphrases, deterministic ties, overlap, scoped keyword statistics, complete-passage budgets, corrupted candidates, pointer changes, deadlines, configuration and keyword-only answers in comparison/multipart/conversation workflows.
+
+```powershell
+.\.venv\Scripts\python.exe -m src.evaluation.document_retrieval --offline --output .generated/evaluation/document-retrieval.json
+```
+
+Use the isolated credential-free process safeguards in the [hybrid retrieval PRD](HANDOFF_PRD_HYBRID_DOCUMENT_RETRIEVAL.md#10-local-verification-commands). Cloud clients and unexpected HTTP are forbidden. Windows asyncio may use an internal loopback socket pair; that allowance does not enable HTTP requests.
+
+The runner executes the real BM25/RRF functions, retriever, chunk verification and relevant parent graphs. Semantic vectors, model responses, stores, moderation and durable memory are simulated. Gold ranks/source records and provider scripts are separate. The existing conversation gold checks complete answers, original citation fields, approval/context lifecycle and operation counts. The new retrieval scorer checks declared ranks, independent fusion arithmetic, truthful distances, provenance, scope and actual reads/calls. Missing/reordered cases or variants, forged ranks/distances/counts/sources and stripped qualifiers must fail.
+
+JSON/Markdown reports expose safe case/check summaries and counts, label `offline_regression` / `simulated_dependencies`, and exclude raw queries, passages, quotations, provider bodies, source URLs and conversation identities. CLI exits are 0 for a complete pass, 1 for failed/missing checks and 2 for invalid input/execution failure. Existing 17/20/40/24 datasets remain unchanged and continue running in their original vector fixtures.
+
+CI adds the fifth evaluator to the existing API job, its summary and its two allowlisted reports. No additional model or search service is required. Local acceptance on 2026-10-15 passed 290 API, 32 UI and 55 infrastructure tests, all original evaluations and all 24 retrieval cases/57 variants with 1,070 measured checks. The original evaluation datasets remained byte-identical. These are functional regression checks; semantic retrieval quality, latency and dollar cost remain unmeasured. This extension remains local until separately approved publication and live acceptance; no GitHub CI run is claimed for these edits.
+
 ## How to interpret the report
 
 ### Separate document comparison regression

@@ -63,6 +63,8 @@ jobs:
         run: uv run --no-sync python -m src.evaluation.document_multipart --offline --output .generated/evaluation/document-multipart.json
       - name: Evaluate document followups with simulated dependencies
         run: uv run --no-sync python -m src.evaluation.document_followups --offline --output .generated/evaluation/document-followups.json
+      - name: Evaluate hybrid retrieval with simulated semantic candidates
+        run: uv run --no-sync python -m src.evaluation.document_retrieval --offline --output .generated/evaluation/document-retrieval.json
       - name: Publish readable RAG summary
         if: always()
         run: |
@@ -86,6 +88,11 @@ jobs:
           else
             echo 'Followups report was not produced; inspect the failing step.' >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ -f .generated/evaluation/document-retrieval.md ]; then
+            cat .generated/evaluation/document-retrieval.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Retrieval report was not produced; inspect the failing step.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Save fictional RAG report and test log
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -100,6 +107,8 @@ jobs:
             restaurant-finder-api/.generated/evaluation/document-multipart.md
             restaurant-finder-api/.generated/evaluation/document-followups.json
             restaurant-finder-api/.generated/evaluation/document-followups.md
+            restaurant-finder-api/.generated/evaluation/document-retrieval.json
+            restaurant-finder-api/.generated/evaluation/document-retrieval.md
             restaurant-finder-api/api-tests.log
           include-hidden-files: true
           if-no-files-found: warn

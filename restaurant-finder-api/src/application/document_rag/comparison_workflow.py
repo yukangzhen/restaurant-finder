@@ -40,6 +40,7 @@ def make_scoped_retriever(_restaurant_id=None):
         TitanEmbeddings(settings.AWS_REGION, session=session, max_attempts=1),
         active_key=settings.RAG_ACTIVE_MANIFEST_KEY, top_k=min(settings.RAG_TOP_K, 5),
         max_characters=settings.RAG_MAX_CONTEXT_CHARACTERS,
+        retrieval_mode=settings.RAG_RETRIEVAL_MODE,
     )
 
 

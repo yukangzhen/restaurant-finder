@@ -1,4 +1,6 @@
-from pydantic import Field, SecretStr
+from typing import Literal
+
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,6 +48,7 @@ class Settings(BaseSettings):
     DOCUMENT_RAG_ENABLED: bool = False
     DOCUMENT_MULTIPART_ENABLED: bool = False
     DOCUMENT_FOLLOWUPS_ENABLED: bool = False
+    RAG_RETRIEVAL_MODE: Literal["vector", "hybrid"] = "vector"
     RAG_DOCUMENT_BUCKET: str = ""
     RAG_VECTOR_INDEX_ARN: str = ""
     RAG_ACTIVE_MANIFEST_KEY: str = "rag/active.json"
@@ -54,6 +57,21 @@ class Settings(BaseSettings):
     RAG_TOP_K: int = Field(default=5, ge=1, le=10)
     RAG_MAX_CONTEXT_CHARACTERS: int = Field(default=9000, ge=1800, le=9000)
     RAG_REQUEST_TIMEOUT_SECONDS: float = Field(default=60, gt=0, le=60)
+
+    @model_validator(mode="before")
+    @classmethod
+    def hybrid_integer_bounds(cls, values):
+        if isinstance(values, dict) and values.get("RAG_RETRIEVAL_MODE") == "hybrid":
+            value = values.get("RAG_TOP_K", 5)
+            if isinstance(value, bool) or not isinstance(value, (int, str)):
+                raise ValueError("Hybrid RAG_TOP_K must be an integer")
+        return values
+
+    @model_validator(mode="after")
+    def hybrid_budget(self):
+        if self.RAG_RETRIEVAL_MODE == "hybrid" and self.RAG_TOP_K > 5:
+            raise ValueError("Hybrid RAG_TOP_K must be at most 5")
+        return self
 
     # --- Browser Tools Configuration ---
     ENABLE_BROWSER_TOOLS: bool = Field(

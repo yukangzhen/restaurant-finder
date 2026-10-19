@@ -1,0 +1,1310 @@
+{
+  "schema_version": 1,
+  "name": "fictional-document-retrieval",
+  "cases": [
+    {
+      "id": "R01",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {
+            "question": "Harbor mushroom pasta price?",
+            "hits": [
+              {
+                "ref": "soup",
+                "distance": 0.1
+              }
+            ],
+            "workflow": true,
+            "answer": {
+              "ref": "pasta",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+            }
+          },
+          "expected": {
+            "vector": [
+              [
+                "soup"
+              ]
+            ],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta",
+                "soup"
+              ]
+            ],
+            "chunk_reads": 2,
+            "distances": {
+              "soup": 0.1
+            },
+            "selector": 1,
+            "status": "answered",
+            "answer_ref": "pasta",
+            "answer_quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+          }
+        }
+      ]
+    },
+    {
+      "id": "R02",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {
+            "question": "short notice reservation",
+            "hits": [
+              {
+                "ref": "cancel",
+                "distance": 0.2
+              }
+            ],
+            "document_type": "policy"
+          },
+          "expected": {
+            "vector": [
+              [
+                "cancel"
+              ]
+            ],
+            "keyword": [],
+            "fused": [
+              [
+                "cancel"
+              ]
+            ],
+            "chunk_reads": 1,
+            "distances": {
+              "cancel": 0.2
+            },
+            "document_type": "policy"
+          }
+        }
+      ]
+    },
+    {
+      "id": "R03",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "vector": [
+              [
+                "pasta"
+              ]
+            ],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta"
+              ]
+            ],
+            "chunk_reads": 1,
+            "distances": {
+              "pasta": 0.1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "R04",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {
+            "hits": [
+              {
+                "ref": "soup",
+                "distance": 0.1
+              },
+              {
+                "ref": "cocoa",
+                "distance": 0.2
+              }
+            ]
+          },
+          "expected": {
+            "vector": [
+              [
+                "soup"
+              ],
+              [
+                "cocoa"
+              ]
+            ],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta",
+                "soup"
+              ],
+              [
+                "cocoa"
+              ]
+            ],
+            "chunk_reads": 3,
+            "distances": {
+              "soup": 0.1,
+              "cocoa": 0.2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "R05",
+      "variants": [
+        {
+          "id": "forward",
+          "simulation": {
+            "hits": [
+              {
+                "ref": "soup",
+                "distance": 0.1
+              }
+            ],
+            "reverse": false
+          },
+          "expected": {
+            "vector": [
+              [
+                "soup"
+              ]
+            ],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta",
+                "soup"
+              ]
+            ],
+            "chunk_reads": 2,
+            "distances": {
+              "soup": 0.1
+            }
+          }
+        },
+        {
+          "id": "reverse",
+          "simulation": {
+            "hits": [
+              {
+                "ref": "soup",
+                "distance": 0.1
+              }
+            ],
+            "reverse": true
+          },
+          "expected": {
+            "vector": [
+              [
+                "soup"
+              ]
+            ],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta",
+                "soup"
+              ]
+            ],
+            "chunk_reads": 2,
+            "distances": {
+              "soup": 0.1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "R06",
+      "variants": [
+        {
+          "id": "lower",
+          "simulation": {
+            "question": "café"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [
+              [
+                "cocoa"
+              ]
+            ],
+            "fused": [
+              [
+                "cocoa"
+              ]
+            ],
+            "chunk_reads": 1
+          }
+        },
+        {
+          "id": "upper",
+          "simulation": {
+            "question": " CAFÉ "
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [
+              [
+                "cocoa"
+              ]
+            ],
+            "fused": [
+              [
+                "cocoa"
+              ]
+            ],
+            "chunk_reads": 1
+          }
+        },
+        {
+          "id": "decomposed",
+          "simulation": {
+            "question": "café"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [
+              [
+                "cocoa"
+              ]
+            ],
+            "fused": [
+              [
+                "cocoa"
+              ]
+            ],
+            "chunk_reads": 1
+          }
+        },
+        {
+          "id": "punctuation",
+          "simulation": {
+            "question": "!café?"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [
+              [
+                "cocoa"
+              ]
+            ],
+            "fused": [
+              [
+                "cocoa"
+              ]
+            ],
+            "chunk_reads": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "R07",
+      "variants": [
+        {
+          "id": "single",
+          "simulation": {
+            "question": "mushroom"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta"
+              ]
+            ],
+            "chunk_reads": 1
+          }
+        },
+        {
+          "id": "repeated",
+          "simulation": {
+            "question": "mushroom mushroom"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta"
+              ]
+            ],
+            "chunk_reads": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "R08",
+      "variants": [
+        {
+          "id": "query_empty",
+          "simulation": {
+            "question": "!!!"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [],
+            "fused": []
+          }
+        },
+        {
+          "id": "pool_empty",
+          "simulation": {
+            "fixture": "silent"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [],
+            "fused": []
+          }
+        },
+        {
+          "id": "scope_empty",
+          "simulation": {
+            "fixture": "empty_scope"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [],
+            "fused": [],
+            "embedding": 0,
+            "retrieval": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "R09",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {
+            "question": "zzzz",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.2
+              }
+            ]
+          },
+          "expected": {
+            "vector": [
+              [
+                "pasta"
+              ]
+            ],
+            "keyword": [],
+            "fused": [
+              [
+                "pasta"
+              ]
+            ],
+            "chunk_reads": 1,
+            "distances": {
+              "pasta": 0.2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "R10",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {},
+          "expected": {
+            "vector": [],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta"
+              ]
+            ],
+            "chunk_reads": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "R11",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {
+            "question": "Harbor menu zzzz?",
+            "workflow": true,
+            "answer": {
+              "ref": "pasta",
+              "quote": "Mushroom pasta - RM32 per serving."
+            }
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [],
+            "fused": [],
+            "status": "insufficient_evidence"
+          }
+        }
+      ]
+    },
+    {
+      "id": "R12",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {
+            "hits": [
+              {
+                "ref": "sakura",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        }
+      ]
+    },
+    {
+      "id": "R13",
+      "variants": [
+        {
+          "id": "restricted",
+          "simulation": {
+            "hits": [
+              {
+                "ref": "cancel",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        },
+        {
+          "id": "unrestricted",
+          "simulation": {
+            "question": "cancellation",
+            "document_type": null,
+            "hits": [
+              {
+                "ref": "cancel",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "vector": [
+              [
+                "cancel"
+              ]
+            ],
+            "keyword": [
+              [
+                "cancel"
+              ]
+            ],
+            "fused": [
+              [
+                "cancel"
+              ]
+            ],
+            "chunk_reads": 1,
+            "distances": {
+              "cancel": 0.1
+            },
+            "document_type": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "R14",
+      "variants": [
+        {
+          "id": "wrong_generation",
+          "simulation": {
+            "fault": "wrong_generation",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        },
+        {
+          "id": "unknown_key",
+          "simulation": {
+            "fault": "unknown_key",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        },
+        {
+          "id": "bad_metadata",
+          "simulation": {
+            "fault": "bad_metadata",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        }
+      ]
+    },
+    {
+      "id": "R15",
+      "variants": [
+        {
+          "id": "duplicate",
+          "simulation": {
+            "fault": "duplicate",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        },
+        {
+          "id": "nan",
+          "simulation": {
+            "fault": "nan",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        },
+        {
+          "id": "infinity",
+          "simulation": {
+            "fault": "infinity",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        },
+        {
+          "id": "boolean",
+          "simulation": {
+            "fault": "boolean",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        },
+        {
+          "id": "excess",
+          "simulation": {
+            "fault": "excess",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        },
+        {
+          "id": "malformed",
+          "simulation": {
+            "fault": "malformed",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError"
+          }
+        }
+      ]
+    },
+    {
+      "id": "R16",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {
+            "corrupt_ref": "pasta"
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError",
+            "chunk_reads": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "R17",
+      "variants": [
+        {
+          "id": "main",
+          "simulation": {
+            "question": "mushroom cocoa",
+            "top_k": 2,
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              },
+              {
+                "ref": "soup",
+                "distance": 0.2
+              }
+            ],
+            "corrupt_ref": "soup"
+          },
+          "expected": {
+            "error_type": "EvidenceIntegrityError",
+            "read_until": "soup",
+            "read_candidates": [
+              "pasta",
+              "soup",
+              "cocoa"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "R18",
+      "variants": [
+        {
+          "id": "after_pin",
+          "simulation": {
+            "fault": "after_pin"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta"
+              ]
+            ],
+            "chunk_reads": 1,
+            "generation": "v1",
+            "pin": 1
+          }
+        },
+        {
+          "id": "next_pin",
+          "simulation": {
+            "fault": "next_pin"
+          },
+          "expected": {
+            "vector": [],
+            "keyword": [
+              [
+                "pasta"
+              ]
+            ],
+            "fused": [
+              [
+                "pasta"
+              ]
+            ],
+            "chunk_reads": 1,
+            "generation": "v2",
+            "pin": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "R19",
+      "variants": [
+        {
+          "id": "full",
+          "simulation": {
+            "fixture": "wide",
+            "question": "lexicalneedle",
+            "hits": [
+              {
+                "ref": "w43",
+                "distance": 0.1
+              },
+              {
+                "ref": "w44",
+                "distance": 0.2
+              },
+              {
+                "ref": "w45",
+                "distance": 0.30000000000000004
+              },
+              {
+                "ref": "w46",
+                "distance": 0.4
+              },
+              {
+                "ref": "w47",
+                "distance": 0.5
+              }
+            ],
+            "max_characters": 9000
+          },
+          "expected": {
+            "vector": [
+              [
+                "w43"
+              ],
+              [
+                "w44"
+              ],
+              [
+                "w45"
+              ],
+              [
+                "w46"
+              ],
+              [
+                "w47"
+              ]
+            ],
+            "keyword": [
+              [
+                "w00",
+                "w01",
+                "w02",
+                "w03",
+                "w04"
+              ]
+            ],
+            "fused_from_ranks": true,
+            "chunk_reads": 10,
+            "retained": 5,
+            "distances": {
+              "w43": 0.1,
+              "w44": 0.2,
+              "w45": 0.30000000000000004,
+              "w46": 0.4,
+              "w47": 0.5
+            }
+          }
+        },
+        {
+          "id": "budget",
+          "simulation": {
+            "fixture": "wide",
+            "question": "lexicalneedle",
+            "hits": [
+              {
+                "ref": "w43",
+                "distance": 0.1
+              },
+              {
+                "ref": "w44",
+                "distance": 0.2
+              },
+              {
+                "ref": "w45",
+                "distance": 0.30000000000000004
+              },
+              {
+                "ref": "w46",
+                "distance": 0.4
+              },
+              {
+                "ref": "w47",
+                "distance": 0.5
+              }
+            ],
+            "max_characters": 2300
+          },
+          "expected": {
+            "vector": [
+              [
+                "w43"
+              ],
+              [
+                "w44"
+              ],
+              [
+                "w45"
+              ],
+              [
+                "w46"
+              ],
+              [
+                "w47"
+              ]
+            ],
+            "keyword": [
+              [
+                "w00",
+                "w01",
+                "w02",
+                "w03",
+                "w04"
+              ]
+            ],
+            "fused_from_ranks": true,
+            "chunk_reads": 10,
+            "retained": 2,
+            "distances": {
+              "w43": 0.1,
+              "w44": 0.2,
+              "w45": 0.30000000000000004,
+              "w46": 0.4,
+              "w47": 0.5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "R20",
+      "variants": [
+        {
+          "id": "expired",
+          "simulation": {
+            "fault": "expired",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "TimeoutError",
+            "embedding": 0,
+            "retrieval": 0,
+            "chunk_reads": 0
+          }
+        },
+        {
+          "id": "keyword",
+          "simulation": {
+            "fault": "keyword",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "TimeoutError",
+            "embedding": 0,
+            "retrieval": 0,
+            "chunk_reads": 0
+          }
+        },
+        {
+          "id": "embedding_expiry",
+          "simulation": {
+            "fault": "embedding_expiry",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "TimeoutError",
+            "embedding": 1,
+            "retrieval": 0,
+            "chunk_reads": 0
+          }
+        },
+        {
+          "id": "vector_expiry",
+          "simulation": {
+            "fault": "vector_expiry",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "TimeoutError",
+            "embedding": 1,
+            "retrieval": 1,
+            "chunk_reads": 0
+          }
+        },
+        {
+          "id": "read_expiry",
+          "simulation": {
+            "fault": "read_expiry",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "TimeoutError",
+            "embedding": 1,
+            "retrieval": 1,
+            "chunk_reads": 1
+          }
+        },
+        {
+          "id": "embedding_error",
+          "simulation": {
+            "fault": "embedding_error",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "RuntimeError",
+            "embedding": 1,
+            "retrieval": 0,
+            "chunk_reads": 0
+          }
+        },
+        {
+          "id": "vector_error",
+          "simulation": {
+            "fault": "vector_error",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "RuntimeError",
+            "embedding": 1,
+            "retrieval": 1,
+            "chunk_reads": 0
+          }
+        },
+        {
+          "id": "cancelled",
+          "simulation": {
+            "fault": "cancelled",
+            "hits": [
+              {
+                "ref": "pasta",
+                "distance": 0.1
+              }
+            ]
+          },
+          "expected": {
+            "error_type": "TimeoutError",
+            "embedding": 0,
+            "retrieval": 0,
+            "chunk_reads": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "R21",
+      "variants": [
+        {
+          "id": "default",
+          "simulation": {
+            "operation": "config",
+            "retrieval_mode": null
+          },
+          "expected": {
+            "pin": 0,
+            "embedding": 0,
+            "retrieval": 0
+          }
+        },
+        {
+          "id": "vector",
+          "simulation": {
+            "operation": "config",
+            "retrieval_mode": "vector"
+          },
+          "expected": {
+            "pin": 0,
+            "embedding": 0,
+            "retrieval": 0
+          }
+        },
+        {
+          "id": "invalid_mode",
+          "simulation": {
+            "operation": "config",
+            "retrieval_mode": "HYBRID"
+          },
+          "expected": {
+            "error_type": "ValidationError",
+            "pin": 0,
+            "embedding": 0,
+            "retrieval": 0
+          }
+        },
+        {
+          "id": "invalid_top_k",
+          "simulation": {
+            "operation": "config",
+            "top_k": 6
+          },
+          "expected": {
+            "error_type": "ValidationError",
+            "pin": 0,
+            "embedding": 0,
+            "retrieval": 0
+          }
+        },
+        {
+          "id": "invalid_boolean",
+          "simulation": {
+            "operation": "config",
+            "top_k": true
+          },
+          "expected": {
+            "error_type": "ValidationError",
+            "pin": 0,
+            "embedding": 0,
+            "retrieval": 0
+          }
+        },
+        {
+          "id": "invalid_page",
+          "simulation": {
+            "max_pages": 2
+          },
+          "expected": {
+            "error_type": "ValueError",
+            "embedding": 0,
+            "retrieval": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "R22",
+      "variants": [
+        {
+          "id": "empty",
+          "simulation": {
+            "operation": "conversation",
+            "conversation": "F03",
+            "vector_response": "empty"
+          },
+          "expected": {
+            "conversation": "F03",
+            "conversation_reads": [
+              3,
+              3
+            ],
+            "vector_response": "empty"
+          }
+        },
+        {
+          "id": "all",
+          "simulation": {
+            "operation": "conversation",
+            "conversation": "F03",
+            "vector_response": "all"
+          },
+          "expected": {
+            "conversation": "F03",
+            "conversation_reads": [
+              3,
+              3
+            ],
+            "vector_response": "all"
+          }
+        }
+      ]
+    },
+    {
+      "id": "R23",
+      "variants": [
+        {
+          "id": "empty",
+          "simulation": {
+            "operation": "conversation",
+            "conversation": "F08",
+            "vector_response": "empty"
+          },
+          "expected": {
+            "conversation": "F08",
+            "conversation_reads": [
+              3,
+              9
+            ],
+            "vector_response": "empty"
+          }
+        },
+        {
+          "id": "all",
+          "simulation": {
+            "operation": "conversation",
+            "conversation": "F08",
+            "vector_response": "all"
+          },
+          "expected": {
+            "conversation": "F08",
+            "conversation_reads": [
+              3,
+              9
+            ],
+            "vector_response": "all"
+          }
+        }
+      ]
+    },
+    {
+      "id": "R24",
+      "variants": [
+        {
+          "id": "approved",
+          "simulation": {
+            "operation": "conversation",
+            "conversation": "F01",
+            "conversation_variant": "main"
+          },
+          "expected": {
+            "conversation": "F01",
+            "conversation_variant": "main",
+            "conversation_reads": [
+              4,
+              3
+            ]
+          }
+        },
+        {
+          "id": "block",
+          "simulation": {
+            "operation": "conversation",
+            "conversation": "F21",
+            "conversation_variant": "block"
+          },
+          "expected": {
+            "conversation": "F21",
+            "conversation_variant": "block",
+            "conversation_reads": [
+              4,
+              2,
+              0
+            ]
+          }
+        },
+        {
+          "id": "mask",
+          "simulation": {
+            "operation": "conversation",
+            "conversation": "F21",
+            "conversation_variant": "mask"
+          },
+          "expected": {
+            "conversation": "F21",
+            "conversation_variant": "mask",
+            "conversation_reads": [
+              4,
+              2,
+              0
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
