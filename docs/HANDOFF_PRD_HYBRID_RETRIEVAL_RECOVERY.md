@@ -1,6 +1,6 @@
 # Handoff PRD for browser automation repair and hybrid retrieval validation
 
-**Status:** Approved by the owner. Gate A PASS; Gate B in progress. The previous rollout remains closed as FAILED / RECOVERED.
+**Status:** Approved execution closed as FAILED / RECOVERED. Gate A PASS; live L1 failed the required qualifier criterion; recovered Runtime/DEFAULT 21. Final closeout publication/cleanup is recorded in later receipts.
 
 **Prepared:** 2026-10-19, Asia/Kuala_Lumpur.
 
@@ -329,3 +329,34 @@ The owner approved both gates with “approve.” Gate A A01–A08 passed on 202
 One initial fixture round and two local tooling repairs completed exactly seven mock sends in two distinct backend conversations, 14 source opens/reopens and four actual UI downloads. The two repairs handled PDF text loading after its heading and Chainlit's observed “Create New Chat” confirmation dialog. Neither repair submitted an extra question. All four original byte hashes matched section 6.1. One private fixture screenshot was inspected. The audit checked 156 text artifacts without finding an unredacted session/source URL; the fixture recorded zero AWS/external-service attempts.
 
 Only owned browser/listeners, the short fixture stage and incidental generated root Chainlit files were removed after process/path/reparse checks. The existing 8010 UI remained running. Application, dependencies, API, IaC, corpus and the owner's warning document matched their baseline hashes. Frozen helper/test hashes and full sanitized receipts are retained in the ignored `restaurant-finder-api/.generated/hybrid-recovery-20261019021936/` evidence root. This fixture pass does not satisfy live R05–R07. Gate B preflight/publication and live acceptance are pending at this release checkpoint.
+
+## Recovery closeout — FAILED / RECOVERED
+
+The approved recovery published tooling release `e4d147ef660e9348c6c08e8013dab92e4e80d46e` to the existing draft PR. Both automatic exact-head [pull_request CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/39192404885), [push CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/39192402121) passed all four jobs. Downloaded artifacts verified 290 API, 50 UI and 55 infrastructure tests, all five unchanged report hashes, 28 conversation variants/63 turns and 57 retrieval variants/1,070 checks. Gate A A01–A08 passed; its mock results remain separate from live evidence.
+
+Fresh preflight verified the nine pinned prompt versions, four original hashes, six-source generation `29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a`, guardrail `ih5xpt3qi946:1`, IAM and reusable audited image. Candidate OCI index `sha256:d755be05db461862c57ac4c90957bd648dc2932804b278f1b916fe74c7526b19` / ARM64 child `sha256:031b5125231617d312bb53c50d3e1b772b7a9ef9c885f6a0e3e3aaef7e116892` / config `sha256:321233bfe98e7b0f61c85d7397027bdaa8d63f82347fe5f549a293e5f7fc1288` were reused without any Docker operation, build or image push.
+
+One reviewed no-replacement update changed only the image URI and `RAG_RETRIEVAL_MODE=hybrid`, reaching matching READY Runtime/DEFAULT 20. The frozen controller submitted **L1 exactly once**. Its completed answer quoted “Mushroom pasta - RM32 per serving” and cited Harbor menu v2/page 1, but omitted **“Contains wheat and milk.”** The native PDF viewer visibly retained the complete source record. L1 therefore failed the agreed full-record criterion. L2–L7 stayed UNUSED; no resend, alternate question, other conversation, benchmark or demo was performed. There were zero manual live source opens/reopens or original downloads, and one private live screenshot. The requested four live UI downloads and retained-link matrix remain unverified; preflight/fixture copies do not replace them.
+
+Bounded reads of the three known log groups used two pages per group (40/16/32 observed events); no delayed reconciliation was needed. Forty unique spans established one correlated Jev document route (`jev-1.13.0`), input moderation, fresh embedding/vector/selection, one `rag.keyword_rank` / `rag.fuse` pair with `hybrid` / `bm25-rrf-v1`, the correct Harbor/generation scope, one vector and one keyword candidate, union/overlap/returned count one, and 349 context characters. Final output was approved with no moderation change; memory save followed. The twelve-path/seven-request trace criterion remains unmet. No semantic-quality, keyword-only recovery, latency or dollar-saving result is established.
+
+The existing single-question renderer validates a selected quote as an exact substring (`workflow.py`, `render_answer`). Unlike resolved continuations, the ordinary single-question path does not call the complete-task selection validator. This code boundary is consistent with the observed partial record surviving validation. The next application repair should enforce complete supported menu/policy records in ordinary single-question answers and add deterministic truncation regressions; it requires a new implementation/rollout scope. No prompt or application repair was made in this recovery.
+
+One reviewed conditional rollback restored the fresh baseline image and removed the previously absent retrieval-mode key. Runtime/DEFAULT are READY **21**. Full template equality, all 18 resource mappings/outputs, surrounding Runtime fields, pinned guardrail/IAM and corpus were reverified. The existing 8010 UI was reused throughout, with no restart or credential-file edit; the recovered application was not invoked. The owned acceptance browser was closed. Durable tooling remains tracked; private evidence and the owner's warning document are preserved. Final documentation-only commit/CI and incidental-script cleanup are recorded after publication in ignored receipts and the PR body.
+
+
+### Final criterion disposition
+
+| Criterion | Result |
+| --- | --- |
+| R01 | PASS — Gate A and frozen helper/test provenance |
+| R02 | PASS — exact eight-path release; both CI artifact sets inspected |
+| R03 | PASS — fresh baseline, pinned prompts/corpus and audited existing image |
+| R04 | PASS — narrow update reached READY 20 with preservation verified |
+| R05 | FAIL — L1 omitted required qualifiers; L2–L7 UNUSED |
+| R06 | UNMET — full live source/download/retained-link matrix not executed |
+| R07 | UNMET — one correlated retrieval path verified; twelve required |
+| R08 | Recovery verified; final closeout CI/cleanup recorded in later receipts/PR |
+| R09 | PASS — one live attempt, one forward/rollback; no rebuild/Docker/demo |
+
+The deployment is FAILED / RECOVERED. Gate A and safe recovery succeeded; hybrid live acceptance did not pass. No unused slots may be reused from this stopped matrix.

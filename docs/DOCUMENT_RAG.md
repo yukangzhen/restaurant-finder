@@ -2,7 +2,7 @@
 
 ## Hybrid retrieval
 
-The local hybrid extension adds `RAG_RETRIEVAL_MODE=hybrid`; omission or `vector` keeps the existing path. API settings, direct retriever construction and CDK context/props validate the mode. Hybrid mode requires `RAG_TOP_K` from 1 to 5. A future deployment can select CDK context `ragRetrievalMode=hybrid`; this local implementation does not change the accepted Runtime 17 deployment.
+The local hybrid extension adds `RAG_RETRIEVAL_MODE=hybrid`; omission or `vector` keeps the existing path. API settings, direct retriever construction and CDK context/props validate the mode. Hybrid mode requires `RAG_TOP_K` from 1 to 5. CDK context `ragRetrievalMode=hybrid` selects the optional mode. The latest accepted recovered deployment is Runtime/DEFAULT 21 using the prior vector image; the failed recovery trial is documented below.
 
 The shared retriever ranks passages through two paths within the same generation/restaurant/document-type scope:
 
@@ -252,3 +252,11 @@ Run UI tests from `restaurant-finder-ui`; run `npm run build`, `npm test -- --ru
 ## Repaired acceptance tooling
 
 The [approved browser recovery](HANDOFF_PRD_HYBRID_RETRIEVAL_RECOVERY.md) passed its local Gate A on 2026-10-19 with the unchanged Chainlit app, a loopback SSE stub and an in-memory source adapter. Seven fixture questions used two backend conversation identities; all 14 native source views, retained older links and four actual UI downloads passed. Download bytes matched all four originals in section 6.1 of the recovery plan. These are simulated-service checks, not live hybrid retrieval evidence. No app, dependency, prompt, corpus or infrastructure input changed. Gate B must verify CI, current AWS preservation and the audited existing image before the bounded live trial.
+
+## Recovery closeout — FAILED / RECOVERED
+
+The repaired browser helper passed Gate A, both release CI artifact sets passed, and the audited existing hybrid image reached READY Runtime/DEFAULT 20. L1 returned the correct RM32 price but omitted “Contains wheat and milk” from its quote; the original PDF retained it. The trial stopped after one dispatch, with L2–L7 unused and the full live source/download matrix unmet.
+
+One correlated Jev/hybrid retrieval path was established: one vector/keyword candidate, one fused passage, 349 context characters, correct Harbor/generation scope and unchanged approved output moderation. This does not satisfy the twelve-path live criterion. Code inspection found the ordinary single-question renderer accepts a verbatim substring without requiring the complete record. A future repair should reuse complete-record validation and add truncation regression cases; no application or prompt repair was made here.
+
+The authorized rollback restored the prior vector image and absent mode key at READY Runtime/DEFAULT **21**; all 18 resources/outputs, settings, guardrail/IAM and corpus were reverified. No UI restart, Docker/build/push or demo occurred. See the [full recovery record](HANDOFF_PRD_HYBRID_RETRIEVAL_RECOVERY.md#recovery-closeout--failed--recovered) for image identity, bounded trace reads, acceptance gaps and follow-up scope.
