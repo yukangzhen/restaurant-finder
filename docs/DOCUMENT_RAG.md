@@ -248,3 +248,7 @@ $env:REQUIRE_PROMPT_MANIFEST='false'
 ```
 
 Run UI tests from `restaurant-finder-ui`; run `npm run build`, `npm test -- --runInBand`, and CDK synth from `restaurant-finder-infra`. Deployment/live evidence and unmet acceptance criteria are recorded in `HANDOFF_PRD_DOCUMENT_RAG.md`.
+
+## Repaired acceptance tooling
+
+The [approved browser recovery](HANDOFF_PRD_HYBRID_RETRIEVAL_RECOVERY.md) passed its local Gate A on 2026-10-19 with the unchanged Chainlit app, a loopback SSE stub and an in-memory source adapter. Seven fixture questions used two backend conversation identities; all 14 native source views, retained older links and four actual UI downloads passed. Download bytes matched all four originals in section 6.1 of the recovery plan. These are simulated-service checks, not live hybrid retrieval evidence. No app, dependency, prompt, corpus or infrastructure input changed. Gate B must verify CI, current AWS preservation and the audited existing image before the bounded live trial.

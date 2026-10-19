@@ -550,3 +550,7 @@ npx cdk destroy --all
 ```
 
 Or use the GitHub Actions `destroy-infra.yml` workflow with manual dispatch.
+
+## Browser acceptance recovery
+
+The approved [recovery plan](docs/HANDOFF_PRD_HYBRID_RETRIEVAL_RECOVERY.md) completed Gate A on 2026-10-19: 50 UI tests (32 existing plus 18 helper regressions), seven mock sends in two distinct conversations, 14 native source opens and four UI original downloads with matching hashes. AWS/external clients were blocked in the local fixture. The durable `restaurant-finder-ui/acceptance.py` helper compiles complete Playwright page functions, verifies exact input before one durable dispatch reservation, handles the new-chat confirmation and waits for expected source content. This rehearsal establishes UI/tool compatibility only. Gate B publication and the fresh seven-request live trial remain pending; the previous recovered vector deployment is unchanged at this checkpoint.
