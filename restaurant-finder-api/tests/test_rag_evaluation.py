@@ -44,6 +44,19 @@ class RagEvaluationTests(unittest.TestCase):
         self.assertEqual(report["unmeasured_checks"], 0)
         self.assertEqual(report["origin_verification"], "simulated_dependencies")
 
+    def test_complete_record_gold_rejects_stripped_qualifiers_and_policy_conditions(self):
+        for case_id,fragment in (("harbor_price_v2"," Contains wheat and milk."),
+                                 ("sakura_price"," Available at dinner only."),
+                                 ("harbor_fee","Reservations at Harbor Pasta Lab can be cancelled without a fee at least 24 hours before the booking. "),
+                                 ("harbor_fee"," Cancellations less than 24 hours before the booking incur a RM20 fee per booking.")):
+            original=next(o for o in self.observations if o.case_id==case_id)
+            escaped_fragment=fragment.replace(".","\\.")
+            self.assertIn(escaped_fragment,original.text)
+            report=self.score(self.changed(case_id,text=original.text.replace(escaped_fragment,"")))
+            row=next(r for r in report['cases'] if r['case_id']==case_id)
+            self.assertEqual(row['checks']['answer_text'],'fail')
+            self.assertFalse(report['passed'])
+
     def test_versions_are_explicit_and_different(self):
         versions = {o.case_id: o for o in self.observations}
         self.assertIn("RM32", versions["harbor_price_v2"].text)

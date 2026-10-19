@@ -1,5 +1,17 @@
 # Document RAG engineering guide
 
+## Complete records in ordinary document answers
+
+The local repair adds `single_record.py` before ordinary single-question rendering. It admits bounded price/cancellation tasks from the original question and server-resolved venue. An authentic title-and-price anchor, or complete cancellation sentence, can be extended to the full supported record in its selected retrieved chunk. The final quote must remain a contiguous source substring of at most 600 characters, with its original chunk/version/hash/location.
+
+The workflow verifies the original selection before completion, checks retrieved scope and conflicting records, then reuses strict task validation. It preserves menu qualifiers such as wheat/milk and dinner-only availability, and the complete cancellation section's free-notice and late-fee conditions. Unknown menu boundaries, conflicting facts, fabricated quotes and cross-record fragments are rejected. Missing or unsupported controlled policy sections produce insufficient evidence; unclear price tasks request clarification. A model abstention remains an abstention.
+
+`comparison.menu_records` exposes the existing title/qualifier grammar and removes only an exactly matching verified Markdown section heading. Both validation paths use it. Resolved continuations retain strict rejection of shortened selections; the existing comparison/multipart behavior and their offline results are preserved. Legacy one-venue mixed menu/policy questions require both supported records and keep selection/citation order.
+
+Completion performs no I/O or inference. The completed answer still passes through the existing output guardrail before references/context are published or approved text is saved. Masking, blocking and invalid-selection cases are covered by parent-graph tests. General non-price/non-cancellation questions retain their existing behavior; this is controlled-record support, not general PDF table interpretation.
+
+The local run passed 322 API, 50 UI and 55 infrastructure tests and all five offline evaluations. See the [repair PRD and execution record](HANDOFF_PRD_SINGLE_DOCUMENT_RECORD_COMPLETENESS.md#8-local-execution-record) for admitted forms, source-based gold updates and limits. Publication/deployment has not been performed for this repair; Runtime 21 is the last verified recovered deployment.
+
 ## Hybrid retrieval
 
 The local hybrid extension adds `RAG_RETRIEVAL_MODE=hybrid`; omission or `vector` keeps the existing path. API settings, direct retriever construction and CDK context/props validate the mode. Hybrid mode requires `RAG_TOP_K` from 1 to 5. CDK context `ragRetrievalMode=hybrid` selects the optional mode. The latest accepted recovered deployment is Runtime/DEFAULT 21 using the prior vector image; the failed recovery trial is documented below.

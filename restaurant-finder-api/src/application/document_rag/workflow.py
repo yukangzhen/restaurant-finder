@@ -168,6 +168,21 @@ async def answer_document_question(state, config, retriever=None, query_chain=No
                         criterion="menu_item_price" if resolution.operation == "menu_item_price" else "cancellation_policy",
                         item=resolution.item)
                     validate_task_selection(task, draft, evidence, manifest)
+                elif not (resolution and resolution.decision == "resolved"):
+                    from src.application.document_rag.single_record import (
+                        CLARIFICATION, PolicyRecordUnavailable, RecordClarification, complete_single_selections,
+                    )
+                    # Handle admission inside the span: rag_span deliberately
+                    # sanitizes exception types before they leave this boundary.
+                    try:
+                        draft = complete_single_selections(question, query.restaurant_id, draft, evidence, manifest)
+                    except RecordClarification:
+                        return RagOutcome(status="clarify", text=CLARIFICATION, generation_id=manifest.generation_id,
+                                          restaurant_id=query.restaurant_id, retrieval_count=1)
+                    except PolicyRecordUnavailable:
+                        return RagOutcome(status="insufficient_evidence",
+                                          text="The active documents do not contain enough supported policy evidence to answer that question.",
+                                          generation_id=manifest.generation_id, restaurant_id=query.restaurant_id, retrieval_count=1)
                 text, citations = render_document_answer(draft, evidence, manifest)
         except asyncio.CancelledError:
             raise

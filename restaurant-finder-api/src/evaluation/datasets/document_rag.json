@@ -16,7 +16,7 @@
           {
             "document_id": "harbor-menu",
             "version": "v2",
-            "quote": "Mushroom pasta - RM32 per serving.",
+            "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
             "page": 1
           }
         ],
@@ -56,7 +56,7 @@
           {
             "document_id": "harbor-menu",
             "version": "v1",
-            "quote": "Mushroom pasta - RM28 per serving.",
+            "quote": "Mushroom pasta - RM28 per serving. Contains wheat and milk.",
             "page": 1
           }
         ],
@@ -96,7 +96,7 @@
           {
             "document_id": "sakura-menu",
             "version": "v1",
-            "quote": "Mushroom pasta - RM36 per serving.",
+            "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
             "section": "Main dishes",
             "line_start": 5,
             "line_end": 11
@@ -138,7 +138,7 @@
           {
             "document_id": "spice-menu",
             "version": "v1",
-            "quote": "Chickpea curry - RM22 per serving.",
+            "quote": "Chickpea curry - RM22 per serving. Vegan. Served with rice.",
             "section": "Main dishes",
             "line_start": 5,
             "line_end": 11
@@ -179,7 +179,7 @@
           {
             "document_id": "harbor-policy",
             "version": "v1",
-            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
+            "quote": "Reservations at Harbor Pasta Lab can be cancelled without a fee at least 24 hours before the booking. Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
             "section": "Reservations and cancellation",
             "line_start": 5,
             "line_end": 8
@@ -221,7 +221,7 @@
           {
             "document_id": "sakura-policy",
             "version": "v1",
-            "quote": "Later cancellations incur a RM15 fee per booking.",
+            "quote": "Reservations at Sakura Table Lab can be cancelled without a fee at least 12 hours before the booking. Later cancellations incur a RM15 fee per booking.",
             "section": "Reservations and cancellation",
             "line_start": 5,
             "line_end": 8
@@ -263,7 +263,7 @@
           {
             "document_id": "spice-policy",
             "version": "v1",
-            "quote": "Later cancellations incur a RM10 fee per booking.",
+            "quote": "Reservations at Spice Garden Lab can be cancelled without a fee at least 6 hours before the booking. Later cancellations incur a RM10 fee per booking.",
             "section": "Reservations and cancellation",
             "line_start": 5,
             "line_end": 8
@@ -417,7 +417,7 @@
           {
             "document_id": "harbor-policy",
             "version": "v1",
-            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
+            "quote": "Reservations at Harbor Pasta Lab can be cancelled without a fee at least 24 hours before the booking. Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
             "section": "Reservations and cancellation",
             "line_start": 5,
             "line_end": 8
@@ -458,7 +458,7 @@
           {
             "document_id": "sakura-menu",
             "version": "v1",
-            "quote": "Mushroom pasta - RM36 per serving.",
+            "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
             "section": "Main dishes",
             "line_start": 5,
             "line_end": 11
@@ -566,7 +566,7 @@
           {
             "document_id": "harbor-policy",
             "version": "v1",
-            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
+            "quote": "Reservations at Harbor Pasta Lab can be cancelled without a fee at least 24 hours before the booking. Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
             "section": "Reservations and cancellation",
             "line_start": 5,
             "line_end": 8
@@ -606,13 +606,13 @@
           {
             "document_id": "harbor-menu",
             "version": "v2",
-            "quote": "Mushroom pasta - RM32 per serving.",
+            "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
             "page": 1
           },
           {
             "document_id": "harbor-policy",
             "version": "v1",
-            "quote": "Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
+            "quote": "Reservations at Harbor Pasta Lab can be cancelled without a fee at least 24 hours before the booking. Cancellations less than 24 hours before the booking incur a RM20 fee per booking.",
             "section": "Reservations and cancellation",
             "line_start": 5,
             "line_end": 8

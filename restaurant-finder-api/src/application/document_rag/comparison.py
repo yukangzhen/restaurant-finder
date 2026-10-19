@@ -73,6 +73,18 @@ def _records(text, item):
         yield text[match.start():end], match.group(1), boundary_known
 
 
+def menu_records(text, item, section=None):
+    """Share controlled records without guessing beyond a known section heading.
+
+    All callers use the same title/qualifier grammar. Verified section metadata
+    may remove exactly that heading before the existing parser runs.
+    Returned bodies remain contiguous substrings of the original passage.
+    """
+    if section:
+        text = re.sub(r"^#{1,6}\s+" + re.escape(canonical_text(section)) + r"(?:\s+|$)", "", text)
+    return tuple(_records(text, item))
+
+
 def parse_price(price_sentence):
     match = re.fullmatch(r"(?:RM|MYR)\s*([0-9]{1,8}(?:\.[0-9]{1,2})?) per (serving|bowl|piece)\.",
                          price_sentence, re.I)
@@ -91,7 +103,7 @@ def validate_menu_selection(requested_item, generation_id, restaurant_id, draft,
     draft = RagAnswerDraft.model_validate(draft)
     prices = set()
     for passage in evidence:
-        for _, sentence, _ in _records(passage.text, requested_item):
+        for _, sentence, _ in menu_records(passage.text, requested_item, passage.section):
             fact = parse_price(sentence)
             prices.add((fact.amount, fact.currency, fact.unit) if fact else canonical_text(sentence).casefold())
     if len(prices) > 1:
@@ -109,7 +121,7 @@ def validate_menu_selection(requested_item, generation_id, restaurant_id, draft,
     if item.generation_id != generation_id:
         raise ValueError("Selection generation mismatch")
     quote = canonical_text(selection.quote)
-    candidates = list(_records(item.text, requested_item))
+    candidates = menu_records(item.text, requested_item, item.section)
     record = next((value for value in candidates if value[0] == quote), None)
     if record is None:
         raise ValueError("Selected quote is not the complete requested item record")
