@@ -1,6 +1,6 @@
 # Handoff PRD for complete document answers publication and rollout
 
-**Status:** Approved with “proceed.” Fresh readiness and preservation checks passed; release publication and later gates are in progress.
+**Status:** Live acceptance PASS; READY Runtime/DEFAULT 22 retained with hybrid retrieval. Release/CI, audited image, all seven UI requests, fourteen citation opens/reopens, four original downloads and required traces passed. Documentation closeout CI and final owned cleanup are recorded in later ignored receipts and the existing draft PR body.
 
 **Prepared:** 2026-10-19, Asia/Kuala_Lumpur.
 
@@ -405,3 +405,73 @@ Steps 1–2 passed. All ten repair hashes and 173 protected files match their ba
 Fresh Runtime/DEFAULT are READY 21 with the prior image and absent retrieval-mode key. The complete deployed template equals the previous recovered proposal; all eighteen mappings and outputs were captured. Guardrail and IAM fingerprints/trust match. All nine immutable CHAT prompt versions match the pinned manifest/local text. Corpus pointer/generation/index and six source identities are unchanged; four original hashes and complete PDF/Markdown records were verified. Current registry inventory contains sixteen manifests; rollback index rank four remains below the keep-ten threshold after at most three new manifests. Post-push verification remains required.
 
 No live attempt, publication, image build/push, Runtime mutation or UI restart has occurred at this release checkpoint. The initial UI/index comparisons were reconciled as line-ending normalization and an SDK response wrapper, respectively; effective code/index configuration matched. No application change was made during readiness.
+
+### Publication and image checkpoint
+
+Release `0ec71ad401a70ade4cf8511ea01a8d058a5f125a` published exactly eleven paths to draft PR 1. Both automatic [PR CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/39215532168) and [push CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/39215527127) passed all four jobs. Downloaded artifacts confirmed 322 API, 50 UI and 55 infrastructure tests and all five reports equal to the verified local parsed reports, including all variants.
+
+The clean committed export validated nine prompts. Two CDK CLI runs wrote templates but timed out during exit. Running the compiled committed CDK app directly with network blocked exited zero, reported no missing lookup context, and produced a template exactly equal to the first CLI assembly after matching its metadata context. No live template was generated from these assemblies for deployment; the captured deployed template remains the narrow-update authority.
+
+One ARM64 build passed on its first attempt. A network-disabled audit, with the agent entrypoint overridden, verified all 91 packaged files and 80 runtime source files against committed bytes/manifest, UID 1000, configured user `bedrock_agentcore` and the instrumented application command. Candidate tag: `single-record-0ec71ad-20261019071344-arm64`; local OCI index `sha256:231cff888cf55d92296ac4d9d8ab96b9956b00767743cd96242dca0e091c6eb9`. Registry digest-chain verification remains pending.
+
+Initial registry login failed in the Windows native credential helper before a push. The approved owner-only temporary auth-file method avoided that helper and started one image push. Several layers uploaded, but the command timed out after 600 seconds. Read-only reconciliation at 2026-10-19 08:01 UTC confirmed the candidate tag was absent, Docker responded, the exact baseline template/Runtime/DEFAULT 21 remained unchanged, and temporary auth was removed. No change set/execution, UI restart, browser trial or Runtime request occurred.
+
+## 15 Image publication recovery
+
+The owner approved this amendment by selecting “Proceed with one additional image push.” Section 5 originally allowed one intended image push. Keep the audited source/image, existing release and remaining rollout bounds unchanged.
+
+1. Recheck the local image's exact audited index/revision and the registry tag. If the original publication has appeared, require its expected digest chain and continue without another push. An unexpected existing digest stops this scope.
+2. If the tag remains absent, allow **one additional `docker push` of the same audited unique image**, with a maximum thirty-minute process limit. Reuse already uploaded layers where Docker supports it. Use owner-only temporary registry auth and remove it in `finally`. No rebuild, source/tag change, overwrite, policy edit or Docker restart is included.
+3. Reconcile any uncertain delivery through read-only registry inspection; no further push is allowed by this amendment. A failed recovery stops publication and leaves the existing deployment intact.
+4. Only a verified matching registry index/ARM64/config chain and retained rollback graph permit the originally approved remaining deployment, seven-request matrix, source/download checks, traces and conditional rollback to continue.
+
+Ordinary ECR transfer/storage charges can apply. At approval, the seven Runtime attempts were unused. Approval is recorded in the ignored `image-recovery-approval.json`; the actual recovery and later gates follow below.
+
+## 16 Live acceptance and retention
+
+### Image recovery and forward update
+
+The additional push succeeded within its thirty-minute process limit, reusing uploaded layers. An initial recovery preflight timed out before reserving or starting a push; a bounded explicit Linux-engine endpoint check then established the audited local image and absent candidate tag. Exactly one additional actual push was reserved and executed. No rebuild, tag overwrite, credential-helper/global configuration change, Docker restart or pruning occurred. Owner-only temporary registry auth was removed in `finally`.
+
+| Verified candidate | Identity |
+| --- | --- |
+| Source release | `0ec71ad401a70ade4cf8511ea01a8d058a5f125a` |
+| Tag | `single-record-0ec71ad-20261019071344-arm64` |
+| OCI index | `sha256:231cff888cf55d92296ac4d9d8ab96b9956b00767743cd96242dca0e091c6eb9` |
+| Linux/ARM64 child | `sha256:75815c730d13067f6e9d02caf8487448c5857abcc6d2eafc292c3f3f4a254402` |
+| Config | `sha256:a819cf82545130a2ba7f3c5a990c4cb5408ec0257beb3a4ac62dc8ed6b179873` |
+| Packaged files | 91 total, including 80 runtime source files and the sole pinned nine-prompt manifest |
+
+Registry manifests/config/rootfs provenance matched the local audit. Post-push inventory contained nineteen manifests; rollback index rank seven remained inside keep-ten and its graph was fetchable. One reviewed/executed `single-record-forward-20261019071344` change set changed exactly the container URI and added `RAG_RETRIEVAL_MODE=hybrid`. The single Runtime Modify required no replacement/recreation. Stack UPDATE_COMPLETE and matching READY Runtime/DEFAULT **22** passed. All eighteen mappings/outputs, remaining Runtime settings, guardrail/IAM and corpus pointer were preserved. The UI was reused without restart.
+
+### Seven-request matrix
+
+| Slot | Actual result |
+| --- | --- |
+| L1 | PASS — full Harbor RM32/serving menu record, including wheat/milk; one source |
+| L2 | PASS — full Harbor free-at-least-24-hours / late RM20-per-booking policy; one source |
+| L3 | PASS — deterministic Harbor fee continuation, full policy and one new source |
+| L4 | PASS — insufficient-evidence valet-parking answer, no new source |
+| L5 | PASS — full Harbor/Sakura RM32/RM36 records, serving units/allergens/dinner-only qualifier, explicit Harbor RM4 lower, two sources |
+| L6 | PASS — deterministic cheaper-price continuation, fresh full records/RM4 result and two new sources |
+| L7 | PASS — deterministic continuation into four tasks, both full menus/policies and four sources; Sakura free-at-least-12-hours / later RM15-per-booking policy preserved |
+
+Exactly seven sends used two fresh conversations; none were resent or unused. The operational answer checker accepted the observed wording “Harbor ... listed price is RM4 lower per serving” as the required explicit cheaper comparison. The frozen application/helper/fixture/tests were unchanged. Fourteen manual source opens/reopens verified every required citation and retained older-answer associations. Four actual UI downloads matched all section 8.2 filenames/versions/bytes/hashes. Native PDF page 1 and complete numbered Markdown sections passed content checks; four private screenshots were visually inspected. The owned acceptance browser and ledger were closed. No demo walkthrough was started.
+
+### Correlated execution
+
+Seven correlated request traces establish four ordinary Jev document routes (`jev-1.13.0`, no fallback) and three resolved `document_followup` paths. L3/L6/L7 invoked no router or rewrite model. L6 includes a deterministic `rag.comparison.plan` pin/compile span with no model descendants; that span is not planner inference.
+
+Twelve keyword/embed/vector/fusion paths used `hybrid` / `bm25-rrf-v1`, the unchanged generation and correct venue scopes: one per L1–L4, two each L5/L6 and four L7. Each path had one embedding attempt and respected candidate/union/overlap, five-passage and 9,000-character bounds. Ordinary validation preceded moderation; comparison validation and multipart verified-worker/aggregation boundaries passed before final approval.
+
+There were twelve logical selectors and one L7 model planner. Twenty-six nested model instrumentation spans were paired by ancestry into thirteen logical calls. L7 recorded four supported tasks with one retrieval/selector attempt each and maximum two simultaneously active worker spans. All seven input checks, unchanged approved final outputs and post-approval `memory.save` paths passed. Eighty-four checkpoint CreateEvent spans are reported separately and do not establish durable-memory totals. No SDK retry attempts were recorded in the inspected spans.
+
+Initial reads plus one delayed reconciliation used four pages per known group, within the shared ten-page allowance. Across both passes, 712/240/236 events were read from `aws/spans`, the telemetry group and Runtime group respectively; the repeated reads were deduplicated to 356 scoped spans, including startup spans outside the seven request traces. Safe app attributes/correlations were retained, while raw exporter/provider values and session/source/credential data were excluded. No completion-specific span was invented.
+
+### Retention, preservation and closeout boundary
+
+The final read-only cloud check reconfirmed matching READY 22, the exact forward template, eighteen mappings/outputs, surrounding Runtime configuration, IAM/guardrail, active pointer and fetchable rollback graph. All required live criteria passed, so the candidate was retained; the conditional rollback allowance was unused. The old failed matrices remain closed and their recovery records unchanged.
+
+P01–P08 passed. At this documentation-preparation checkpoint, P09 still requires documentation-only publication/CI, final protected checks and owned cleanup. The subsequent ignored final receipt and PR body record those actual results; this source file cannot contain its own later commit SHA or CI run IDs. P10 is reconciled there against actual operation counts. The closeout changes only the five section 3.1 documents and preserves all non-document release trees. The deployed image remains tied to the repair release, so documentation publication does not trigger a rebuild.
+
+No new application repair, dependency/prompt/corpus/IAM/guardrail change, standalone probe, extra Runtime request, Docker recovery, benchmark or demo is included. The result establishes the controlled compatibility matrix, with semantic recall gains, live keyword-only rescue, latency/dollar savings, authenticated isolation and general production readiness unmeasured.

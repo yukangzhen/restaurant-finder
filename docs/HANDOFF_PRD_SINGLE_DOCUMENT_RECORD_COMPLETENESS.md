@@ -245,7 +245,7 @@ There is no product or paid-service choice blocking preparation. Source ambiguit
 
 ## 8 Local execution record
 
-The owner approved this PRD with “proceed.” Implementation started from `0dc57694b0a5efc863ba18c4b6beafed5813a88d` and remains an uncommitted local diff. The evidence root is `restaurant-finder-api/.generated/single-record-20261019041108/`.
+The owner approved this PRD with “proceed.” Implementation started from `0dc57694b0a5efc863ba18c4b6beafed5813a88d` and was an uncommitted local diff at this local acceptance checkpoint. The evidence root is `restaurant-finder-api/.generated/single-record-20261019041108/`. Subsequent publication/deployment belongs to the separately approved scope recorded in section 9.
 
 ### Implemented boundary
 
@@ -294,4 +294,14 @@ The preservation audit checked 173 non-allowlisted baseline files, including ori
 | S07 | PASS — allowed diff and protected-input hashes; final source hashes in receipts |
 | S08 | PASS for local/external-action boundaries; owned cleanup verified in the final receipt |
 
-This scope performed no publication, image build/push, Docker action, browser/live request, AWS/provider access, ingestion, prompt sync, IAM/guardrail change, benchmark or demo. Runtime 21 was not changed or rechecked. The previous seven-slot live matrix remains closed. A separate publication/image/rollout plan is needed to verify the repaired API in AWS.
+This local scope performed no publication, image build/push, Docker action, browser/live request, AWS/provider access, ingestion, prompt sync, IAM/guardrail change, benchmark or demo. Runtime 21 was not changed or rechecked by this local scope. The previous seven-slot live matrix remains closed.
+
+## 9 Subsequent approved publication and live verification
+
+The owner separately approved the [publication/rollout PRD](HANDOFF_PRD_SINGLE_RECORD_PUBLICATION_AND_ROLLOUT.md). Release `0ec71ad401a70ade4cf8511ea01a8d058a5f125a` published the ten verified repair paths plus that PRD to existing draft PR 1. Both automatic CI artifact sets passed with 322/50/55 tests and all five complete reports equal to the local results above.
+
+One audited ARM64 image, `single-record-0ec71ad-20261019071344-arm64`, contains the committed repair and unchanged nine-prompt manifest. Its first push timed out; the owner's explicit one-additional-push authorization recovered the same image without rebuild or Docker restart. A reviewed two-leaf update changed only the image and retrieval mode, reaching READY Runtime/DEFAULT 22.
+
+The fresh seven-slot matrix passed all seven actual UI requests, including the originally incomplete menu case and full cancellation conditions. Fourteen source opens/reopens and four actual UI downloads verified the original documents. Traces confirmed twelve bounded hybrid retrieval paths, four Jev routes, three deterministic follow-ups, one multipart model planner with maximum two active workers, twelve logical selectors and seven unchanged final approvals. The image was retained without rollback. Eighteen resource mappings/outputs, surrounding configuration, guardrail/IAM, active corpus and protected inputs were preserved. The existing UI required no restart.
+
+See the [accepted rollout record](HANDOFF_PRD_SINGLE_RECORD_PUBLICATION_AND_ROLLOUT.md#16-live-acceptance-and-retention) and ignored evidence root `restaurant-finder-api/.generated/single-record-rollout-20261019071344/` for exact image provenance, counts and documentation closeout. This later controlled acceptance does not change the earlier failed-trial history or measure general accuracy, latency or cost savings. No benchmark or demo walkthrough was performed.

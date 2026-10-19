@@ -10,11 +10,11 @@ The workflow verifies the original selection before completion, checks retrieved
 
 Completion performs no I/O or inference. The completed answer still passes through the existing output guardrail before references/context are published or approved text is saved. Masking, blocking and invalid-selection cases are covered by parent-graph tests. General non-price/non-cancellation questions retain their existing behavior; this is controlled-record support, not general PDF table interpretation.
 
-The local run passed 322 API, 50 UI and 55 infrastructure tests and all five offline evaluations. See the [repair PRD and execution record](HANDOFF_PRD_SINGLE_DOCUMENT_RECORD_COMPLETENESS.md#8-local-execution-record) for admitted forms, source-based gold updates and limits. Publication/deployment has not been performed for this repair; Runtime 21 is the last verified recovered deployment.
+The local run passed 322 API, 50 UI and 55 infrastructure tests and all five offline evaluations. Release `0ec71ad` subsequently passed both automatic CI artifact sets and seven actual UI/Runtime requests on 2026-10-19. READY Runtime/DEFAULT **22** is retained with hybrid retrieval, multipart and follow-ups enabled, using immutable guardrail `ih5xpt3qi946:1`. See the [repair record](HANDOFF_PRD_SINGLE_DOCUMENT_RECORD_COMPLETENESS.md#8-local-execution-record) and [accepted rollout](HANDOFF_PRD_SINGLE_RECORD_PUBLICATION_AND_ROLLOUT.md#16-live-acceptance-and-retention).
 
 ## Hybrid retrieval
 
-The local hybrid extension adds `RAG_RETRIEVAL_MODE=hybrid`; omission or `vector` keeps the existing path. API settings, direct retriever construction and CDK context/props validate the mode. Hybrid mode requires `RAG_TOP_K` from 1 to 5. CDK context `ragRetrievalMode=hybrid` selects the optional mode. The latest accepted recovered deployment is Runtime/DEFAULT 21 using the prior vector image; the failed recovery trial is documented below.
+The hybrid extension adds `RAG_RETRIEVAL_MODE=hybrid`; omission or `vector` keeps the existing path. API settings, direct retriever construction and CDK context/props validate the mode. Hybrid mode requires `RAG_TOP_K` from 1 to 5. CDK context `ragRetrievalMode=hybrid` selects the optional mode. The accepted deployment is Runtime/DEFAULT 22 with hybrid enabled; the earlier failed trials and their vector recovery remain documented below.
 
 The shared retriever ranks passages through two paths within the same generation/restaurant/document-type scope:
 
@@ -29,13 +29,23 @@ A keyword-only passage has `distance=None`. Actual vector distances remain uncha
 
 The separate offline dataset exercises 24 cases and 57 frozen variants. Real keyword ranking, fusion, source checks and parent workflows execute with simulated semantic/model/service dependencies. Its synthetic competing documents remain local and never replace the sample originals. See [the execution plan and acceptance criteria](HANDOFF_PRD_HYBRID_DOCUMENT_RETRIEVAL.md). Live accuracy, cost and latency are unmeasured.
 
-### Published release and incomplete live validation
+### Earlier published release and incomplete live validation
 
 On 2026-10-19, release `22f8d9c` passed both automatic CI runs and was built into one audited ARM64 image. The 90-file package, including 79 runtime source files and the sole nine-prompt manifest, matched committed inputs. The narrow Runtime update reached READY version 18 with hybrid enabled.
 
 The acceptance helper then failed to parse its Playwright code before filling or submitting L1. The reserved attempt was treated as consumed; the remaining six slots were unused. There were no submitted acceptance questions, source opens or UI original downloads. Under the approved stop rule, the previous image and absence of the retrieval-mode key were restored at READY Runtime/DEFAULT 19. Multipart, follow-ups, immutable guardrail, IAM, all 18 resource mappings/outputs and the corpus pointer remained unchanged.
 
-Hybrid answer behavior and correlated live retrieval spans remain unverified. This tooling failure is not evidence of an application defect. Before another trial, preflight the installed CLI's function-based `run-code` interface without a Runtime request, then obtain a new bounded live-execution scope. See the [execution and recovery record](HANDOFF_PRD_HYBRID_RETRIEVAL_PUBLICATION_AND_ROLLOUT.md#11-phase-b-execution-and-recovery).
+At that checkpoint, hybrid answer behavior and correlated live retrieval spans remained unverified. The tooling failure did not establish an application defect. The [execution and recovery record](HANDOFF_PRD_HYBRID_RETRIEVAL_PUBLICATION_AND_ROLLOUT.md#11-phase-b-execution-and-recovery) preserves that result. The later tooling recovery and record-completeness repair preceded the separately approved acceptance below.
+
+### Accepted complete-record hybrid rollout — 2026-10-19
+
+The audited image `single-record-0ec71ad-20261019071344-arm64` contains the exact committed repair and nine pinned prompts. Its OCI index is `sha256:231cff888cf55d92296ac4d9d8ab96b9956b00767743cd96242dca0e091c6eb9`. One reviewed update changed only the image and retrieval-mode key, reaching matching READY Runtime/DEFAULT 22. All eighteen resource mappings/outputs, surrounding settings, guardrail/IAM and corpus generation `29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a` were preserved. The prior image remains fetchable; no rollback was needed.
+
+Seven one-shot UI requests in two fresh conversations passed: complete Harbor menu and cancellation records, a deterministic fee continuation, an unsupported-parking abstention, a two-venue price comparison, its cheaper-price continuation and a four-part price/policy continuation. Fourteen manual citation opens/reopens retained correct answer/source associations; four actual UI downloads matched the original hashes. Native PDF page 1 and numbered Markdown sections were inspected. Four private screenshots were retained; the existing UI was reused without restart.
+
+Correlated traces verify twelve fresh hybrid keyword/embed/vector/fusion paths using `bm25-rrf-v1`, the pinned generation and correct venues. Each path respected five candidates per branch, ten union candidates, five returned passages and 9,000 context characters. Four ordinary routes used Jev; three continuations avoided router/rewrite inference. L6's `rag.comparison.plan` span performs deterministic pinning/compilation and contains no model invocation. L7 used one model planner and four workers with maximum concurrency two. Twelve logical selectors and one planner produced twenty-six nested model instrumentation spans; those spans are not twenty-six model calls. All seven input checks, unchanged final approvals and post-approval `memory.save` paths were present. Eighty-four checkpoint CreateEvent spans do not establish durable-memory event totals.
+
+This verifies the specified controlled matrix. It does not measure semantic recall gains, live keyword-only rescue, authenticated isolation, general production readiness, latency or dollar savings. Benchmark and demo walkthrough remain skipped. See the [rollout record](HANDOFF_PRD_SINGLE_RECORD_PUBLICATION_AND_ROLLOUT.md#16-live-acceptance-and-retention) for the image-upload recovery, bounds and remaining closeout evidence.
 
 ## What this adds
 
