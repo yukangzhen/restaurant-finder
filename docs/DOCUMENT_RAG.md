@@ -17,6 +17,14 @@ A keyword-only passage has `distance=None`. Actual vector distances remain uncha
 
 The separate offline dataset exercises 24 cases and 57 frozen variants. Real keyword ranking, fusion, source checks and parent workflows execute with simulated semantic/model/service dependencies. Its synthetic competing documents remain local and never replace the sample originals. See [the execution plan and acceptance criteria](HANDOFF_PRD_HYBRID_DOCUMENT_RETRIEVAL.md). Live accuracy, cost and latency are unmeasured.
 
+### Published release and incomplete live validation
+
+On 2026-10-19, release `22f8d9c` passed both automatic CI runs and was built into one audited ARM64 image. The 90-file package, including 79 runtime source files and the sole nine-prompt manifest, matched committed inputs. The narrow Runtime update reached READY version 18 with hybrid enabled.
+
+The acceptance helper then failed to parse its Playwright code before filling or submitting L1. The reserved attempt was treated as consumed; the remaining six slots were unused. There were no submitted acceptance questions, source opens or UI original downloads. Under the approved stop rule, the previous image and absence of the retrieval-mode key were restored at READY Runtime/DEFAULT 19. Multipart, follow-ups, immutable guardrail, IAM, all 18 resource mappings/outputs and the corpus pointer remained unchanged.
+
+Hybrid answer behavior and correlated live retrieval spans remain unverified. This tooling failure is not evidence of an application defect. Before another trial, preflight the installed CLI's function-based `run-code` interface without a Runtime request, then obtain a new bounded live-execution scope. See the [execution and recovery record](HANDOFF_PRD_HYBRID_RETRIEVAL_PUBLICATION_AND_ROLLOUT.md#11-phase-b-execution-and-recovery).
+
 ## What this adds
 
 The upstream agent used web/browser tools and conversational memory. This fork adds a separate, controlled document retrieval path. Jev classifies `document_qa` alongside the three existing intents; Haiku remains the routing fallback. Menus and policies live in S3, their Titan V2 embeddings in S3 Vectors. Conversation memory remains separate from the document corpus.

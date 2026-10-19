@@ -529,3 +529,11 @@ The original `test_document_rag_retrieval.py` did not need modification. Its exi
 PowerShell initially restricted .NET method calls and denied WMI process enumeration before any deletion. Cleanup succeeded using native file cmdlets and a read-only check with the installed process library; the check excluded its own launch ancestry and found no other process referencing the staging directory. Absolute containment and reparse-point checks preceded recursive removal.
 
 Baseline receipts, command logs, safe reports and copied synthesis templates remain under the ignored evidence root. The original sample documents and the running UI's retained directory were not cleanup targets. No UI restart, git commit/push, GitHub update, Docker action, AWS call, rollout or demo walkthrough occurred. Live retrieval quality, performance and dollar cost remain unmeasured. Phase A has no unmet criterion; publication and live acceptance belong to a separately approved Phase B.
+
+## 13 Phase B publication and recovery — 2026-10-19
+
+The separately approved Phase B published all 20 feature paths plus its rollout PRD as `22f8d9ce1831e2e1d0cfb8086665eb88ca52a99c`. Both automatic CI events passed, with fresh reports confirming the Phase A counts. Nine immutable prompts, four preflight source hashes and the surrounding deployment baseline matched.
+
+One audited ARM64 image was published. The forward update reached READY Runtime/DEFAULT 18 with hybrid mode, then an acceptance-helper syntax error prevented L1 from reaching the UI textbox or Runtime. One reserved slot was consumed and six remained unused; no source actions or further inference followed. The approved conditional rollback restored the previous image and absent retrieval-mode key at READY Runtime/DEFAULT 19, preserving all previously accepted features and bindings.
+
+Phase A remains locally accepted. Phase B live acceptance is incomplete; neither hybrid answer correctness nor live span correlation was established. The implementation was not changed to address a validation-tooling error. Details, digest chain, CI evidence and unmet criteria are in the [Phase B execution record](HANDOFF_PRD_HYBRID_RETRIEVAL_PUBLICATION_AND_ROLLOUT.md#11-phase-b-execution-and-recovery). Benchmarking and the demo walkthrough were not started.

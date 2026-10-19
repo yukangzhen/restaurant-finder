@@ -1,6 +1,6 @@
 # Handoff PRD for hybrid retrieval publication and rollout
 
-**Status:** Proposed Phase B. Preparing this PRD does not authorize publication, AWS actions or paid requests. Execute after the owner's explicit sign-off under AGENTS.md.
+**Status:** Phase B executed after approval; publication and deployment checks passed, live acceptance stopped on a tooling error, and the previous deployment was recovered. Documentation closeout CI is recorded separately after publication.
 
 **Prepared:** 2026-10-15, Asia/Kuala_Lumpur.
 
@@ -381,3 +381,60 @@ Raw rollback configuration stays access-controlled and ignored. Never publish cr
 **Not executed during preparation:** tests, GitHub requests/publication, AWS/Docker checks, image publication, deployment, browser/UI actions, paid requests, rollback or demo.
 
 Populate B01–B09 after execution with actual evidence. Record stops/remaining allowances and gaps; preserve the implementation record. No current service health, future version number or performance gain is implied.
+
+## 11 Phase B execution and recovery
+
+The owner approved this exact scope on 2026-10-16 with “Approve and proceed” and restored the expired AWS login before execution resumed on 2026-10-19. No new application or CI implementation was added during rollout.
+
+### 11.1 Publication, checks and image
+
+| Item | Inspected result |
+| --- | --- |
+| Release | `22f8d9ce1831e2e1d0cfb8086665eb88ca52a99c`; parent `b61b1342041fdbe96fb6d5488104995acc371e1f`; exactly 21 approved paths |
+| PR | Existing draft [PR #1](https://github.com/yukangzhen/restaurant-finder/pull/1), same head/base, normal push |
+| Exact-release CI | [Push](https://github.com/yukangzhen/restaurant-finder/actions/runs/39186138435) and [pull request](https://github.com/yukangzhen/restaurant-finder/actions/runs/39186143443), all four jobs successful |
+| Artifact inspection | Both run sets inspected: 290 API / 32 UI / 55 infrastructure tests; complete 17/20/40/24/24 reports with 374/260/609/1,147/1,070 checks; 28 conversation variants / 63 turns and 57 retrieval variants |
+| Source/prompts | Exact committed blob export; nine immutable CHAT versions and sole manifest matched, offline manifest validation exit 0 |
+| IaC | Committed compilation and no-lookup synthesis exit 0; three templates; intended hybrid/multipart/follow-up/pinned-guardrail settings |
+| Image | `447393541969.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:hybrid-retrieval-22f8d9c-20261019013820-arm64` |
+| Build/audit | First CLI-only attempt failed before building; one permitted retry succeeded. Network-disabled audit checked all 90 packaged files / 79 runtime files, UID 1000, revision and normal instrumented command, without agent startup |
+| OCI index | `sha256:d755be05db461862c57ac4c90957bd648dc2932804b278f1b916fe74c7526b19` |
+| ARM64 child | `sha256:031b5125231617d312bb53c50d3e1b772b7a9ef9c885f6a0e3e3aaef7e116892` |
+| Config | `sha256:321233bfe98e7b0f61c85d7397027bdaa8d63f82347fe5f549a293e5f7fc1288`; registry config and root filesystem identities equal local image |
+| Publication/auth | One successful image push; scoped temporary ECR auth removed; global Docker configuration preserved |
+| Forward update | `hybrid-22f8d9c-20261019014818`; exactly image URI and retrieval mode, one Runtime Modify, Replacement False, RequiresRecreation Never; one execution |
+| Ready candidate | Runtime/DEFAULT 18; deployed template and surrounding state verified before acceptance |
+
+### 11.2 Acceptance stop and recovery
+
+The first acceptance helper used top-level `await page…` with the installed Playwright CLI's `run-code` command. The installed command expects a JavaScript function invoked with `page`. Both the fill and Enter snippets returned `SyntaxError: Unexpected identifier 'page'` before executing browser actions. The wrapper had already reserved L1 before the Enter attempt. The unchanged UI snapshot still showed only its welcome messages and an empty textbox.
+
+The reserved error consumed L1 under this PRD's stop rule. No question was submitted to Runtime, no seed result existed and L2–L7 stayed unused. No resend, altered wording, additional inference, source open, UI original download, screenshot, standalone guardrail check or live trace-correlation claim followed. Four original reads during preflight matched section 6.2; these are not substitutes for the unmet UI downloads.
+
+One conditional rollback was reviewed and executed: `hybrid-rollback-22f8d9c-20261019015332`. It restored the exact baseline image and removed `RAG_RETRIEVAL_MODE` because the key was originally absent. Runtime/DEFAULT reached READY version 19. Full-template equality, all 18 resource mappings/outputs, surrounding Runtime fields, pinned guardrail/IAM and corpus pointer matched the baseline. Multipart/follow-ups remain true. Rollback-image retention was checked against actual post-push inventory; its rank was at most four within the ten-image policy, including OCI manifests.
+
+The local UI was reused without restart. Only the operation-owned browser was closed. Source commits and the candidate image remain available; no images, cloud resources, prompts, originals or memory events were deleted. No post-rollback inference or demo walkthrough occurred.
+
+### 11.3 Criterion record
+
+| ID | Result |
+| --- | --- |
+| B01 | PASS: approved identity, fresh rollback baseline, protected files, corpus, four originals and nine prompts verified |
+| B02 | PASS: exact 21-path normal publication to existing draft PR |
+| B03 | PASS: both exact-release CI runs and all report/test artifacts verified |
+| B04 | PASS: one audited unique ARM64 image with reconciled index/child/config provenance and cleared auth |
+| B05 | PASS for the candidate: exact two-property update, READY/live 18 and surrounding preservation |
+| B06 | UNMET: acceptance automation failed before L1 submission; no complete live matrix |
+| B07 | UNMET: no live-answer source controls or actual UI original downloads inspected |
+| B08 | UNMET: no accepted requests available for live hybrid trace correlation |
+| B09 | Closeout in progress at this documentation commit; final closeout SHA, CI and cleanup result belong in the ignored final receipt and PR body |
+
+Overall outcome: **FAILED / RECOVERED**, with a validation-tooling failure and incomplete hybrid acceptance. This does not establish an application defect or prove hybrid answer quality. Offline regression remains accepted; live quality, cost and latency remain unmeasured.
+
+### 11.4 Execution corrections and remaining work
+
+Routine helper assumptions were corrected without application changes: BEDROCK-prefixed guardrail environment names, inventory-aware ECR retention, SDK timestamp serialization, differing existing report schemas, and Docker's index-versus-config identity. The isolated Docker config initially could not find the installed Buildx plugin; adding its existing plugin directory only to the operation config enabled the single permitted retry. No installation, Docker restart/reset, global config change, policy change or second image push occurred.
+
+Before a new live attempt, repair the acceptance helper to pass a function to the installed CLI and preflight its textbox/source/download operations without invoking Runtime. A new reviewed execution scope must cover any new deployment and live attempts. Do not reuse the six unused slots from this stopped matrix.
+
+Private ignored evidence: `restaurant-finder-api/.generated/hybrid-rollout-20261016033626/`. It retains the approval/attempt ledger, exact-source CI artifacts, hashes, prompt comparisons, secured baseline, image audit/digests, reviewed forward/rollback change sets and readiness receipts, sanitized browser output, and closeout/cleanup evidence. The closeout changes only the five permitted documentation paths. Future closeout SHA and CI cannot be included in their own earlier commit; inspect the final receipt and PR body for those later observations.
