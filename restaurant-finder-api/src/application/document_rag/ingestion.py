@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from botocore.exceptions import ClientError
 
-from src.domain.document_rag import ActivePointer, ChunkReference, GenerationManifest, RagConfig, SourceReference, digest, validate_vector
+from src.domain.document_rag import ActivePointer, ChunkReference, GenerationManifest, RagConfig, SourceReference, digest, generation_config, generation_fingerprint, validate_vector
 from src.infrastructure.document_parser import chunk_document, load_corpus
 
 
@@ -19,14 +19,14 @@ def verify_chunks(manifest, store):
 def prepare_generation(corpus_path: Path):
     """Pure local operation. Never constructs an AWS client."""
     corpus, source_bytes = load_corpus(corpus_path)
-    config = RagConfig()
+    config = generation_config(corpus.schema_version)
     chunks = [c for doc in corpus.documents for c in chunk_document(doc, source_bytes[doc.document_id])]
     if not 1 <= len(chunks) <= 48:
         raise ValueError("Generation must contain 1 to 48 chunks")
-    sources = sorted([[d.document_id, d.restaurant_id, d.document_type, d.version, digest(source_bytes[d.document_id])] for d in corpus.documents])
-    generation_id = digest({"config": config.model_dump(), "restaurants": [r.model_dump() for r in corpus.restaurants], "sources": sources})
+    sources = [SourceReference(**d.model_dump(), source_hash=digest(source_bytes[d.document_id]), key="pending") for d in corpus.documents]
+    generation_id = digest(generation_fingerprint(config, corpus.restaurants, sources, corpus.schema_version))
     root = f"rag/generations/{generation_id}/"
-    manifest = GenerationManifest(generation_id=generation_id, config=config, restaurants=corpus.restaurants,
+    manifest = GenerationManifest(schema_version=corpus.schema_version, generation_id=generation_id, config=config, restaurants=corpus.restaurants,
         sources=[SourceReference(**d.model_dump(), source_hash=digest(source_bytes[d.document_id]), key=root+f"sources/{d.document_id}{Path(d.path).suffix.lower()}") for d in corpus.documents],
         chunks=[ChunkReference(**c.model_dump(), key=root+f"chunks/{c.chunk_id}.json") for c in chunks])
     return manifest, source_bytes
@@ -130,7 +130,7 @@ def rollback_generation(generation_id, store, vectors, embeddings, *, active_key
     current, etag = store.active(active_key)
     data, _ = store.read_json(pointer.manifest_key)
     manifest = GenerationManifest.model_validate(data)
-    if manifest.generation_id != generation_id or manifest.config != embeddings.config:
+    if manifest.generation_id != generation_id or manifest.config != generation_config(manifest.schema_version, embeddings.config):
         raise ValueError("Retained generation is incompatible")
     vectors.validate_index()
     verify_chunks(manifest, store)

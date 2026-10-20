@@ -30,3 +30,5 @@ tmp/
 .generated/uv-python/
 .generated/rag/
 .generated/citations/
+# Private third-party originals and offline preparation evidence are never runtime assets.
+.generated/real-restaurants*/

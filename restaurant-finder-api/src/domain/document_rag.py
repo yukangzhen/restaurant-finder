@@ -4,10 +4,12 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import struct
 import unicodedata
 from importlib.metadata import version as package_version
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from src.domain.document_conversation import DocumentContextDraft
@@ -48,6 +50,68 @@ class RestaurantEntry(Contract):
     restaurant_id: str = Field(pattern=r"^demo-[a-z0-9-]+$")
     name: str
     aliases: list[str] = Field(default_factory=list)
+    fictional: bool = True
+    city: str | None = None
+    cuisine: str | None = None
+    website: str | None = None
+
+
+def public_source_url(value: str) -> str:
+    parts = urlsplit(value)
+    if (parts.scheme != "https" or not parts.hostname or parts.username or parts.password or parts.query or parts.fragment
+            or any(c.isspace() or not c.isprintable() or c in '\\<>"`[]()' for c in value)):
+        raise ValueError("Source URL must be a public HTTPS URL without credentials or query data")
+    return value
+
+
+class SourceProvenance(Contract):
+    kind: Literal["official_pdf", "booking_page_snapshot"]
+    origin_url: str
+    resolved_url: str
+    website_url: str
+    captured_at: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}T.*(?:Z|[+]\d{2}:\d{2})$")
+    content_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def public_urls(self):
+        for value in (self.origin_url, self.resolved_url, self.website_url):
+            public_source_url(value)
+        return self
+
+
+class NativeMenuAnchor(Contract):
+    item: str = Field(min_length=1, max_length=80)
+    category: str = Field(min_length=1, max_length=80)
+    page: int = Field(ge=1, le=12)
+    start: str = Field(min_length=1, max_length=100)
+    end: str = Field(min_length=1, max_length=100)
+    price_position: Literal["after_title", "after_description"]
+    charge_note: str = Field(min_length=1, max_length=300)
+
+
+class NativeMenuProfile(Contract):
+    """Reviewed native-text boundaries, never model-authored facts or prices."""
+    records: list[NativeMenuAnchor] = Field(min_length=1, max_length=12)
+    decorative_pages: list[int] = Field(default_factory=list, max_length=12)
+    currency: Literal["MYR"] | None = None
+    currency_source_url: str | None = None
+    currency_source_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    currency_excerpt: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def consistent(self):
+        proof = (self.currency_source_url, self.currency_source_sha256, self.currency_excerpt)
+        if self.currency is not None:
+            if not all(proof) or not re.search(r"\bRM\s*\d", self.currency_excerpt):
+                raise ValueError("Currency requires reviewed explicit RM source evidence")
+            public_source_url(self.currency_source_url)
+        elif any(proof):
+            raise ValueError("Currency proof requires an explicit currency")
+        if len(set(self.decorative_pages)) != len(self.decorative_pages) or any(type(p) is not int or not 1 <= p <= 12 for p in self.decorative_pages):
+            raise ValueError("Invalid decorative page list")
+        if any(a.page in self.decorative_pages for a in self.records):
+            raise ValueError("A menu record cannot be on a decorative page")
+        return self
 
 
 class DocumentSpec(Contract):
@@ -56,10 +120,22 @@ class DocumentSpec(Contract):
     path: str
     document_type: Literal["menu", "policy"]
     version: str = Field(min_length=1, max_length=64)
+    provenance: SourceProvenance | None = None
+    native_menu: NativeMenuProfile | None = None
+
+    @model_validator(mode="after")
+    def source_profile(self):
+        if self.native_menu is not None and (self.document_type != "menu" or not self.path.lower().endswith(".pdf")
+                or self.provenance is None or self.provenance.kind != "official_pdf"):
+            raise ValueError("Native menu profiles require an official menu PDF")
+        if self.provenance and ((self.provenance.kind == "official_pdf") != self.path.lower().endswith(".pdf")):
+            raise ValueError("Source provenance differs from original format")
+        return self
 
 
 class CorpusSpec(Contract):
-    fictional: Literal[True]
+    schema_version: Literal[1, 2] = 1
+    fictional: bool
     restaurants: list[RestaurantEntry]
     documents: list[DocumentSpec]
 
@@ -75,13 +151,54 @@ class CorpusSpec(Contract):
         if len(names) != len(set(names)):
             raise ValueError("Ambiguous restaurant name/alias")
         if not self.documents or len(self.documents) > 6:
-            raise ValueError("Corpus must contain 1 to 6 documents")
+            raise ValueError("Corpus document count exceeds its schema bound")
+        validate_catalog_schema(self.schema_version, self.restaurants, self.documents)
+        if self.fictional != all(r.fictional for r in self.restaurants):
+            raise ValueError("Corpus fictional flag differs from its venues")
         return self
+
+
+def validate_catalog_schema(schema_version, restaurants, sources):
+    by_id = {r.restaurant_id: r for r in restaurants}
+    if len(by_id) != len(restaurants):
+        raise ValueError("Duplicate restaurant IDs")
+    names = [canonical_text(n).casefold() for r in restaurants for n in [r.name, *r.aliases]]
+    if len(names) != len(set(names)):
+        raise ValueError("Ambiguous restaurant name/alias")
+    if not sources or len(sources) > 6:
+        raise ValueError("Source count exceeds manifest schema bound")
+    if schema_version == 1 and (any(not r.fictional or any((r.city, r.cuisine, r.website)) for r in restaurants)
+                               or any(s.provenance or s.native_menu for s in sources)):
+        raise ValueError("Real-source metadata requires manifest schema 2")
+    for source in sources:
+        venue = by_id.get(source.restaurant_id)
+        if venue is None:
+            raise ValueError("Unknown source venue")
+        if not venue.fictional and (not venue.city or not venue.cuisine or not venue.website or source.provenance is None):
+            raise ValueError("Real venues require location, cuisine, website and source provenance")
+        if not venue.fictional:
+            public_source_url(venue.website)
+            if source.provenance.website_url != venue.website:
+                raise ValueError("Source provenance belongs to another venue website")
+
+
+def generation_fingerprint(config, restaurants, sources, schema_version=1):
+    if schema_version == 1:
+        # Preserve the exact published v1 fingerprint, including empty aliases.
+        return {"config": config.model_dump(), "restaurants": [r.model_dump(include={"restaurant_id", "name", "aliases"}) for r in restaurants],
+                "sources": sorted([[s.document_id, s.restaurant_id, s.document_type, s.version, s.source_hash] for s in sources])}
+    return {"schema_version": 2, "config": config.model_dump(), "restaurants": [r.model_dump() for r in restaurants],
+            "sources": [s.model_dump(exclude={"key"}) for s in sorted(sources, key=lambda s:s.document_id)]}
+
+
+def document_description(manifest, restaurant_ids=None):
+    venues = [r for r in manifest.restaurants if restaurant_ids is None or r.restaurant_id in restaurant_ids]
+    return "fictional demo documents" if venues and all(r.fictional for r in venues) else "captured source documents"
 
 
 class ExtractedUnit(Contract):
     text: str
-    page: int | None = Field(default=None, ge=1)
+    page: int | None = Field(default=None, ge=1, le=12)
     section: str | None = None
     line_start: int | None = Field(default=None, ge=1)
     line_end: int | None = Field(default=None, ge=1)
@@ -114,6 +231,18 @@ class RagConfig(Contract):
     overlap_characters: Literal[200] = 200
 
 
+def generation_config(schema_version, config=None):
+    """Check source extraction versions separately from the fixed embedding model.
+
+    Schema 1 keeps its published identity. Schema 2 additionally pins the native
+    font decoder; readers must have the same decoder as the prepared originals.
+    """
+    config = config or RagConfig()
+    if schema_version == 2:
+        return config.model_copy(update={"extractor": f"pypdf-{package_version('pypdf')}-fonttools-{package_version('fonttools')}-markdown-v1"})
+    return config
+
+
 class ChunkReference(ChunkRecord):
     key: str
 
@@ -124,7 +253,7 @@ class SourceReference(DocumentSpec):
 
 
 class GenerationManifest(Contract):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     generation_id: str = Field(pattern=r"^[a-f0-9]{64}$")
     config: RagConfig
     restaurants: list[RestaurantEntry]
@@ -133,6 +262,7 @@ class GenerationManifest(Contract):
 
     @model_validator(mode="after")
     def integrity(self):
+        validate_catalog_schema(self.schema_version, self.restaurants, self.sources)
         restaurant_ids = {r.restaurant_id for r in self.restaurants}
         sources = {s.document_id: s for s in self.sources}
         if len(sources) != len(self.sources) or len({c.chunk_id for c in self.chunks}) != len(self.chunks):
@@ -141,6 +271,8 @@ class GenerationManifest(Contract):
         for source in self.sources:
             if source.restaurant_id not in restaurant_ids or not source.key.startswith(root + "sources/") or ".." in source.key:
                 raise ValueError("Invalid source reference")
+            if source.provenance and source.provenance.content_sha256 != source.source_hash:
+                raise ValueError("Source provenance hash differs from stored original")
         for chunk in self.chunks:
             source = sources.get(chunk.document_id)
             if (source is None or chunk.restaurant_id != source.restaurant_id or chunk.source_hash != source.source_hash
@@ -152,8 +284,7 @@ class GenerationManifest(Contract):
             location = {k: getattr(chunk, k) for k in ("page", "section", "line_start", "line_end")}
             if chunk.chunk_id != digest([chunk.document_id, chunk.source_hash, location, chunk.text]):
                 raise ValueError("Chunk ID does not match its content")
-        fingerprint = {"config": self.config.model_dump(), "restaurants": [r.model_dump() for r in self.restaurants],
-                       "sources": sorted([[s.document_id, s.restaurant_id, s.document_type, s.version, s.source_hash] for s in self.sources])}
+        fingerprint = generation_fingerprint(self.config, self.restaurants, self.sources, self.schema_version)
         if digest(fingerprint) != self.generation_id:
             raise ValueError("Generation fingerprint does not match")
         return self
@@ -212,7 +343,7 @@ class DocumentCitation(Contract):
     format: Literal["pdf", "md"]
     filename: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.(?:pdf|md)$")
     version: str = Field(min_length=1, max_length=64)
-    page: int | None = Field(default=None, ge=1, le=10)
+    page: int | None = Field(default=None, ge=1, le=12)
     section: str | None = Field(default=None, min_length=1, max_length=300)
     line_start: int | None = Field(default=None, ge=1, le=100000)
     line_end: int | None = Field(default=None, ge=1, le=100000)

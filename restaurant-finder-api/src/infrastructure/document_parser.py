@@ -26,20 +26,26 @@ def load_corpus(path: Path) -> tuple[CorpusSpec, dict[str, bytes]]:
         if candidate.stat().st_size > 5 * 1024 * 1024:
             raise ValueError("Document exceeds 5 MiB")
         sources[doc.document_id] = candidate.read_bytes()
+        if doc.provenance and digest(sources[doc.document_id]) != doc.provenance.content_sha256:
+            raise ValueError("Original bytes differ from reviewed source provenance")
     return corpus, sources
 
 
-def extract_units(data: bytes, suffix: str) -> list[ExtractedUnit]:
+def extract_units(data: bytes, suffix: str, *, decorative_pages=()) -> list[ExtractedUnit]:
     if suffix.lower() == ".pdf":
         from io import BytesIO
         from pypdf import PdfReader
         reader = PdfReader(BytesIO(data))
-        if reader.is_encrypted or not 1 <= len(reader.pages) <= 10:
-            raise ValueError("PDF must be unencrypted with 1 to 10 pages")
+        if reader.is_encrypted or not 1 <= len(reader.pages) <= 12:
+            raise ValueError("PDF must be unencrypted with 1 to 12 pages")
+        if any(p > len(reader.pages) for p in decorative_pages):
+            raise ValueError("Decorative page is outside the original")
         units = []
         for index, page in enumerate(reader.pages, 1):
             text = page.extract_text() or ""
             if not text.strip():
+                if index in decorative_pages:
+                    continue
                 raise ValueError("PDF page has no extractable text; OCR is unsupported")
             units.append(ExtractedUnit(text=text, page=index))
     elif suffix.lower() == ".md":
@@ -66,7 +72,7 @@ def chunk_document(spec: DocumentSpec, data: bytes) -> list[ChunkRecord]:
     """Keep complete paragraphs/menu rows within a single page or section."""
     output = []
     source_hash = digest(data)
-    for unit in extract_units(data, Path(spec.path).suffix):
+    for unit in extract_units(data, Path(spec.path).suffix, decorative_pages=spec.native_menu.decorative_pages if spec.native_menu else ()):
         # Blank lines delimit paragraphs; each PDF line is a complete demo menu record.
         blocks = re.split(r"\n\s*\n", unit.text) if unit.page is None else unit.text.splitlines()
         records = [canonical_text(x) for x in blocks if canonical_text(x)]

@@ -37,7 +37,7 @@ class ComparisonPlan(StrictContract):
 class PriceFact(StrictContract):
     amount: Decimal = Field(ge=Decimal("0"), le=Decimal("99999999.99"), allow_inf_nan=False, decimal_places=2, max_digits=10)
     currency: Literal["MYR"] = "MYR"
-    unit: Literal["serving", "bowl", "piece"]
+    unit: Literal["serving", "bowl", "piece", "listed_item"]
 
 
 class ComparisonRow(StrictContract):

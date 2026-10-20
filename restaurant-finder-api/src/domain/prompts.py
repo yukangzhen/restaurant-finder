@@ -155,7 +155,7 @@ You are an intent classifier for a restaurant finder assistant. Your task is to 
 
 <intents>
 <intent name="document_qa">
-Questions about controlled menus/policies or uploaded documents, including ambiguous document questions and follow-ups to an approved document answer. The fictional catalog is Harbor Pasta Lab, Sakura Table Lab, and Spice Garden Lab. Specific menu/price/policy questions about these names use document_qa. Missing restaurant scope is clarified in that route. This route has priority over restaurant_search when either the catalog or documents are referenced.
+Questions about catalog menus/policies or uploaded documents, including ambiguous document questions and follow-ups to an approved document answer. Use the document_catalog supplied in router_context, including each venue's real/fictional metadata. Specific menu/price/policy questions about those names use document_qa. Missing restaurant scope is clarified in that route. Requests to discover restaurants with available document coverage are restaurant_search; ordinary document questions have priority over restaurant_search.
 </intent>
 <intent name="restaurant_search">
 User wants actual restaurant results, details, or recommendations; OR wants to retrieve their own dining preferences, past restaurant recommendations, or dining facts from memory. Memory questions belong here even without a location or a request for new restaurant results.

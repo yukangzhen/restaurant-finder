@@ -30,7 +30,7 @@ class Citation(BaseModel):
     format: Literal["pdf", "md"]
     filename: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.(?:pdf|md)$")
     version: str = Field(min_length=1, max_length=64)
-    page: int | None = Field(default=None, ge=1, le=10)
+    page: int | None = Field(default=None, ge=1, le=12)
     section: str | None = Field(default=None, min_length=1, max_length=300)
     line_start: int | None = Field(default=None, ge=1, le=100000)
     line_end: int | None = Field(default=None, ge=1, le=100000)
@@ -111,7 +111,17 @@ def markdown_view(citation, content):
         raise ValueError("Citation lies outside the original")
     fence = "`" * max(3, 1 + max((len(run) for run in re.findall(r"`+", text)), default=0))
     numbered = "\n".join(f"{index:>4} | {line}" for index, line in enumerate(lines, 1))
+    snapshot = ""
+    if lines and lines[0] == "# Captured booking-page snapshot":
+        origin = re.search(r"^Source URL: (https://www[.]sevenrooms[.]com/explore/[a-z0-9-]+/reservations/create/search/)$", text, re.M)
+        captured = re.search(r"^Captured at: (\d{4}-\d{2}-\d{2}T[0-9:+Z-]+)$", text, re.M)
+        if origin is None or captured is None:
+            raise ValueError("Snapshot source metadata is missing or invalid")
+        snapshot = ("**Captured booking-page snapshot** — not a restaurant-issued PDF.\n\n"
+                    f"[Open the original booking page]({origin[1]})\n\n"
+                    f"Captured at: {captured[1]}. The live page may have changed.\n\n")
     return (
+        snapshot +
         f"Document: {citation.document_id}; version {_display_text(citation.version)}\n\n"
         f"Cited section: {_display_text(citation.section)}; lines {citation.line_start}–{citation.line_end}\n\n"
         f"Generation: {citation.generation_id[:12]}. Line numbers are viewer annotations.\n\n"

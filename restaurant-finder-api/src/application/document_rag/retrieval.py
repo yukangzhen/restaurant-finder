@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from dataclasses import dataclass
 
-from src.domain.document_rag import ChunkRecord, DocumentQuery, EvidenceIntegrityError, GenerationManifest, RestaurantEntry, RetrievedEvidence, canonical_text
+from src.domain.document_rag import ChunkRecord, DocumentQuery, EvidenceIntegrityError, GenerationManifest, RestaurantEntry, RetrievedEvidence, canonical_text, generation_config
 from src.infrastructure.rag_observability import rag_span
 from src.application.document_rag.ranking import ALGORITHM_VERSION, FusedCandidate, KeywordCandidate, keyword_rank, reciprocal_rank_fusion, validate_top_k
 
@@ -23,8 +23,14 @@ class HybridDiagnostics:
     chunk_reads: int = 0
 
 
-def router_catalog() -> list[dict]:
+def router_catalog(*, include_real=None) -> list[dict]:
     data = json.loads((Path(__file__).resolve().parents[2] / "domain" / "document_catalog.json").read_text(encoding="utf-8"))
+    if include_real is None:
+        from src.config import settings
+        include_real = settings.DOCUMENT_REAL_SOURCES_ENABLED
+    if include_real:
+        real = json.loads((Path(__file__).resolve().parents[2] / "domain" / "real_restaurant_catalog.json").read_text(encoding="utf-8"))
+        data["restaurants"].extend(real["restaurants"])
     return [RestaurantEntry.model_validate(r).model_dump() for r in data["restaurants"]]
 
 
@@ -43,7 +49,8 @@ def resolve_query(question: str, manifest: GenerationManifest, approved_scope: s
             found.append(restaurant.restaurant_id)
             name_spans.extend(match.span() for match in matches)
     if len(found) > 1:
-        return DocumentQuery(query=question, clarification="Please choose one fictional restaurant for this document question.")
+        label = "fictional restaurant" if all(r.fictional for r in manifest.restaurants) else "catalog restaurant"
+        return DocumentQuery(query=question, clarification=f"Please choose one {label} for this document question.")
     scope = found[0] if found else None
     # A new explicit venue that is not in the catalog must never inherit prior scope.
     explicit_unknown = bool(re.search(r"\b(?:at|for|about|from)\s+[A-Z][\w-]*(?:\s+[A-Z][\w-]*)+", question)) if not found else False
@@ -51,7 +58,8 @@ def resolve_query(question: str, manifest: GenerationManifest, approved_scope: s
         scope = approved_scope
     if not scope:
         names = ", ".join(r.aliases[0] if r.aliases else r.name for r in manifest.restaurants)
-        return DocumentQuery(query=question, clarification=f"Which fictional restaurant's documents should I use: {names}?")
+        label = "fictional restaurant" if all(r.fictional for r in manifest.restaurants) else "catalog restaurant"
+        return DocumentQuery(query=question, clarification=f"Which {label}'s documents should I use: {names}?")
     # Names identify the venue, but their words must not imply document intent.
     # Mask all spans on a separate copy, preserving overlaps and the query itself.
     intent_characters = list(question)
@@ -95,7 +103,7 @@ class DocumentRetriever:
             manifest = GenerationManifest.model_validate(data)
         except ValueError:
             raise EvidenceIntegrityError("Invalid generation manifest") from None
-        if manifest.generation_id != pointer.generation_id or manifest.config != self.embeddings.config:
+        if manifest.generation_id != pointer.generation_id or manifest.config != generation_config(manifest.schema_version, self.embeddings.config):
             raise EvidenceIntegrityError("Active generation/model configuration mismatch")
         self.check_deadline(deadline, clock)
         self.vectors.validate_index()
@@ -161,7 +169,7 @@ class DocumentRetriever:
             query = DocumentQuery.model_validate(query.model_dump())
         except (ValueError, TypeError, AttributeError):
             raise EvidenceIntegrityError("Invalid hybrid retrieval contract") from None
-        if manifest.config != self.embeddings.config:
+        if manifest.config != generation_config(manifest.schema_version, self.embeddings.config):
             raise EvidenceIntegrityError("Generation/model configuration mismatch")
         if query.clarification or query.restaurant_id not in {r.restaurant_id for r in manifest.restaurants}:
             raise ValueError("Retrieval requires an approved catalog scope")
@@ -175,7 +183,8 @@ class DocumentRetriever:
                       "rag.generation": manifest.generation_id, "rag.restaurant": query.restaurant_id,
                       "rag.top_k": self.top_k}
         with rag_span("rag.keyword_rank", attributes) as span:
-            keywords = keyword_rank(query.query, [(f"{manifest.generation_id}:{c.chunk_id}", c.text) for c in pool],
+            from src.application.document_rag.native_menu import native_lookup_query
+            keywords = keyword_rank(native_lookup_query(query, manifest), [(f"{manifest.generation_id}:{c.chunk_id}", c.text) for c in pool],
                                     top_k=self.top_k, guard=guard)
             if span:
                 span.set_attribute("rag.keyword_candidates", len(keywords))

@@ -26,6 +26,7 @@ dependencies = [
     "opentelemetry-api>=1.20.0",
     "opentelemetry-sdk>=1.20.0",
     "pypdf>=6.0,<7",
+    "fonttools>=4.60,<5",
 ]
 
 [project.optional-dependencies]

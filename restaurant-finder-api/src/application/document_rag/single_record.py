@@ -63,8 +63,9 @@ def compile_single_tasks(question, restaurant_id, manifest):
         if (not 1 <= len(item) <= 80 or not all(c.isalnum() or c in " '-" for c in item)
                 or re.search(r"\b(and|or|cancel\w*|polic\w*|menu|ingredients|allerg\w*)\b", item, re.I)):
             raise RecordClarification()
-        if not any(menu_records(c.text, item, c.section) for c in manifest.chunks
-                   if c.restaurant_id == restaurant_id and c.document_type == "menu"):
+        native_item = any(s.restaurant_id == restaurant_id and s.native_menu and any(canonical_text(a.item).casefold() == item for a in s.native_menu.records) for s in manifest.sources)
+        if not native_item and not any(menu_records(c.text, item, c.section) for c in manifest.chunks
+                                      if c.restaurant_id == restaurant_id and c.document_type == "menu"):
             raise RecordClarification()
     tasks = []
     for criterion in (["menu_item_price"] if price else []) + (["cancellation_policy"] if policy else []):
@@ -74,7 +75,14 @@ def compile_single_tasks(question, restaurant_id, manifest):
     return tuple(tasks)
 
 
-def _complete_menu(task, quote, selected, evidence):
+def _complete_menu(task, quote, selected, evidence, manifest=None):
+    from src.application.document_rag.native_menu import is_native_venue, registered_records
+    if manifest is not None and is_native_venue(task.restaurant_id, manifest):
+        rows = registered_records(task.item, task.restaurant_id, evidence, manifest)
+        if (len(rows) != 1 or rows[0].evidence.chunk_id != selected.chunk_id or not rows[0].quote.startswith(quote)
+                or len(quote) < rows[0].anchor_length):
+            raise ValueError("Native anchor must include its own title and complete amount")
+        return rows[0].quote
     candidates = [(e, record) for e in evidence for record in menu_records(e.text, task.item, e.section)]
     if not candidates or any(not record[2] for _, record in candidates):
         raise ValueError("Menu record boundary is not known")
@@ -145,7 +153,7 @@ def complete_single_selections(question, restaurant_id, draft, evidence, manifes
         quote = canonical_text(selection.quote)
         record = None
         if task.criterion == "menu_item_price":
-            body = _complete_menu(task, quote, selected, by_type["menu"])
+            body = _complete_menu(task, quote, selected, by_type["menu"], manifest)
         else:
             body, record = _complete_policy(task, quote, selected, by_type["policy"], manifest)
         fixed = QuoteSelection(chunk_id=selection.chunk_id, quote=body)

@@ -18,6 +18,7 @@ from src.application.orchestrator.workflow.edges import (
 from src.application.orchestrator.workflow.tools import get_orchestrator_tools
 from src.infrastructure.memory import ShortTermMemory
 from src.application.document_rag.workflow import document_qa_node
+from src.application.document_rag.discovery import coverage_discovery_node
 
 
 # Module-level graph instance (created lazily)
@@ -125,6 +126,7 @@ def create_orchestrator_graph(force_recreate: bool = False):
 
     # Get tools dynamically based on current config (respects ENABLE_BROWSER_TOOLS)
     graph_builder.add_node("document_qa_node", document_qa_node)
+    graph_builder.add_node("coverage_discovery_node", coverage_discovery_node)
     tools = get_orchestrator_tools()
     tool_node = ToolNode(tools)
     graph_builder.add_node("tool_node", tool_node)
@@ -145,6 +147,7 @@ def create_orchestrator_graph(force_recreate: bool = False):
         {
             "search_agent": "search_agent_node",
             "document_qa": "document_qa_node",
+            "coverage_discovery": "coverage_discovery_node",
             "simple_response": "simple_response_node",
         },
     )
@@ -167,6 +170,7 @@ def create_orchestrator_graph(force_recreate: bool = False):
     # Every response must pass output moderation before memory or API delivery.
     graph_builder.add_edge("simple_response_node", "output_guardrail_node")
     graph_builder.add_edge("document_qa_node", "output_guardrail_node")
+    graph_builder.add_edge("coverage_discovery_node", "output_guardrail_node")
     graph_builder.add_conditional_edges(
         "output_guardrail_node",
         route_after_output_guardrail,

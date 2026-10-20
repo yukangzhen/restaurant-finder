@@ -155,13 +155,13 @@ async def classify_with_jev(messages: list[BaseMessage], approved_document_scope
     from src.application.document_rag.retrieval import router_catalog
     response = await _jev_client.system_one(
         state={"messages": [_message_for_jev(message) for message in messages[-8:]],
-               "fictional_document_catalog": router_catalog(), "approved_document_scope": approved_document_scope},
+               "document_catalog": router_catalog(), "approved_document_scope": approved_document_scope},
         questions={
             "intent": Choice(
                 instructions=(
                     "Classify only the latest user message. Use earlier messages only to resolve "
                     "references or follow-ups. Choose document_qa for questions about controlled "
-                    "menus, policies or uploaded documents; questions about the fictional catalog; "
+                    "menus, policies or uploaded documents; menu/policy questions about the supplied document catalog; "
                     "and document follow-ups when approved_document_scope is present. Missing "
                     "scope is clarified by document_qa. This takes priority over restaurant_search. "
                     "Greetings/thanks remain simple. Choose restaurant_search both when the user wants "
@@ -178,8 +178,8 @@ async def classify_with_jev(messages: list[BaseMessage], approved_document_scope
                 criteria={
                     "document_qa": (
                         "The user asks what controlled/uploaded documents, menus or policies say; "
-                        "asks specific menu/price/policy details for Harbor Pasta Lab, Sakura Table Lab "
-                        "or Spice Garden Lab; or follows up on an approved document answer. "
+                        "asks specific menu/price/policy details for a venue in document_catalog; "
+                        "or follows up on an approved document answer. "
                         "Document questions lacking a restaurant still use this route for clarification."
                     ),
                     "restaurant_search": (

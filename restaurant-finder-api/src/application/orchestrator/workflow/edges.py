@@ -12,7 +12,7 @@ MAX_TOOL_CALLS_PER_TURN = 4
 
 def route_by_intent(
     state: OrchestratorState,
-) -> Literal["search_agent", "document_qa", "simple_response"]:
+) -> Literal["search_agent", "document_qa", "simple_response", "coverage_discovery"]:
     """
     Route based on the classified intent from the router node.
 
@@ -28,6 +28,8 @@ def route_by_intent(
         "search_agent" for restaurant search, "simple_response" otherwise.
     """
     intent = state.get("intent", "restaurant_search")
+    if intent == "restaurant_search" and state.get("coverage_discovery_requested"):
+        return "coverage_discovery"
 
     if intent == "document_qa":
         return "document_qa"

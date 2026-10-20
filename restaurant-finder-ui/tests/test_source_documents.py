@@ -42,6 +42,24 @@ class Body:
 
 
 class SourceTests(unittest.TestCase):
+    def test_page_twelve_is_supported_and_thirteen_is_rejected(self):
+        self.assertEqual(sources.Citation.model_validate(reference(page=12)).page,12)
+        with self.assertRaises(ValueError):
+            sources.Citation.model_validate(reference(page=13))
+
+    def test_snapshot_view_has_clickable_origin_and_clear_capture_label(self):
+        url="https://www.sevenrooms.com/explore/natalina/reservations/create/search/"
+        body=("# Captured booking-page snapshot\n\nSource URL: "+url+
+              "\nCaptured at: 2026-10-20T00:00:00+00:00\n\n## Cancelation Policy\nSynthetic test wording.\n").encode()
+        ref=sources.Citation.model_validate(reference(body,section="Cancelation Policy",line_start=6,line_end=7))
+        view=sources.markdown_view(ref,body)
+        self.assertIn("[Open the original booking page]("+url+")",view)
+        self.assertIn("not a restaurant-issued PDF",view)
+        self.assertIn("2026-10-20T00:00:00+00:00",view)
+        for bad in ("http://evil.test/","https://www.sevenrooms.com.evil.test/","javascript:alert(1)"):
+            with self.assertRaises(ValueError):
+                sources.markdown_view(ref,body.replace(url.encode(),bad.encode()))
+
     def multipart_sources(self):
         root = Path(__file__).resolve().parents[2]/"restaurant-finder-api"/"sample_documents"
         contents = [(root/name).read_bytes() for name in ("harbor-menu-v2.pdf", "harbor-policy.md", "sakura-menu.md", "sakura-policy.md")]
@@ -164,7 +182,7 @@ class SourceTests(unittest.TestCase):
 
     def test_unsafe_or_malformed_references_rejected_before_io(self):
         for changes in [{"document_id":"../../secret"},{"generation_id":"bad"},{"filename":"../menu.pdf"},
-                        {"page":True},{"page":11},{"url":"https://fake"},{"format":"html"},{"line_start":1}]:
+                        {"page":True},{"page":13},{"url":"https://fake"},{"format":"html"},{"line_start":1}]:
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 sources.validate_citations([reference(**changes)],ANSWER)
         for values in [None,{},[],[reference()]*4,[reference(label="Source 2")]]:

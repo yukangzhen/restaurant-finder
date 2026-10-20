@@ -48,6 +48,7 @@ async def run_orchestrator_turn(
         # LangGraph restores the rest of the conversation from its checkpointer.
         "tool_call_count": 0,
         "made_tool_calls": False,
+        "coverage_discovery_requested": False,
         "response_status": "pending",
         "rag_status": None,
         "rag_mode": None,

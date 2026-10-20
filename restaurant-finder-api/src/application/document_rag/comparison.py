@@ -5,7 +5,8 @@ import re
 from decimal import Decimal
 
 from src.domain.document_comparison import ComparisonPlan, ComparisonResult, ComparisonRow, PriceFact
-from src.domain.document_rag import QuoteSelection, RagAnswerDraft, canonical_text
+from src.domain.document_rag import QuoteSelection, RagAnswerDraft, canonical_text, document_description
+from src.application.document_rag.native_menu import is_native_venue, registered_records, price_fact, unit_suffix
 
 CLARIFICATION = ("Please name two different fictional catalog restaurants and one menu item to compare. "
                  "For example: Compare mushroom pasta prices at Harbor and Sakura. Show the sources.")
@@ -101,6 +102,19 @@ def validate_menu_selection(requested_item, generation_id, restaurant_id, draft,
     """Revalidate provenance and relevant complete item records before deriving values."""
     from src.application.document_rag.workflow import render_document_answer
     draft = RagAnswerDraft.model_validate(draft)
+    if is_native_venue(restaurant_id, manifest):
+        if generation_id != manifest.generation_id:
+            raise ValueError("Native selection generation mismatch")
+        # Establish original provenance before interpreting the reviewed row.
+        render_document_answer(draft, evidence, manifest)
+        rows = registered_records(requested_item, restaurant_id, evidence, manifest)
+        if draft.status == "insufficient_evidence":
+            return ComparisonRow(restaurant_id=restaurant_id, status="missing", reason="missing_evidence", retrieval_started=True)
+        if len(rows) != 1 or len(draft.selections) != 1 or draft.selections[0].quote != rows[0].quote or draft.selections[0].chunk_id != rows[0].evidence.chunk_id:
+            raise ValueError("Native selection is not the complete verified item")
+        fact = price_fact(rows[0])
+        return ComparisonRow(restaurant_id=restaurant_id, status="supported", reason="verified" if fact else "unsupported_price_format",
+                             retrieval_started=True, selection=draft.selections[0], evidence=rows[0].evidence, price=fact)
     prices = set()
     for passage in evidence:
         for _, sentence, _ in menu_records(passage.text, requested_item, passage.section):
@@ -145,13 +159,13 @@ def aggregate_comparison(plan, rows, manifest):
     text = {"invalid_answer": INVALID, "unavailable": UNAVAILABLE, "insufficient_evidence": INSUFFICIENT}.get(status, "")
     if status in {"answered", "partial"}:
         names = {r.restaurant_id: r.name for r in manifest.restaurants}
-        lines = ["Listed prices in the fictional demo documents:", "",
+        lines = [f"Listed prices in the {document_description(manifest, plan.restaurant_ids)}:", "",
                  f"| Restaurant | Listed {safe_markdown(plan.item)} price | Evidence |", "| --- | --- | --- |"]
         source_index = 0
         for row in ordered:
             if row.status == "supported":
                 source_index += 1
-                value = f"RM{row.price.amount} per {row.price.unit}" if row.price else "Unsupported price format"
+                value = f"RM{row.price.amount}{unit_suffix(row.price.unit)}" if row.price else "Unsupported price format"
                 label = f"Source {source_index}"
             else:
                 value = "Not found in retrieved menu evidence" if row.status == "missing" else "Retrieval unavailable"
@@ -170,8 +184,9 @@ def aggregate_comparison(plan, rows, manifest):
                 difference = abs(a-b)
                 reason = "tie" if a == b else "calculated"
                 cheaper_id = None if a == b else supported[0 if a < b else 1].restaurant_id
-                lines.append(f"The listed prices are equal per {supported[0].price.unit}." if a == b else
-                             f"{safe_markdown(names[cheaper_id])}'s listed price is RM{difference} lower per {supported[0].price.unit}.")
+                suffix = unit_suffix(supported[0].price.unit)
+                lines.append(f"The listed prices are equal{suffix}." if a == b else
+                             f"{safe_markdown(names[cheaper_id])}'s listed price is RM{difference} lower{suffix}.")
         else:
             lines.append("A price difference cannot be calculated because one restaurant has no verified result.")
         draft = RagAnswerDraft(status="answered", selections=[row.selection for row in supported])

@@ -115,7 +115,9 @@ def build_comparison_graph(dependencies, deadline, clock=time.monotonic):
                     if not evidence:
                         return row("missing", "missing_evidence")
                     DocumentRetriever.check_deadline(deadline, clock)
-                    selector = dependencies.selector_factory(rid)
+                    from src.application.document_rag.native_menu import native_draft
+                    native = native_draft(plan.item, rid, evidence, manifest)
+                    selector = dependencies.selector_factory(rid) if native is None else None
                     name = next(r.name for r in manifest.restaurants if r.restaurant_id == rid)
                     payload = {"question": f"Select exactly one complete {plan.item} menu record with its listed price at {name}. "
                                            "Include all adjacent dietary, timing and other qualifiers; no other item.",
@@ -124,7 +126,7 @@ def build_comparison_graph(dependencies, deadline, clock=time.monotonic):
                         with rag_span("rag.comparison.select", {"rag.restaurant": rid}):
                             # Catch schema/parser failures before the span sanitizes their type.
                             try:
-                                draft = await selector.ainvoke({"payload": json.dumps(payload, ensure_ascii=False)}, config)
+                                draft = native if native is not None else await selector.ainvoke({"payload": json.dumps(payload, ensure_ascii=False)}, config)
                             except ValueError:
                                 return row("invalid", "invalid_selection")
                         DocumentRetriever.check_deadline(deadline, clock)
@@ -198,7 +200,9 @@ async def answer_comparison(question, config, *, dependencies=None, deadline=Non
             manifest = await asyncio.to_thread(pin)
             plan = plan_comparison(question, manifest)
         if plan is None:
-            return RagOutcome(status="clarify", text=CLARIFICATION, generation_id=manifest.generation_id)
+            clarification = CLARIFICATION if all(r.fictional for r in manifest.restaurants) else (
+                "Please name two different catalog restaurants and one menu item to compare.")
+            return RagOutcome(status="clarify", text=clarification, generation_id=manifest.generation_id)
         worker_deadline = min(clock() + 45, deadline - 2)
         if worker_deadline <= clock():
             return RagOutcome(status="unavailable", text=UNAVAILABLE, generation_id=manifest.generation_id)

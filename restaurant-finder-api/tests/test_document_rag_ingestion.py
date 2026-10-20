@@ -126,11 +126,11 @@ class ParserTests(unittest.TestCase):
         writer.write(stream)
         with self.assertRaisesRegex(ValueError,"no extractable text"):
             extract_units(stream.getvalue(),".pdf")
-        for _ in range(10):
+        for _ in range(12):
             writer.add_blank_page(width=200,height=200)
         stream = io.BytesIO()
         writer.write(stream)
-        with self.assertRaisesRegex(ValueError,"1 to 10 pages"):
+        with self.assertRaisesRegex(ValueError,"1 to 12 pages"):
             extract_units(stream.getvalue(),".pdf")
         unit=extract_units("# Policy\n\nNo refunds. Price is RM28.50; not RM28.".encode(),".md")[0]
         self.assertIn("RM28.50",unit.text)

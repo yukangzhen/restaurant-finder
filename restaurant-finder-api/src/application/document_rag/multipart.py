@@ -7,7 +7,7 @@ from src.application.document_rag.comparison import validate_menu_selection
 from src.domain.document_multipart import MultipartPlan, MultipartPlanDraft, MultipartRequest, MultipartResult, MultipartTask, MultipartTaskResult
 from src.domain.document_rag import (
     DocumentCitation, EvidenceIntegrityError, QuoteSelection, RagAnswerDraft, RagCoverage, RagTaskSummary,
-    RestaurantEntry, canonical_text,
+    RestaurantEntry, canonical_text, document_description,
 )
 
 CLARIFICATION = ("Please ask about one menu item's price and cancellation policies for one or two named fictional restaurants. "
@@ -124,8 +124,9 @@ def validate_passages(task, evidence, manifest):
 
 def policy_record(task, evidence, manifest):
     """Return a retrieved complete controlled section body, never a guessed paragraph."""
+    headings = {"reservations and cancellation", "cancelation policy", "cancellation policy"}
     refs = [c for c in manifest.chunks if c.restaurant_id == task.restaurant_id and c.document_type == "policy"
-            and canonical_text(c.section or "").casefold() == "reservations and cancellation"]
+            and canonical_text(c.section or "").casefold() in headings]
     if not refs:
         return None, "missing_evidence"
     docs = {s.document_id: s for s in manifest.sources}
@@ -134,7 +135,7 @@ def policy_record(task, evidence, manifest):
         if (sum(c.document_id == ref.document_id for c in refs) != 1
                 or not docs[ref.document_id].path.lower().endswith(".md")):
             return None, "unsupported_policy_layout"
-        body = re.sub(r"^#{1,6}\s+Reservations and cancellation(?:\s+|$)", "", ref.text, flags=re.I)
+        body = re.sub(r"^#{1,6}\s+" + re.escape(ref.section) + r"(?:\s+|$)", "", ref.text, flags=re.I)
         if body == ref.text or not body:
             return None, "unsupported_policy_layout"
         bodies.append((ref, body))
@@ -201,7 +202,8 @@ def aggregate_multipart(plan, rows, manifest):
         menus = [r for r in ordered if r.task.criterion == "menu_item_price"]
         comparable = len(menus) == 2 and all(r.status == "supported" and r.price for r in menus)
         comparable = comparable and menus[0].price.currency == menus[1].price.currency and menus[0].price.unit == menus[1].price.unit
-        lines = [f"Answered {len(supported)} of {len(ordered)} requested parts using the fictional demo documents.", "", "## Menu prices"]
+        description = document_description(manifest, {t.restaurant_id for t in plan.tasks})
+        lines = [f"Answered {len(supported)} of {len(ordered)} requested parts using the {description}.", "", "## Menu prices"]
         for criterion in ("menu_item_price", "cancellation_policy"):
             if criterion == "cancellation_policy":
                 if comparable:
@@ -209,8 +211,10 @@ def aggregate_multipart(plan, rows, manifest):
                     difference = abs(a-b)
                     cheaper_id = None if a == b else menus[0 if a < b else 1].task.restaurant_id
                     name = next(r.task.restaurant_name for r in menus if r.task.restaurant_id == cheaper_id) if cheaper_id else None
-                    lines.extend(["", f"{safe_markdown(name)}'s listed price is RM{difference} lower per {menus[0].price.unit}." if name
-                                  else f"The listed prices are equal per {menus[0].price.unit}."])
+                    from src.application.document_rag.native_menu import unit_suffix
+                    suffix = unit_suffix(menus[0].price.unit)
+                    lines.extend(["", f"{safe_markdown(name)}'s listed price is RM{difference} lower{suffix}." if name
+                                  else f"The listed prices are equal{suffix}."])
                 elif len(menus) == 2:
                     lines.extend(["", "A price difference cannot be calculated without two verified prices in matching currency and serving units."])
                 lines.extend(["", "## Cancellation policies"])

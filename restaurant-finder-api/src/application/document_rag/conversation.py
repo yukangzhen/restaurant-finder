@@ -131,6 +131,9 @@ def _resolved(operation, targets, item, reason, entries):
 
 
 def _clarify(reason, operation=None, text=CLARIFY, pending=None):
+    from src.config import settings
+    if settings.DOCUMENT_REAL_SOURCES_ENABLED and text == CLARIFY:
+        text = text.replace("fictional restaurant", "catalog restaurant")
     return FollowupResolution(decision="clarify", reason=reason, operation=operation,
                               clarification=text, pending=pending)
 

@@ -56,7 +56,7 @@ class CitationTests(unittest.TestCase):
     def test_contract_rejects_unsafe_extra_or_inconsistent_fields(self):
         data = self.citations[0].model_dump()
         for changes in [{"url":"https://fake"},{"document_id":"../other"},{"source_hash":"bad"},
-                        {"filename":"../menu.pdf"},{"page":True},{"page":11},{"format":"html"},
+                        {"filename":"../menu.pdf"},{"page":True},{"page":13},{"format":"html"},
                         {"line_start":1},{"version":"bad\nversion"}]:
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 DocumentCitation.model_validate({**data,**changes})

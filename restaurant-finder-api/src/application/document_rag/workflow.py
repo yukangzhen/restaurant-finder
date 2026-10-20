@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from loguru import logger
 
 from src.config import settings
-from src.domain.document_rag import DocumentCitation, QueryRewrite, RagAnswerDraft, RagOutcome, canonical_text
+from src.domain.document_rag import DocumentCitation, QueryRewrite, RagAnswerDraft, RagOutcome, canonical_text, document_description
 from src.domain.prompts import RAG_ANSWER_PROMPT, RAG_QUERY_PROMPT
 from src.application.document_rag.retrieval import DocumentRetriever, is_followup, resolve_query
 from src.infrastructure.document_store import DocumentStore
@@ -35,11 +35,11 @@ def safe_markdown(text: str) -> str:
     return re.sub(r"([\\`*_{}\[\]()#+.!|>~-])", r"\\\1", html.escape(text, quote=True))
 
 
-def render_answer(draft: RagAnswerDraft, evidence: list) -> str:
+def render_answer(draft: RagAnswerDraft, evidence: list, description="fictional demo documents") -> str:
     if draft.status == "insufficient_evidence":
         return "The active documents do not contain enough evidence to answer that question."
     by_id = {e.chunk_id: e for e in evidence}
-    lines = ["According to the fictional demo documents:"]
+    lines = [f"According to the {description}:"]
     for index, selection in enumerate(draft.selections, 1):
         source = by_id.get(selection.chunk_id)
         quote = canonical_text(selection.quote)
@@ -56,7 +56,8 @@ def render_answer(draft: RagAnswerDraft, evidence: list) -> str:
 
 def render_document_answer(draft, evidence, manifest):
     """Resolve originals from the same pinned, verified provenance as the quotes."""
-    text = render_answer(draft, evidence)
+    selected_ids = {e.restaurant_id for e in evidence if e.chunk_id in {q.chunk_id for q in draft.selections}}
+    text = render_answer(draft, evidence, document_description(manifest, selected_ids))
     by_id = {e.chunk_id: e for e in evidence}
     chunks = {c.chunk_id: c for c in manifest.chunks}
     sources = {s.document_id: s for s in manifest.sources}
@@ -72,6 +73,16 @@ def render_document_answer(draft, evidence, manifest):
                 raise ValueError("Citation differs from the pinned chunk")
         if (item.document_id, item.restaurant_id, item.version, item.source_hash) != (source.document_id, source.restaurant_id, source.version, source.source_hash):
             raise ValueError("Citation differs from the original source")
+        if source.native_menu:
+            from src.application.document_rag.native_menu import registered_records
+            for anchor in source.native_menu.records:
+                rows = registered_records(anchor.item, item.restaurant_id, [item], manifest)
+                if rows and canonical_text(selection.quote) == rows[0].quote:
+                    text += f'\n\nSource {index} menu charge note (same cited page; excluded from the listed amount):\n\n> "{safe_markdown(rows[0].charge_note)}"'
+                    break
+        if source.provenance:
+            kind = "Captured booking-page snapshot" if source.provenance.kind == "booking_page_snapshot" else "Official menu PDF snapshot"
+            text += f"\n\nSource {index}: {kind}; captured {safe_markdown(source.provenance.captured_at[:10])}."
         filename = PurePosixPath(source.path).name
         source_format = PurePosixPath(filename).suffix.removeprefix(".").lower()
         if source.key != f"rag/generations/{manifest.generation_id}/sources/{source.document_id}.{source_format}":

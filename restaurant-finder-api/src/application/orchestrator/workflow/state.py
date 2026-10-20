@@ -32,6 +32,7 @@ class OrchestratorState(TypedDict):
 
     # Intent classification for routing (set by router_node)
     intent: IntentType
+    coverage_discovery_requested: bool
 
     # Tool call tracking (for efficiency limits)
     tool_call_count: int  # Number of tool calls in current turn

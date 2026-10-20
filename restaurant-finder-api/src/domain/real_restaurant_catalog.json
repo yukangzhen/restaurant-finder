@@ -1,0 +1,6 @@
+{
+  "restaurants": [
+    {"restaurant_id":"demo-natalina-kl","name":"Natalina Italian Kitchen","aliases":["Natalina","Natalina KL"],"fictional":false,"city":"Kuala Lumpur","cuisine":"Italian","website":"https://www.natalinakl.com/"},
+    {"restaurant_id":"demo-nero-nero-kl","name":"Nero Nero Kuala Lumpur","aliases":["Nero Nero","Nero Nero KL"],"fictional":false,"city":"Kuala Lumpur","cuisine":"Italian","website":"https://www.neronerokl.com/"}
+  ]
+}

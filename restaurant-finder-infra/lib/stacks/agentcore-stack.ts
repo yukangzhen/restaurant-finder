@@ -16,6 +16,7 @@ export interface AgentCoreStackProps extends BaseStackProps {
   ragVectorIndexArn: string;
   documentMultipartEnabled?: boolean;
   documentFollowupsEnabled?: boolean;
+  documentRealSourcesEnabled?: boolean;
   ragRetrievalMode?: "vector" | "hybrid";
   guardrailId?: string;
   guardrailVersion?: string;
@@ -26,6 +27,12 @@ export function validateDocumentFollowupsEnabled(value: unknown): boolean {
   if (value === undefined || value === false || value === "false") return false;
   if (value === true || value === "true") return true;
   throw new Error("documentFollowupsEnabled must be true or false; omission defaults to false.");
+}
+
+export function validateDocumentRealSourcesEnabled(value: unknown): boolean {
+  if (value === undefined || value === false || value === "false") return false;
+  if (value === true || value === "true") return true;
+  throw new Error("documentRealSourcesEnabled must be true or false; omission defaults to false.");
 }
 
 /** CLI contexts and direct props use the same exact retrieval mode strings. */
@@ -62,6 +69,9 @@ export class AgentCoreStack extends cdk.Stack {
     const ragRetrievalMode = validateRagRetrievalMode(props.ragRetrievalMode);
     if (props.documentFollowupsEnabled !== undefined && typeof props.documentFollowupsEnabled !== "boolean") {
       throw new Error("documentFollowupsEnabled prop must be a boolean.");
+    }
+    if (props.documentRealSourcesEnabled !== undefined && typeof props.documentRealSourcesEnabled !== "boolean") {
+      throw new Error("documentRealSourcesEnabled prop must be a boolean.");
     }
 
     const region = cdk.Stack.of(this).region;
@@ -499,6 +509,7 @@ export class AgentCoreStack extends cdk.Stack {
           DOCUMENT_RAG_ENABLED: "true",
           DOCUMENT_MULTIPART_ENABLED: props.documentMultipartEnabled === true ? "true" : "false",
           DOCUMENT_FOLLOWUPS_ENABLED: props.documentFollowupsEnabled === true ? "true" : "false",
+          DOCUMENT_REAL_SOURCES_ENABLED: props.documentRealSourcesEnabled === true ? "true" : "false",
           RAG_DOCUMENT_BUCKET: props.ragDocumentBucketName,
           RAG_VECTOR_INDEX_ARN: props.ragVectorIndexArn,
           RAG_ACTIVE_MANIFEST_KEY: "rag/active.json",

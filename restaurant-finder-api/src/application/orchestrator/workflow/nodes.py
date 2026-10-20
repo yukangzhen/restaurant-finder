@@ -265,6 +265,14 @@ async def router_node(
 
     messages = list(state["messages"])
 
+    from src.application.document_rag.discovery import is_coverage_discovery_request
+    question = next((_extract_text_content(m.content) for m in reversed(messages) if isinstance(m, HumanMessage)), "")
+    if settings.DOCUMENT_RAG_ENABLED and settings.DOCUMENT_REAL_SOURCES_ENABLED and is_coverage_discovery_request(question):
+        observability.record_workflow_step(step_name="router", step_type="node", duration_ms=(time.time()-start_time)*1000,
+            success=True, metadata={"intent":"restaurant_search", "provider":"coverage_discovery"})
+        return {"intent":"restaurant_search", "coverage_discovery_requested":True, "rag_followup_resolution":None,
+                "rag_pending_context":None, "rag_pending_followup":None}
+
     routing_scope = state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None
     if settings.DOCUMENT_FOLLOWUPS_ENABLED and settings.DOCUMENT_RAG_ENABLED:
         from src.application.document_rag.conversation import eligible_context, latest_question, resolve_followup
@@ -286,7 +294,7 @@ async def router_node(
         if resolution.decision != "not_applicable":
             observability.record_workflow_step(step_name="router", step_type="node", duration_ms=(time.time()-start_time)*1000,
                 success=True, metadata={"intent": "document_qa", "provider": "document_followup", "decision": resolution.decision})
-            return {"intent": "document_qa", "rag_followup_resolution": resolution.model_dump(mode="json"),
+            return {"intent": "document_qa", "coverage_discovery_requested":False, "rag_followup_resolution": resolution.model_dump(mode="json"),
                     "rag_pending_context": None, "rag_pending_followup": None}
 
     with observability.create_span(
@@ -323,7 +331,7 @@ async def router_node(
                 },
             ):
                 response = await get_router_chain().ainvoke(
-                    {"messages": bedrock_routing_messages(messages), "router_context": str({"fictional_catalog": router_catalog(), "approved_document_scope": routing_scope})},
+                    {"messages": bedrock_routing_messages(messages), "router_context": str({"document_catalog": router_catalog(), "approved_document_scope": routing_scope})},
                     config,
                 )
 
@@ -373,8 +381,8 @@ async def router_node(
     )
 
     if settings.DOCUMENT_FOLLOWUPS_ENABLED:
-        return {"intent": intent, "rag_followup_resolution": None, "rag_pending_context": None, "rag_pending_followup": None}
-    return {"intent": intent}
+        return {"intent": intent, "coverage_discovery_requested":False, "rag_followup_resolution": None, "rag_pending_context": None, "rag_pending_followup": None}
+    return {"intent": intent, "coverage_discovery_requested":False}
 
 
 async def simple_response_node(

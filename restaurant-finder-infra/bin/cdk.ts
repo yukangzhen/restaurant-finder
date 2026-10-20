@@ -2,11 +2,12 @@
 import * as cdk from "aws-cdk-lib";
 import { BaseStackProps } from "../lib/types";
 import { EcrStack, AgentCoreStack, RagStack, validateGuardrailBinding } from "../lib/stacks";
-import { validateDocumentFollowupsEnabled, validateRagRetrievalMode } from "../lib/stacks/agentcore-stack";
+import { validateDocumentFollowupsEnabled, validateDocumentRealSourcesEnabled, validateRagRetrievalMode } from "../lib/stacks/agentcore-stack";
 
 const app = new cdk.App();
 const ragRetrievalMode = validateRagRetrievalMode(app.node.tryGetContext("ragRetrievalMode"));
 const documentFollowupsEnabled = validateDocumentFollowupsEnabled(app.node.tryGetContext("documentFollowupsEnabled"));
+const documentRealSourcesEnabled = validateDocumentRealSourcesEnabled(app.node.tryGetContext("documentRealSourcesEnabled"));
 const guardrailBinding = validateGuardrailBinding(
   app.node.tryGetContext("guardrailId"),
   app.node.tryGetContext("guardrailVersion"),
@@ -65,6 +66,7 @@ const agentCoreStack = new AgentCoreStack(
     imageUri: imageUri,
     documentMultipartEnabled,
     documentFollowupsEnabled,
+    documentRealSourcesEnabled,
     ragRetrievalMode,
     ...guardrailBinding,
     ragDocumentBucketName: ragStack.documentBucket.bucketName,

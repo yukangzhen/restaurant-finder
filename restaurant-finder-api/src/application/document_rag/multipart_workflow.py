@@ -147,7 +147,12 @@ def build_multipart_graph(dependencies, deadline, ledger, clock=time.monotonic, 
                 if record is None:
                     return row("missing", reason)
             check()
-            selector = dependencies.selector_factory(task)
+            from src.application.document_rag.native_menu import native_draft
+            native = native_draft(task.item, task.restaurant_id, evidence, manifest) if task.item else None
+            if record and any(s.document_id == record[0].document_id and s.provenance and s.provenance.kind == "booking_page_snapshot" for s in manifest.sources):
+                from src.domain.document_rag import QuoteSelection
+                native = RagAnswerDraft(status="answered", selections=[QuoteSelection(chunk_id=record[0].chunk_id, quote=record[1])])
+            selector = dependencies.selector_factory(task) if native is None else None
             if hasattr(selector, "bind_guard"):
                 selector.bind_guard(check)
             question = (f"Select exactly one complete {task.item} menu record with its price at {task.restaurant_name}. "
@@ -156,8 +161,8 @@ def build_multipart_graph(dependencies, deadline, ledger, clock=time.monotonic, 
                         "Keep all timing conditions and fees, including sentences needed to explain 'Later'. Omit only the section heading.")
             check()
             try:
-                selected[0] = True
-                draft = await selector.ainvoke({"payload": json.dumps({"question": question,
+                selected[0] = native is None
+                draft = native if native is not None else await selector.ainvoke({"payload": json.dumps({"question": question,
                     "evidence": [{"chunk_id": e.chunk_id, "text": e.text} for e in evidence]}, ensure_ascii=False)}, config)
                 check()
                 return validate_task_selection(task, draft, evidence, manifest, record)
@@ -236,7 +241,9 @@ async def answer_multipart(question, config, *, dependencies=None, deadline=None
         return RagOutcome(mode="multipart", status="disabled", text=DISABLED)
     request = compile_multipart_request(question, router_catalog())
     if request is None:
-        return RagOutcome(mode="multipart", status="clarify", text=CLARIFICATION)
+        clarification = ("Please ask about one menu item's price and cancellation policies for one or two named catalog restaurants."
+                         if settings.DOCUMENT_REAL_SOURCES_ENABLED else CLARIFICATION)
+        return RagOutcome(mode="multipart", status="clarify", text=clarification)
     dependencies = dependencies or MultipartDependencies()
     deadline = deadline if deadline is not None else clock()+settings.RAG_REQUEST_TIMEOUT_SECONDS
     pin_stopped = threading.Event()

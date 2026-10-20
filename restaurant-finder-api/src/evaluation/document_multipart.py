@@ -141,7 +141,7 @@ def fixture_generation(variant="base"):
         originals[replacement.document_id] = b"# Fictional conflicting policy\n\n## Reservations and cancellation\n\nReservations at Harbor Pasta Lab cannot be cancelled without a fee.\n"
     config = RagConfig()
     chunks = [c for spec in specs for c in chunk_document(spec, originals[spec.document_id])]
-    generation = digest({"config": config.model_dump(), "restaurants": [r.model_dump() for r in corpus.restaurants],
+    generation = digest({"config": config.model_dump(), "restaurants": [r.model_dump(include={"restaurant_id", "name", "aliases"}) for r in corpus.restaurants],
         "sources": sorted([[d.document_id, d.restaurant_id, d.document_type, d.version, digest(originals[d.document_id])] for d in specs])})
     root = f"rag/generations/{generation}/"
     manifest = GenerationManifest(generation_id=generation, config=config, restaurants=corpus.restaurants,

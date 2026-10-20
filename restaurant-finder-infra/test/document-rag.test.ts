@@ -91,6 +91,25 @@ function runtimeEnvironment(template: any) {
   return runtime.Properties.EnvironmentVariables;
 }
 
+test("real sources default off and toggle only their environment key", () => {
+  expect(runtimeEnvironment(bindingTemplate()).DOCUMENT_REAL_SOURCES_ENABLED).toBe("false");
+  const enabled = bindingTemplate({ documentRealSourcesEnabled: true });
+  const disabled = bindingTemplate({ documentRealSourcesEnabled: false });
+  expect(runtimeEnvironment(enabled).DOCUMENT_REAL_SOURCES_ENABLED).toBe("true");
+  for (const template of [enabled, disabled]) delete runtimeEnvironment(template).DOCUMENT_REAL_SOURCES_ENABLED;
+  expect(enabled).toEqual(disabled);
+});
+
+test("real-source context accepts only exact boolean forms", () => {
+  const { validateDocumentRealSourcesEnabled } = require("../lib/stacks/agentcore-stack");
+  for (const value of [undefined, false, "false"]) expect(validateDocumentRealSourcesEnabled(value)).toBe(false);
+  for (const value of [true, "true"]) expect(validateDocumentRealSourcesEnabled(value)).toBe(true);
+  for (const value of [null, 0, 1, "TRUE", " true", "false\n", "", [], {}])
+    expect(() => validateDocumentRealSourcesEnabled(value)).toThrow("must be true or false");
+  for (const value of ["true", 1, null])
+    expect(() => bindingTemplate({ documentRealSourcesEnabled: value as any })).toThrow("prop must be a boolean");
+});
+
 test("hybrid retrieval is explicit and changes only its environment value", () => {
   const common = { documentMultipartEnabled: true, documentFollowupsEnabled: true, guardrailId: "candidate123", guardrailVersion: "1" };
   expect(runtimeEnvironment(bindingTemplate()).RAG_RETRIEVAL_MODE).toBe("vector");

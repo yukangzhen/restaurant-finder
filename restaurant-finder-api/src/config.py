@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     DOCUMENT_RAG_ENABLED: bool = False
     DOCUMENT_MULTIPART_ENABLED: bool = False
     DOCUMENT_FOLLOWUPS_ENABLED: bool = False
+    DOCUMENT_REAL_SOURCES_ENABLED: bool = False
     RAG_RETRIEVAL_MODE: Literal["vector", "hybrid"] = "vector"
     RAG_DOCUMENT_BUCKET: str = ""
     RAG_VECTOR_INDEX_ARN: str = ""
