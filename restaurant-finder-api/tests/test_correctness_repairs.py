@@ -47,6 +47,85 @@ class _Observability:
 
 
 class RestaurantResponseNormalizationTests(unittest.TestCase):
+    @staticmethod
+    def lambda_handler():
+        handler_path = Path(__file__).resolve().parents[2] / "restaurant-finder-infra" / "mcp" / "lambda" / "handler.py"
+        spec = importlib.util.spec_from_file_location("restaurant_search_lambda_handler", handler_path)
+        handler = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(handler)
+        return handler
+
+    def test_place_links_are_not_business_websites(self):
+        handler = self.lambda_handler()
+        # Minimal fixture matching the observed provider shape; no trace/session data.
+        place = "https://www.google.com/searchviewer/10?hl=en&gl=my"
+        for fields in ({"link": place}, {"website": place},
+                       {"website": "https://maps.google.com/maps?q=restaurant"},
+                       {"website": "https://www.google.com.my/search?q=restaurant"},
+                       {"website": "https://maps.app.goo.gl/place"},
+                       {"link": "https://restaurant.example/menu"},
+                       {"website": None}, {"website": "javascript:alert(1)"}):
+            with self.subTest(fields=fields):
+                records = handler._parse_local_results(
+                    {"local_results": [{"title": "Example restaurant", **fields}]}, "", "", "", 5)
+                self.assertEqual(records[0]["website"], "")
+                self.assertEqual(records[0]["name"], "Example restaurant")
+        for url in ("https://restaurant.example/menu", "http://restaurant.example/"):
+            self.assertEqual(handler._business_website({"website": url, "link": place}), url)
+
+    def test_official_website_intent_uses_one_organic_search(self):
+        handler = self.lambda_handler()
+        source = "https://restaurant.example/menu"
+        with patch.object(handler, "_search_local") as local, patch.object(
+            handler, "_search_web", return_value={"organic_results": [{"title": "Menu", "link": source}]}
+        ) as web:
+            response = handler.search_restaurants({"query": "Example OFFICIAL website site:restaurant.example", "limit": 5})
+        local.assert_not_called()
+        web.assert_called_once_with(response["search_query_used"], num_results=10)
+        result = parse_search_result(response, "Example official website")
+        self.assertEqual(result.restaurants, [])
+        self.assertEqual(result.web_sources[0]["url"], source)
+        self.assertNotEqual(result.status, "error")
+
+    def test_provider_failures_never_repeat_web_attempt(self):
+        handler = self.lambda_handler()
+        for query, local_response in (("Example official website", {}), ("Italian food", {}),
+                                      ("Italian food", RuntimeError("private provider body"))):
+            with self.subTest(query=query, local_response=type(local_response).__name__):
+                with patch.object(handler, "_search_local") as local, patch.object(
+                    handler, "_search_web", side_effect=RuntimeError("private provider body")
+                ) as web:
+                    if isinstance(local_response, Exception):
+                        local.side_effect = local_response
+                    else:
+                        local.return_value = local_response
+                    result = handler.search_restaurants({"query": query})
+                self.assertEqual(local.call_count, 0 if "official website" in query else 1)
+                web.assert_called_once()
+                self.assertEqual(result["status"], "error")
+                self.assertEqual(result["error_code"], "SEARCH_PROVIDER_UNAVAILABLE")
+                self.assertNotIn("private provider body", json.dumps(result))
+
+    def test_ordinary_local_search_and_single_web_fallback_are_preserved(self):
+        handler = self.lambda_handler()
+        with patch.object(handler, "_search_local", return_value={"local_results": [
+            {"title": "Lower", "rating": 3}, {"title": "Higher", "rating": 5}
+        ]}) as local, patch.object(handler, "_search_web") as web:
+            result = handler.search_restaurants({"query": "Italian restaurants", "location": "Kuala Lumpur"})
+        local.assert_called_once(); web.assert_not_called()
+        self.assertEqual([r["name"] for r in result["restaurants"]], ["Higher", "Lower"])
+        self.assertEqual(result["status"], "success")
+        for unavailable in (False, True):
+            with patch.object(handler, "_search_local", return_value={},
+                              side_effect=RuntimeError("unavailable") if unavailable else None) as local, patch.object(
+                handler, "_search_web", return_value={"organic_results": [{"link": "https://restaurant.example/"}]}
+            ) as web:
+                result = handler.search_restaurants({"query": "Italian restaurants"})
+            local.assert_called_once(); web.assert_called_once()
+            self.assertEqual(result["data_source"], "web_search")
+            self.assertIsNone(result["error_code"])
+            self.assertEqual(len(result["web_sources"]), 1)
+
     def setUp(self):
         self.payload = {
             "restaurants": [

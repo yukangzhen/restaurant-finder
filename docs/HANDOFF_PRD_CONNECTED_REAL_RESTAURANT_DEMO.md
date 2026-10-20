@@ -291,3 +291,130 @@ restaurant-finder-infra/test/document-rag.test.ts
 restaurant-finder-ui/source_documents.py
 restaurant-finder-ui/tests/test_source_documents.py
 ```
+
+## 10. Executed Gate B result — 20 October 2026
+
+**The final demo was not produced.** The first live discovery answer failed acceptance; dependent queries stopped and the approved compatible rollback completed. The recording tool itself passed its capability check.
+
+### Completed and verified
+
+- Published the 38 approved paths as commit `c7edf7572c463b9238b9f3b3a5b3adf79a819d4d` to the existing draft PR. Both automatic offline CI runs passed: push `39366245031` and PR `39366247730`.
+- ScreenPolish 0.3.0 captured the owned browser window and exported actual 1920×1080, 30-fps footage with no audio stream, manual typing/result zooms, a wide waiting view and a 4× speed region. Source isolation was verified from decoded frames. The user selected Window and clicked Record because the Windows control helper could read accessibility text but could not capture geometry or operate the buttons.
+- The initial desktop-source probe failed isolation and was retained privately without publication. The user separately approved the successful window-specific recovery check. The probe's first export used stale in-memory defaults; leaving the editor for Library and reopening the saved project made native export honor its edits. Use that reload procedure for future exports.
+- Created ROUTER_PROMPT version 4 and reused the other eight immutable versions. The local backup unexpectedly contained eight entries; comparison with the retained deployed image established all nine deployed bindings and confirmed that only the router changed. No second synchronization was performed.
+- Built once and pushed once: `real-docs-c7edf75-20261020035245-arm64`, index `sha256:6bb97db225684e6de86d368f9af58411c1c46a47b5ee7849b04dfb9ce87323f1`. Audited Linux ARM64, UID 1000, 90 expected packaged files, FontTools 4.67.0 and the nine immutable prompts. The agent was not started during that audit. Clean-context preparation first hit Windows' path-length limit before any build; the actual single build used a shorter task-owned path.
+- One reviewed CloudFormation modification changed only the Runtime image URI and real-source flag. Runtime/DEFAULT reached READY version 23, with unchanged resource identities, outputs, other environment values and guardrails.
+- Activated the four-source generation above: 37 chunks, 31 embedding attempts, 4,380 embedding tokens, six cache hits and one 37-vector publication. Verified all four stored original byte hashes before the conditional pointer switch and again afterward.
+- Restarted only the owned UI, preserving its environment and generated appearance configuration. The saved launch alias and recorded base interpreter lacked Chainlit; the existing UI virtual environment had the matching Chainlit 2.12.0 and was used to complete the launch. The launcher result pipe remained open, so the actual listener, source hashes and configuration were independently verified. No dependency installation was required.
+
+### Fresh recording and verified failure
+
+- The fresh native recording targeted only `Restaurant Finder demo recording`, at 1920×1080, with microphone, webcam and system audio disabled. Decoded its initial frame before using a live slot.
+- Consumed **one application send: D1**. D2–D4 remain unused. Source opens: zero. Downloads: zero. No rehearsal or retry was sent.
+- Actual D1 answer: “The collection has menu-covered venues, but I couldn't verify their official websites through online search. I cannot present them as successfully discovered online.”
+- The two captured MCP tool results both succeeded with `google_local` data. Natalina's result contained one restaurant; the other result contained four, including Nero Nero. Every supplied `website` was a Google `/searchviewer/10` place link, with no embedded official-site redirect target, and neither result contained organic `web_sources`.
+- The existing Lambda `_parse_local_results` uses `result.get("website", result.get("link", ""))`. Its organic fallback runs only when no local restaurants are returned. Consequently, place results prevented organic search while their Google links could not satisfy the discovery step's official-domain check. **Keep that official-domain check; accepting these links would misrepresent the evidence.** The diagnosis comes from the already captured actual results, not another search.
+- Separately, the new recording controller initially mistook the “LLMs can make mistakes” footer for an answer. The actual application response was inspected separately and also failed acceptance. Future recording must exclude the watermark and wait for a real completed assistant message.
+- Preserved the failed take and private evidence. No finished demo MP4, replacement result or success claim was produced.
+- Initial traces established two discovery tool calls and an approved parent output guardrail. An initial runtime-group result could not be saved because its filename exceeded the Windows path limit; the single delayed log read timed out. Those gaps are retained. No additional read phase or inference was used to fill them.
+
+### Compatible rollback and current state
+
+1. Stopped the recording, closed the owned capture browser and paused only the verified owned UI.
+2. Restored fixture generation `29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a` while the candidate still supported schema 1. Verified its six originals, chunks and stored vectors. Rollback used zero embedding attempts and zero vector writes.
+3. Reviewed and executed one no-replacement Runtime rollback change set. Runtime/DEFAULT reached **READY version 24**, using the previous `single-record-0ec71ad-20261019071344-arm64` image and exact baseline environment/template. The version number increased because rollback creates a new Runtime version.
+4. Restored the previous owned UI's `app.py` and source viewer, verified against baseline commit `b76ba9a`, with the original connection/identity configuration. Localhost is healthy. No post-rollback application inference was made.
+5. Restored the owner's backed-up ScreenPolish recording defaults and verified ScreenPolish is idle.
+
+Retain the candidate image, four-source generation, prompt version 4 and old versions. Git still contains the published candidate code in the draft PR; cloud rollback does not unpublish that history. The unrelated owner file remains outside the publication envelope. Execution receipts are private under the existing generated Gate B folder. The new recording's native project is under `C:/Users/kinoc/Videos/ScreenPolish/2026-10-20_12-18-52/`.
+
+## 11. Focused local recovery — approved and completed
+
+The user approved **“Approve local repair and offline tests”** on 20 October 2026. This sign-off covers the local work below only. Section 12 is a new deployment/recording request and remains unapproved.
+
+### Deliverable and reason
+
+Finish the same four-turn, silent ScreenPolish demo for LinkedIn. Repair the observed official-website search mismatch and the capture controller's completion detection. Add no new product features, architecture layers or benchmark work.
+
+### Local scope and success criteria
+
+Expected product paths:
+
+- `restaurant-finder-infra/mcp/lambda/handler.py`
+- `restaurant-finder-api/src/application/document_rag/discovery.py`
+- `restaurant-finder-api/tests/test_correctness_repairs.py`
+- `restaurant-finder-api/tests/test_real_document_sources.py`
+- This PRD for the reviewed outcome and next deployment envelope.
+
+The existing ignored native capture helper may be corrected locally. Do not publish its private paths, profiles, trace payloads, credentials or recordings.
+
+Local completion requires that Google place links cannot be represented as official websites; the two approved discovery searches can obtain genuine organic source URLs within existing provider bounds; the official-domain/city/document-coverage checks remain intact; ordinary restaurant search remains supported; and the controller cannot mistake the footer, empty output or a partial stream for a completed answer. All local evidence must use captured/synthetic fixtures and simulated dependencies, with no new search, model, guardrail or embedding call.
+
+### Local execution steps
+
+1. Preserve the captured response evidence and existing failed take. Extract minimal sanitized fixtures for a successful local result whose only link is `/searchviewer/10`; do not copy session/authentication metadata into tests or Git.
+2. Remove the fallback that labels a generic result `link` as a restaurant's official `website`. Preserve usable explicitly supplied business websites, and reject the observed Google place/search-viewer links as official-site evidence. Keep organic pages represented as `web_sources`, not fabricated restaurant records.
+3. For the explicit official-website lookup used by D1, use the existing organic SearchAPI path directly, or a bounded fallback when official-site evidence is missing. Choose the smallest conforming implementation after reviewing the current handler. Permit at most one attempt per selected provider path; do not introduce hidden duplicate web attempts in exception handling or enlarge the existing provider budget. Preserve ordinary local-search behavior.
+4. Scope each D1 lookup to the catalog venue's validated official domain where appropriate. A `site:` constraint may narrow the query; it must still require an actual returned public URL on that domain. Never substitute the catalog URL for a missing online result or weaken `online_match`.
+5. Correct the capture helper to ignore watermark/footer articles and associate the response with the submitted user message. Inspect the installed Chainlit event/DOM contract and wait for an authoritative completion signal before validating the final response and citations. Reserve each send before dispatch; failed or uncertain sends stay consumed. Do not send a live request to debug the controller.
+6. Add focused offline regressions for place-link rejection, organic-source success, provider failures without duplicate attempts, unchanged ordinary search behavior, official-domain verification, and footer/partial-response rejection. Reuse the existing test modules and captured DOM/event fixtures; no additional harmless ScreenPolish capture is needed.
+7. Produce the exact reviewable diff, offline results and deployment proposal. Stop for the concrete publication/deployment decision required by AGENTS.md and this PRD.
+
+### Authorization boundary and later recording budget
+
+Approval of this local recovery authorizes the scoped code/helper repair and focused offline tests only. **It does not authorize another Git push, Lambda update, image build/push, Runtime update, corpus switch, recording take or billable request.**
+
+After local completion, prepare a separate exact review for the necessary Lambda code publication and Runtime rollout. Prefer reusing prompt version 4 and the retained four-source corpus; no new prompt version, corpus embedding or vector batch should be required if verified compatible. Capture the actual Lambda/Runtime rollback baseline first. Preserve IAM, gateway schema, guardrails, Docker and unrelated services unless a separately reviewed change proves necessary.
+
+A complete replacement take needs four fresh application sends in one new conversation. One earlier send is already consumed, so that would increase the original total allowance from four to **five**. The three unused slots are not permission for diagnostic calls or a changed script. Review the new take, at most eight source opens, zero downloads, native editing/export and one conditional compatible rollback together before asking for that later approval.
+
+Existing decisions remain: Kuala Lumpur, Italian food, Natalina/Nero Nero, four real sources, the approved D1–D4 wording, adaptive wait acceleration, silent interface/source footage, 1080p landscape and owner-only LinkedIn posting. The local recovery is complete; the open decision is section 12.
+
+### Local execution result — 20 October 2026
+
+- `_parse_local_results` now accepts only an explicitly supplied usable business `website`. Generic `link` values are not promoted; Google search/place/map links in `website` are rejected. Restaurant records remain available without a verified website.
+- An explicit `official website` query selects the existing organic provider directly, once. Ordinary queries still try local search and, if empty or unavailable, make at most one web attempt. A web failure no longer triggers a second web attempt.
+- Discovery validates each catalog website before adding its host as a `site:` constraint. The existing actual-result official-domain, city/cuisine and document-coverage checks remain in place. No result is manufactured from the query or catalog URL.
+- The private recorder now correlates the outbound user message, socket and thread with a new assistant message, a final non-streaming update, and Chainlit `task_end`. It excludes watermark articles and reads the message content container, including headings/tables. Final displayed wording must match the final server wording after Markdown-format normalization; unsupported formatting fails closed. It rejects empty, placeholder, partial, unrelated, errored, duplicate and disconnected outcomes. Slot reservation still precedes dispatch. Close now releases its command input as well as the browser.
+- Confirmed the installed Chainlit 2.12.0 contract from `socket.py`, `emitter.py`, `message.py` and its shipped frontend source map. Its composer sends an empty `threadId`; the recorder correlates it with the thread already observed in the welcome message on that same socket.
+- **82 Python tests passed** across `tests.test_correctness_repairs` and `tests.test_real_document_sources`. An earlier 31-test focused run is a subset, not an additional 31 unique tests. The suite intentionally logs mocked provider/guardrail failures while checking safe handling; its final unittest status was OK.
+- **14 private Node event tests and one headless DOM fixture passed.** The DOM test used only authored HTML in `about:blank`, blocked all network requests and observed zero requests. It verified table prices, heading content, footer/control exclusion and completion reconciliation. Syntax checking the repaired recorder passed without starting it.
+- `git diff --check` passed. Exactly the five listed tracked paths changed; nothing is staged. The unrelated `HANDOFF_PRD_RUNTIME_WARNINGS.md` remains untracked and its original SHA256 is unchanged.
+- The failed native take, private trace evidence and original consumed-send ledger are preserved. No new chatbot/search/model/guardrail/embedding call, recording, Git publication, Docker action or AWS mutation occurred during this recovery.
+
+**Validation limit:** offline evidence proves the repaired control flow with simulated providers/events. SearchAPI's next actual organic results, deployed behavior, live socket capture and the final recording remain unverified. The application is still on the restored baseline; no finished demo MP4 exists.
+
+## 12. Focused redeployment and replacement recording — approval required
+
+### Deliverable and completion
+
+Deliver the agreed four-turn silent chatbot/source-viewer MP4 and its editable native ScreenPolish project. Completion requires all four fresh connected turns to pass the existing acceptance criteria, six required source opens to show their actual originals, legible input/result focus transitions, compressed waiting time, landscape 1920×1080 output and no audio stream. No added system features or benchmark work is included.
+
+Publication is externally visible and cannot retract copies. Lambda asset/ECR storage and transfer, AWS inference and SearchAPI can incur ordinary charges. A rollback restores service configuration but cannot undo publication or charges. LinkedIn posting remains the owner's action.
+
+### Exact publication scope (five paths)
+
+```text
+docs/HANDOFF_PRD_CONNECTED_REAL_RESTAURANT_DEMO.md
+restaurant-finder-api/src/application/document_rag/discovery.py
+restaurant-finder-api/tests/test_correctness_repairs.py
+restaurant-finder-api/tests/test_real_document_sources.py
+restaurant-finder-infra/mcp/lambda/handler.py
+```
+
+Keep the current ignored helper/tests, generated receipts, sources, profiles and recordings private. Preserve the unrelated owner file. Publish these five paths only to the existing development branch/draft PR; no merge, force-push or deployment-workflow dispatch.
+
+### Authorized sequence if section 12 is approved
+
+1. **Freeze and check readiness.** Record hashes of the five reviewed paths and repaired private helper/tests. Require current HEAD `c7edf7572c463b9238b9f3b3a5b3adf79a819d4d` before publication and unchanged owner-file hash. Establish fresh read-only GitHub/AWS identity and stable stack/Runtime/DEFAULT, current pointer, nine prompt bindings, Lambda code/configuration, retained old assets/images and Docker health. The last verified baseline was Runtime 24 with the old fixture corpus; recheck rather than assume it remains current. Save fresh rollback templates, Lambda code reference/hash, pointer/ETag and owned UI configuration privately. Stop on drift or access/engine failure. No Docker restart/reset is included.
+2. **Publish and require offline CI.** Commit/push only the five paths above to PR 1. Inspect the automatic offline CI results for that exact commit; proceed only on a conforming pass. Preparation of bounded local rollout/recording helpers and private receipts is included; these are not Git publication targets.
+3. **Prepare immutable artifacts once.** Reuse the existing nine-prompt manifest, including ROUTER_PROMPT version 4, after verifying all definitions/bindings match; create no prompt versions. Stage the reviewed API source in a clean short-path context, build one Linux ARM64 image, audit inventory/hashes, UID and bindings without starting the agent, and push once under a fresh unique tag. Package one Lambda asset with the reviewed `handler.py` and unchanged `tools_schema.json`/`requirements.txt`, excluding caches and evidence. Upload once to a unique content-addressed key in the existing CDK asset bucket; verify stored bytes/hash before use. Preserve the previous asset. No rebuild, repeated upload/push, tag overwrite, pruning or automatic recovery is included; reconcile uncertain results read-only before requesting any additional mutation.
+4. **Review and execute one two-resource change set.** Derive it from the fresh deployed template. The only changed leaves may be the `Code.S3Key` for `restaurantFinderMcpLambda7367777D`, the Runtime container URI, and `DOCUMENT_REAL_SOURCES_ENABLED=true`. Keep the existing code bucket, Lambda handler/runtime/configuration, MCP schema, IAM, outputs, guardrail pair `ih5xpt3qi946:1` and all other environment values unchanged. Require exactly two Modify operations, both without replacement, then execute once. Require UPDATE_COMPLETE, matching Lambda code SHA256 and matching READY Runtime/DEFAULT; do not predict the new Runtime version. Do not invoke the Lambda or agent for readiness.
+5. **Reactivate the retained four-source corpus.** Verify generation `f520ceb003e1308ac170d94b98d50e4ee031e998d9306f8d62fa6a8a7b172781`, its four stored original hashes, manifest, 37 chunks and existing vector records against the prepared inputs. Use a conditional pointer switch only after the new Runtime is ready. Allow zero ingestion embeddings and zero vector writes; if retained data is missing or incompatible, stop. Preserve the fixture generation and both images/assets.
+6. **Restore the reviewed source viewer.** Permit one necessary restart of only the verified owned localhost UI, using the existing matching UI virtual environment and preserved connection/identity/appearance configuration. Serve the already reviewed UI code from the published candidate. Check code, listener and original-source availability without inference. Create a new private recording directory/profile/ledger and fresh readiness receipt tied to the actual deployed release, real generation and UI. Do not reuse historical PASS receipts or overwrite the failed take/ledger. Keep the known-passing installed ScreenPolish version; no extra capability recording or upgrade.
+7. **Record exactly four fresh sends.** Verify the selected owned browser window is the isolated source, with microphone/webcam/system audio Off. If the control helper still cannot select it safely, request the minimum user action to select that window and click Record. Use D1–D4 exactly as approved in section 4, in one fresh conversation. Each new slot is reserved before click; failure, disconnect or uncertainty consumes it and stops dependent sends. There are no rehearsals, diagnostic sends or retries. This authorizes **four additional application sends**, making the overall total five including the earlier failed D1. D1 uses at most two organic searches; D2–D4 retain the existing seven query-embedding bound and configured model/guardrail bounds. The unused original slots do not add to these four.
+8. **Inspect actual sources and bounded evidence.** Open the six required documents across D2/D3, including menu pages 6 and 9 and complete policy qualifiers. Permit up to two extra booking-origin opens, for **eight opens maximum and zero downloads**. Stop on incorrect identity, missing evidence, unsafe/unapproved output or incomplete results. For this replacement take only, allow one initial and one delayed read of known trace/request groups, at most ten pages per group total; no inference to obtain traces. Read-only readiness polling is bounded to 15 minutes per stage. Report unresolved evidence gaps.
+9. **Permit one conditional compatible rollback.** On failed acceptance or incomplete deployment, pause the owned UI/sends. If the new pointer is active, restore and verify the freshly captured old corpus first, without embeddings/vector writes. Then review and execute one no-replacement change set restoring only the changed Lambda/Runtime leaves from the fresh baseline, and restore the owned UI. If the pointer cannot be restored, do not put the old Runtime against schema 2. Keep all artifacts/failure evidence. No post-rollback inference or second rollout is included.
+10. **Edit, export and deliver locally.** Use native ScreenPolish editing/export with manual input/result focus, a wide waiting view, and wait acceleration where useful. Keep only interface/source-viewer footage; no audio, narration, captions, overlays or title/architecture scenes. Reload the saved native project through Library before export to avoid the previously observed stale editor settings. Export a new 1080p landscape MP4, inspect decoded focus/source frames and stream metadata, and retain raw/editable files. Lossless removal of an empty audio track is allowed if required. Deliver the file and concise optional LinkedIn text with upstream attribution and time-compression disclosure; do not post it. A documentation-only closeout in this same PRD/PR is included without another build.
+
+**Not included:** extra application/provider checks, embeddings/vector batches, unrelated fixes, corpus/source rewrites, prompt synchronization, IAM/gateway/guardrail changes, Docker recovery, deletion, paid media tools, merging or LinkedIn publication. Any nonconforming result stops the affected step for a focused recovery decision.

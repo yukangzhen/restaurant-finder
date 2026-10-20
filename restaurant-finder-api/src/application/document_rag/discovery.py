@@ -86,8 +86,9 @@ async def discover_document_venues(question, *, retriever=None, search=None, rem
         with rag_span("rag.discovery.search", {"rag.restaurant":venue.restaurant_id, "rag.generation":manifest.generation_id}):
             try:
                 # Consume a slot before sending: failures/cancellations are attempts.
+                official_host = urlsplit(public_source_url(venue.website)).hostname.removeprefix("www.")
                 attempts.append(venue.restaurant_id)
-                result = await search(query=f"{venue.name} {venue.city} official website", cuisine=venue.cuisine, location=venue.city, limit=5)
+                result = await search(query=f"{venue.name} {venue.city} official website site:{official_host}", cuisine=venue.cuisine, location=venue.city, limit=5)
                 matches.append(online_match(venue, result))
             except asyncio.CancelledError:
                 raise

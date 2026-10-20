@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -175,6 +176,25 @@ def _build_search_query(
     return " ".join(parts)
 
 
+def _business_website(result: Dict[str, Any]) -> str:
+    """Keep explicit business URLs; a generic place link is not a website."""
+    value = result.get("website")
+    if not isinstance(value, str):
+        return ""
+    try:
+        parts = urllib.parse.urlsplit(value)
+        host = (parts.hostname or "").lower()
+        if (parts.scheme not in {"http", "https"} or not host
+                or parts.username or parts.password
+                or any(c.isspace() for c in value)
+                or re.fullmatch(r"(?:[\w-]+\.)*google\.(?:com|[a-z]{2}|com\.[a-z]{2}|co\.[a-z]{2})", host)
+                or host in {"maps.app.goo.gl", "goo.gl"}):
+            return ""
+    except ValueError:
+        return ""
+    return value
+
+
 def _parse_local_results(
     api_response: Dict[str, Any],
     location: str,
@@ -253,7 +273,7 @@ def _parse_local_results(
             "operating_hours": hours if isinstance(hours, str) else "",
             "reservation_available": result.get("reservation_available"),
             "phone": result.get("phone", ""),
-            "website": result.get("website", result.get("link", "")),
+            "website": _business_website(result),
             "thumbnail": result.get("thumbnail", ""),
             "gps_coordinates": result.get("gps_coordinates", {}),
             "place_id": result.get("place_id", ""),
@@ -291,7 +311,7 @@ def _parse_web_results(
 
 
 def search_restaurants(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Search for restaurants. Tries local search first, falls back to web."""
+    """Use organic search for official sites; otherwise try local, then web once."""
     query = event.get("query", "").strip()
     cuisine = event.get("cuisine", "").strip()
     location = event.get("location", "").strip()
@@ -315,33 +335,23 @@ def search_restaurants(event: Dict[str, Any]) -> Dict[str, Any]:
     data_source = "google_local"
     provider_failed = False
 
-    try:
-        api_response = _search_local(
-            query=search_query,
-            location=location,
-            num_results=limit * 2,
-        )
-
-        restaurants = _parse_local_results(
-            api_response=api_response,
-            location=location,
-            cuisine=cuisine,
-            price_range=price_range,
-            limit=limit,
-        )
-
-        if not restaurants:
-            data_source = "web_search"
-            api_response = _search_web(search_query, num_results=limit * 2)
-            web_sources = _parse_web_results(
+    official_site_query = bool(re.search(r"\bofficial\s+website\b", query, re.I))
+    if not official_site_query:
+        try:
+            api_response = _search_local(
+                query=search_query, location=location, num_results=limit * 2,
+            )
+            restaurants = _parse_local_results(
                 api_response=api_response, location=location, cuisine=cuisine,
                 price_range=price_range, limit=limit,
             )
+        except Exception:
+            provider_failed = True
 
-    except Exception:
-        provider_failed = True
+    # A failed web attempt must not re-enter the fallback and spend a second call.
+    if not restaurants:
+        data_source = "web_search"
         try:
-            data_source = "web_search"
             api_response = _search_web(search_query, num_results=limit * 2)
             web_sources = _parse_web_results(
                 api_response=api_response, location=location, cuisine=cuisine,

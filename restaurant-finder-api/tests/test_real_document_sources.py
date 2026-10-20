@@ -251,19 +251,49 @@ class RealSourceTests(unittest.TestCase):
                 multipart.validate_task_selection(task,RagAnswerDraft(status="answered",selections=[QuoteSelection(chunk_id=record[0].chunk_id,quote=quote)]),evidence,self.manifest)
 
     def test_discovery_uses_real_search_sources_not_canned_results(self):
+        queries=[]
         async def search(**kwargs):
             venue=next(r for r in self.manifest.restaurants if r.name in kwargs["query"])
+            from urllib.parse import urlsplit
+            self.assertIn("official website site:"+urlsplit(venue.website).hostname.removeprefix("www."),kwargs["query"])
+            queries.append(kwargs)
             return SimpleNamespace(status="success",restaurants=[],web_sources=[{"url":venue.website}])
         with offline_real():
             result=asyncio.run(discovery.discover_document_venues(D1,retriever=LocalRetriever(self.manifest),search=search))
         self.assertEqual(result.verified_count,2);self.assertEqual(result.search_attempts,2)
+        self.assertEqual(len(queries),2)
         self.assertIn("not a city-wide ranking",result.text)
         for venue in self.manifest.restaurants:
             self.assertIn(venue.name,result.text);self.assertIn(venue.website,result.text)
-        for bad in ("https://example.com/","https://www.natalinakl.com.evil.test/","https://www.natalinakl.com/?token=secret"):
+        for bad in ("https://example.com/","https://www.natalinakl.com.evil.test/","https://www.natalinakl.com/?token=secret", "https://www.google.com/searchviewer/10"):
             self.assertIsNone(discovery.online_match(self.manifest.restaurants[0],SimpleNamespace(status="success",restaurants=[],web_sources=[{"url":bad}])))
         wrong=SimpleNamespace(name="Natalina",city="Penang",address=None,website=self.manifest.restaurants[0].website)
         self.assertIsNone(discovery.online_match(self.manifest.restaurants[0],SimpleNamespace(status="success",restaurants=[wrong],web_sources=[])))
+
+    def test_discovery_requires_returned_official_url_even_with_catalog_domain_in_query(self):
+        search=AsyncMock(return_value=SimpleNamespace(status="empty",restaurants=[],web_sources=[]))
+        with offline_real():
+            result=asyncio.run(discovery.discover_document_venues(D1,retriever=LocalRetriever(self.manifest),search=search))
+        self.assertEqual(search.await_count,2)
+        self.assertEqual(result.verified_count,0)
+        for venue in self.manifest.restaurants:
+            self.assertNotIn(venue.website,result.text)
+
+    def test_discovery_lambda_organic_path_verifies_actual_sources_offline(self):
+        import importlib.util
+        from src.domain.restaurant_results import parse_search_result
+        handler_path=Path(__file__).resolve().parents[2]/"restaurant-finder-infra"/"mcp"/"lambda"/"handler.py"
+        spec=importlib.util.spec_from_file_location("discovery_search_lambda",handler_path)
+        handler=importlib.util.module_from_spec(spec);spec.loader.exec_module(handler)
+        urls=[venue.website+"menu" for venue in self.manifest.restaurants]
+        responses=[{"organic_results":[{"title":"Official menu","link":url}]} for url in urls]
+        async def search(**kwargs):
+            return parse_search_result(handler.search_restaurants(kwargs),kwargs["query"])
+        with offline_real(),patch.object(handler,"_search_local") as local,patch.object(handler,"_search_web",side_effect=responses) as web:
+            result=asyncio.run(discovery.discover_document_venues(D1,retriever=LocalRetriever(self.manifest),search=search))
+        local.assert_not_called();self.assertEqual(web.call_count,2)
+        self.assertEqual(result.verified_count,2)
+        for url in urls:self.assertIn("]("+url+")",result.text)
 
     def test_discovery_budget_scope_and_failure_do_not_claim_success(self):
         search=AsyncMock(side_effect=RuntimeError("private provider details"))
