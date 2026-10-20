@@ -454,7 +454,9 @@ Keep the current ignored helper/tests, generated receipts, sources, profiles and
 4. Restored the prior owned UI code/configuration, verified against `b76ba9a`, and checked localhost health without inference. Restored the saved native capture defaults and verified ScreenPolish idle.
 5. Retained both candidate images, Lambda assets, real generation, prompt version 4 and all failed/empty recording evidence. The unrelated owner file remains unchanged/untracked. Private section-12 receipts are under the existing generated `r12/` folder. Publication remains in Git; rollback does not retract it.
 
-## 14. Proposed completion: three connected document questions — approval required
+## 14. Three connected document questions — approved; recording incomplete
+
+The user approved **“Approve section 14 three-question demo.”** The execution envelope below was authorized. Current execution and the focused recording recovery decision are recorded in section 15.
 
 ### Outcome and scope
 
@@ -484,3 +486,83 @@ Successful delivery requires all three completed/approved answers, six required 
 8. **Native edit/export and delivery.** Keep only chatbot/source-viewer footage, zoom into typing, pull out on send/wait and zoom into completed answers/originals. Accelerate/cut idle time as already requested. No audio, narration, captions, overlays or architecture/title scenes. Use native ScreenPolish editing/export; reload the saved project through Library before export. Verify decoded focus/source frames, actual 1920×1080 output and absence of an audio stream; retain raw/editable files. Deliver the MP4 and optional concise attributed LinkedIn copy. The owner posts it.
 
 This proposed approval also covers bounded private helper adaptation and a documentation-only closeout in the same PRD/draft PR. It includes no merge, force-push, product fix, new image/asset, IAM/gateway/guardrail change, Docker action, deletion, paid media service or LinkedIn posting. A nonconforming result returns for a focused decision.
+
+## 15. Section 14 checkpoint and focused capture recovery — approved and executed
+
+The user approved the replacement take by completing the requested Window/Record action and replying **“recording.”** Its outcome and the remaining recovery decision are in section 16.
+
+### Verified execution
+
+- Fresh readiness verified account/identity, stable Runtime 26, baseline template/Lambda/pointer, owned UI, both retained image digests and all nine immutable prompts. Functional product code remains unchanged from `089d0a8`; the unrelated owner file is preserved.
+- Reviewed the complete reference-resolved change set: exactly one Runtime Modify, no replacement, exactly the image URI and real-source flag leaves. Executed once; stack UPDATE_COMPLETE and Runtime/DEFAULT READY **version 27**. Lambda hash, resource identities, other environment values, outputs and guardrails are preserved.
+- Reactivated the retained real generation after verifying four originals, 37 chunks and existing vectors/query readiness. **Zero ingestion embeddings and zero vector writes.** Restarted only the verified owned UI once, using the retained reviewed source viewer and preserved configuration. No Docker action, product change, image/asset upload, prompt sync or Lambda mutation occurred.
+- The user started the correctly isolated Window take at `C:/Users/kinoc/Videos/ScreenPolish/2026-10-20_15-38-44/`. The assistant's preflight incorrectly required the saved webcam preference to be empty; ScreenPolish saved `auto`. Microphone and system audio were Off. The assertion stopped preparation before the status receipt was written, and the next controller command consequently stopped on that missing receipt. The send guard blocked the subsequent send: **zero application requests and zero source opens**.
+- Stopped and preserved the take, then closed only its owned browser. Actual finalized media is 1920×1078 video, 84.20 seconds, **no audio stream and no webcam file**. The saved `auto` preference was not evidence that a webcam was captured. No finished demo MP4 has been produced.
+
+### Concrete recovery proposal
+
+The original one-take envelope has been used by this zero-query preflight failure. Approve **one replacement native take only**, using the already deployed Runtime 27, active retained corpus and healthy owned UI. A fresh private persistent controller is prepared for the same exact three questions, limits and acceptance; its unique window is **“Restaurant Finder document capture.”** No additional AWS rollout, UI restart, publication of product code, billable request allowance, image/asset, provider check, embedding ingestion or capability recording is requested.
+
+1. Preserve the failed take/ledger; use a new zero-send ledger and owned browser profile. Use the supported native status to confirm the exact Window. Write and validate the status receipt before calling synchronization. Never execute dependent commands after a failed prerequisite. Do not treat saved webcam `auto` as proof of an active webcam; require microphone/system audio Off, request webcam Off in the capture UI, and verify the actual finalized media/project. Media buffering is expected until stop.
+2. If the Windows helper still cannot operate the controls, the user selects Capture → Window → **Restaurant Finder document capture**, sets Microphone/Webcam/System audio Off, and clicks Record once. No primary-display shortcut.
+3. Execute section 14's three questions once each, using its **same three unused slots**, six required/eight maximum source opens, zero downloads and existing bounded evidence reads. No rehearsals, discovery query, retries or standalone calls. Preserve the already authorized conditional Runtime-only compatible rollback for a genuine acceptance failure.
+4. Finish native ScreenPolish focus editing/export, Library reload, decoded-frame checks and silent 1920×1080 delivery under the existing completion criteria. The owner posts to LinkedIn. Close out documentation only in the existing draft PR as already authorized.
+
+This is an additional capture-start decision caused by the assistant's preflight error; it does not expand the application's paid-call budget or authorize another deployment. All three question slots remain unused. Wait for this focused recovery sign-off before starting the replacement recording or submitting a query.
+
+## 16. Correct application answer; recorder mismatch — approved completion recovery
+
+The user approved **“Approve final take and one additional request,”** then started the uniquely selected final Window and replied **“recording.”** Section 17 records completion.
+
+### Evidence and remaining scope
+
+The replacement take at `C:/Users/kinoc/Videos/ScreenPolish/2026-10-20_15-42-02/` submitted the first question exactly once. Saved final DOM shows the correct two-venue comparison: RM48/RM39, RM9 lower, portion-size limitation, page 6/page 9 references, and both 10% service/6% SST qualifiers. Captured traces show two query embeddings, answered coverage 2/2, two citations and parent output guardrail **approved**, action **NONE**. The application request completed; the recorder's completion check did not accept its displayed text.
+
+The installed Chainlit component places rendered Markdown and inline file cards under the same `.message-content` parent. The recorder compared that entire parent's `innerText` against the final server answer; this included PDF file-card labels. CSS also uppercases source-link text. The private detector must scope its DOM extraction to the Markdown-content child and normalize casing caused by presentation, while retaining exact whole-answer wording reconciliation, task completion, thread/message correlation and all send guards. Do not remove completion checks or accept a partial answer.
+
+Windows Computer Use separately ended its session because it could not determine the fullscreen browser URL with enough confidence for its policy check. No bypass, debugger or process-memory attachment is permitted. The native recording was stopped and preserved. The existing controller subsequently reached its timeout and marked D1 UNVERIFIED. The current helper cannot hot-reload or resume this failed slot. No source opens or dependent requests were submitted. Do not replay this uncertain/consumed slot or fabricate conversation history.
+
+The application remains on the approved Runtime 27/real corpus/owned reviewed UI. This recorder-only failure is not evidence of a product failure and requires no new rollout, image, ingestion or UI restart. The original successful response and failed controller receipts remain preserved privately.
+
+### Reviewable completion steps
+
+1. Under the already authorized bounded private-helper adaptation, correct the observed DOM scope/casing mismatch, retain authoritative final/task/thread checks, and persist safe protocol/completion status plus DOM snapshots during each pending send so progress is inspectable without desktop browser automation. Add explicit ordinary command-boundary reload/reconciliation for private helper code; never use a debugger or process memory. Validate static syntax before starting. Keep all helper/profile/trace/media files out of Git.
+2. Prepare one fresh private conversation/window and native recording using the exact section-14 script and acceptance. Prefer the owned browser's Playwright controller for browser actions. Use only supported ScreenPolish CLI/native Windows controls. If Window selection cannot be automated safely, request only that necessary manual selection/Record action. Do not use primary-display capture or change security settings.
+3. **Approval required for three fresh sends using two remaining slots plus one additional billable application request.** The total across all failed/finished attempts becomes at most **six**, not five. No diagnostic/rehearsal/retry calls, standalone checks or new ingestion embeddings. Keep six required/eight maximum source opens and zero downloads for this completed take. Reuse the approved initial log read already performed; at most its one remaining delayed phase, within ten pages/group total, may cover the final take.
+4. On three correct completed answers, inspect the originals and produce the actual silent 1920×1080 native ScreenPolish edit with input/wait/result focus, compressed waiting and no added scenes/audio/overlays. Reload through Library before export; verify decoded frames and audio absence. Preserve raw/editable project and deliver locally. Document-only closeout in the same PRD/draft PR remains included. The owner posts LinkedIn.
+
+Only the additional capture and **one** additional billable application request need expanded authorization. Existing Runtime-only conditional compatible rollback remains available for a genuine acceptance/deployment failure; no second rollout or other AWS mutation is proposed. The user has instructed continued work until completion; safe local preparation may continue while this specific cost/capture decision is pending, but it is not permission to silently enlarge the paid-call allowance.
+
+## 17. Completed silent ScreenPolish demo — 20 October 2026
+
+**The finished video is delivered locally.** It contains only actual chatbot and original-source-viewer footage, with input/result/source focus and shortened waiting time. No narration, audio track, captions, title scenes, architecture scenes, overlays, generated answers or LinkedIn posting.
+
+### Final recording and acceptance
+
+- Used the approved existing Runtime/DEFAULT **27**, retained audited `089d0a8` image, four-source generation and reviewed owned UI. No further deployment, build/push, Lambda change, prompt synchronization, ingestion embedding, vector write, UI restart or Docker action was needed.
+- Recorded the unique **Restaurant Finder final document demo** Window. Native final take and editable project are retained at `C:/Users/kinoc/Videos/ScreenPolish/2026-10-20_16-01-01/`. Microphone/system audio were Off; finalized raw media contains only video and no webcam file.
+- Submitted the exact three section-14 questions once each in one fresh conversation. **Three final-take sends; six sends overall across the earlier failed attempts and final take**, within section 16's explicit expanded allowance. No diagnostic sends or application replay.
+- Question 1 correctly compares RM48/RM39, preserves the portion-size limitation and both service/tax qualifiers, states RM9 lower, and supplies menu references for pages 6 and 9.
+- Question 2 correctly retains both venues/item, answers **four of four parts**, supplies four answer-specific references and preserves the full 24-hour/late-cancellation/no-show/date-change/per-person policy wording. Both menus and both captured booking-policy originals were inspected.
+- Question 3 returns exactly **“The active documents do not contain enough evidence to answer that question.”** No valet assertion or citation was invented.
+- **Seven source opens, zero downloads.** Six required opens were completed; one additional permitted open revisited Natalina's policy to inspect the complete long date-change line. The viewer's own PDF zoom and source scrolling were used; source contents were not changed.
+- Saved trace evidence verifies **seven query embedding attempts**, comparison coverage 2/2, multipart support 4/4, and **three parent output approvals**, each action NONE. There are two `router.classify` spans because the linked follow-up is resolved from conversation context and intentionally bypasses classification. Initial/delayed log phases together used four pages per known group, below the ten-page cap. No additional log-read phase or standalone inference was used.
+
+### Recorder recovery and limits
+
+The private helper now reads the Markdown-content child, excluding inline file cards; normalizes CSS casing and rendered HTML entities; and retains exact whole-answer wording, message/thread correlation, final non-streaming update and task-end requirements. It saves private completion/DOM progress. Ordinary command-boundary module reload and explicit reconciliation avoid resetting a completed conversation. No debugger or process-memory attachment was used.
+
+A missing private module constant was repaired before any final-take query was sent. Question 1 then completed correctly but required in-place reconciliation of `&amp;` versus rendered `&` after its existing recorder timeout. Question 2 completed correctly; a private result-summary variable error was reconciled at the next command boundary. Neither answer was resubmitted, fabricated or replaced. Question 3 passed directly. Local syntax checks and media verification were performed; no product tests or new product code were added in this stage.
+
+Windows Computer Use was later stopped with physical Escape during an optional native export-progress read. No further Computer Use calls were made. The already-running supported native export completed successfully; remaining checks used files and local media tools.
+
+### Native edit, verified deliverables and current state
+
+- Saved **30 native cuts, 24 manual focus regions**, selected typing/wait acceleration, zero frame padding, and 1080p/30-fps landscape output. All audio, click/zoom sounds, webcam, captions and overlays are disabled in the editable project. Reloaded the saved project through native Library before exporting.
+- Native export and delivery copy are **1920×1080**, **167.87 seconds**, **143,057,484 bytes**, with **zero audio streams**. Reviewed 20 representative decoded frames covering typing, wide waiting, answers, PDFs, policy scrolls and abstention. The complete video decoded without errors. The delivery copy's SHA256 matches the native export:
+  `9ae580355cdbd8d0f248541588f85580a9dd74b93d7abaabc76945f5bfd76465`.
+- Finished MP4: `C:/Users/kinoc/Documents/Codex/2026-09-28/i-x20/output/restaurant-finder-silent-demo/restaurant-finder-demo-1080p.mp4`.
+- Ready-to-copy attributed LinkedIn text: `C:/Users/kinoc/Documents/Codex/2026-09-28/i-x20/output/restaurant-finder-silent-demo/linkedin-caption.txt`. It credits the upstream repository, identifies this as an extension, discloses shortened waiting and captured source snapshots, and makes no measured latency/cost claim.
+- Raw media, original/edited project receipts, request ledgers and trace evidence are retained privately. Closed only the finished owned capture browser and restored the owner's exact backed-up recording defaults. The localhost UI remains available; no acceptance failure required the conditional rollback. The unrelated owner document is preserved outside publication.
+
+All agreed media completion criteria are met. This film demonstrates the document workflow; it does not show live restaurant discovery. Publication of this closeout remains documentation-only in the existing draft PR. LinkedIn posting is the owner's remaining action.
