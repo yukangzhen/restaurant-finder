@@ -149,7 +149,7 @@ def build_multipart_graph(dependencies, deadline, ledger, clock=time.monotonic, 
             check()
             from src.application.document_rag.native_menu import native_draft
             native = native_draft(task.item, task.restaurant_id, evidence, manifest) if task.item else None
-            if record and any(s.document_id == record[0].document_id and s.provenance and s.provenance.kind == "booking_page_snapshot" for s in manifest.sources):
+            if record and any(s.document_id == record[0].document_id and s.provenance and s.provenance.kind in {"booking_page_snapshot", "booking_page_pdf"} for s in manifest.sources):
                 from src.domain.document_rag import QuoteSelection
                 native = RagAnswerDraft(status="answered", selections=[QuoteSelection(chunk_id=record[0].chunk_id, quote=record[1])])
             selector = dependencies.selector_factory(task) if native is None else None

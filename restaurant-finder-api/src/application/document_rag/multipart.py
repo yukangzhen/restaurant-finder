@@ -123,15 +123,37 @@ def validate_passages(task, evidence, manifest):
 
 
 def policy_record(task, evidence, manifest):
-    """Return a retrieved complete controlled section body, never a guessed paragraph."""
+    """Return a complete controlled section from Markdown or a captured policy PDF."""
     headings = {"reservations and cancellation", "cancelation policy", "cancellation policy"}
+    docs = {s.document_id: s for s in manifest.sources}
     refs = [c for c in manifest.chunks if c.restaurant_id == task.restaurant_id and c.document_type == "policy"
-            and canonical_text(c.section or "").casefold() in headings]
+            and (canonical_text(c.section or "").casefold() in headings or
+                 (docs[c.document_id].provenance and docs[c.document_id].provenance.kind == "booking_page_pdf"))]
     if not refs:
         return None, "missing_evidence"
-    docs = {s.document_id: s for s in manifest.sources}
     bodies = []
     for ref in refs:
+        source = docs[ref.document_id]
+        if source.provenance and source.provenance.kind == "booking_page_pdf":
+            # PDF lines become canonical page chunks. Both adjacent section
+            # boundaries must survive in one retrieved chunk; never return a
+            # partial policy, assemble fragments, or infer an omitted condition.
+            starts = list(re.finditer(r"\b(?:Cancelation|Cancellation) Policy (?=Cancel with\b)", ref.text))
+            if not starts:
+                continue
+            end = "How to Cancel or Amend"
+            if (len(starts) != 1 or ref.text.count(end) != 1 or ref.page is None
+                    or ref.section is not None):
+                return None, "unsupported_policy_layout"
+            start = starts[0].end()
+            stop = ref.text.index(end)
+            if stop <= start:
+                return None, "unsupported_policy_layout"
+            body = ref.text[start:stop].strip()
+            if not body:
+                return None, "unsupported_policy_layout"
+            bodies.append((ref, body))
+            continue
         if (sum(c.document_id == ref.document_id for c in refs) != 1
                 or not docs[ref.document_id].path.lower().endswith(".md")):
             return None, "unsupported_policy_layout"
@@ -139,6 +161,10 @@ def policy_record(task, evidence, manifest):
         if body == ref.text or not body:
             return None, "unsupported_policy_layout"
         bodies.append((ref, body))
+    if not bodies:
+        return None, "missing_evidence"
+    if len({ref.document_id for ref, _ in bodies}) != len(bodies):
+        return None, "unsupported_policy_layout"
     if len({body for _, body in bodies}) > 1:
         raise PolicyConflict("Conflicting complete cancellation policies")
     if any(len(body) > 600 for _, body in bodies):

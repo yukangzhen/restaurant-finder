@@ -65,7 +65,7 @@ def public_source_url(value: str) -> str:
 
 
 class SourceProvenance(Contract):
-    kind: Literal["official_pdf", "booking_page_snapshot"]
+    kind: Literal["official_pdf", "booking_page_snapshot", "booking_page_pdf"]
     origin_url: str
     resolved_url: str
     website_url: str
@@ -128,8 +128,10 @@ class DocumentSpec(Contract):
         if self.native_menu is not None and (self.document_type != "menu" or not self.path.lower().endswith(".pdf")
                 or self.provenance is None or self.provenance.kind != "official_pdf"):
             raise ValueError("Native menu profiles require an official menu PDF")
-        if self.provenance and ((self.provenance.kind == "official_pdf") != self.path.lower().endswith(".pdf")):
+        if self.provenance and ((self.provenance.kind in {"official_pdf", "booking_page_pdf"}) != self.path.lower().endswith(".pdf")):
             raise ValueError("Source provenance differs from original format")
+        if self.provenance and self.provenance.kind == "booking_page_pdf" and self.document_type != "policy":
+            raise ValueError("Booking-page PDFs must contain policy documents")
         return self
 
 

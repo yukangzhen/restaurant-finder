@@ -81,7 +81,9 @@ def render_document_answer(draft, evidence, manifest):
                     text += f'\n\nSource {index} menu charge note (same cited page; excluded from the listed amount):\n\n> "{safe_markdown(rows[0].charge_note)}"'
                     break
         if source.provenance:
-            kind = "Captured booking-page snapshot" if source.provenance.kind == "booking_page_snapshot" else "Official menu PDF snapshot"
+            kind = {"booking_page_snapshot": "Captured booking-page snapshot",
+                    "booking_page_pdf": "PDF rendering of a captured booking page (not a restaurant-issued PDF)",
+                    "official_pdf": "Official menu PDF snapshot"}[source.provenance.kind]
             text += f"\n\nSource {index}: {kind}; captured {safe_markdown(source.provenance.captured_at[:10])}."
         filename = PurePosixPath(source.path).name
         source_format = PurePosixPath(filename).suffix.removeprefix(".").lower()
