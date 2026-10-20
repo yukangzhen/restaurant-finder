@@ -384,7 +384,9 @@ Existing decisions remain: Kuala Lumpur, Italian food, Natalina/Nero Nero, four 
 
 **Validation limit:** offline evidence proves the repaired control flow with simulated providers/events. SearchAPI's next actual organic results, deployed behavior, live socket capture and the final recording remain unverified. The application is still on the restored baseline; no finished demo MP4 exists.
 
-## 12. Focused redeployment and replacement recording — approval required
+## 12. Focused redeployment and replacement recording — executed
+
+The user approved **“Approve section 12 rollout and recording.”** Execution and the failed acceptance/compatible rollback are recorded in section 13. Section 14 is a new proposal and remains unapproved.
 
 ### Deliverable and completion
 
@@ -404,7 +406,7 @@ restaurant-finder-infra/mcp/lambda/handler.py
 
 Keep the current ignored helper/tests, generated receipts, sources, profiles and recordings private. Preserve the unrelated owner file. Publish these five paths only to the existing development branch/draft PR; no merge, force-push or deployment-workflow dispatch.
 
-### Authorized sequence if section 12 is approved
+### Approved sequence
 
 1. **Freeze and check readiness.** Record hashes of the five reviewed paths and repaired private helper/tests. Require current HEAD `c7edf7572c463b9238b9f3b3a5b3adf79a819d4d` before publication and unchanged owner-file hash. Establish fresh read-only GitHub/AWS identity and stable stack/Runtime/DEFAULT, current pointer, nine prompt bindings, Lambda code/configuration, retained old assets/images and Docker health. The last verified baseline was Runtime 24 with the old fixture corpus; recheck rather than assume it remains current. Save fresh rollback templates, Lambda code reference/hash, pointer/ETag and owned UI configuration privately. Stop on drift or access/engine failure. No Docker restart/reset is included.
 2. **Publish and require offline CI.** Commit/push only the five paths above to PR 1. Inspect the automatic offline CI results for that exact commit; proceed only on a conforming pass. Preparation of bounded local rollout/recording helpers and private receipts is included; these are not Git publication targets.
@@ -418,3 +420,67 @@ Keep the current ignored helper/tests, generated receipts, sources, profiles and
 10. **Edit, export and deliver locally.** Use native ScreenPolish editing/export with manual input/result focus, a wide waiting view, and wait acceleration where useful. Keep only interface/source-viewer footage; no audio, narration, captions, overlays or title/architecture scenes. Reload the saved native project through Library before export to avoid the previously observed stale editor settings. Export a new 1080p landscape MP4, inspect decoded focus/source frames and stream metadata, and retain raw/editable files. Lossless removal of an empty audio track is allowed if required. Deliver the file and concise optional LinkedIn text with upstream attribution and time-compression disclosure; do not post it. A documentation-only closeout in this same PRD/PR is included without another build.
 
 **Not included:** extra application/provider checks, embeddings/vector batches, unrelated fixes, corpus/source rewrites, prompt synchronization, IAM/gateway/guardrail changes, Docker recovery, deletion, paid media tools, merging or LinkedIn publication. Any nonconforming result stops the affected step for a focused recovery decision.
+
+## 13. Section 12 execution result — 20 October 2026
+
+**The complete demo video was not produced.** The fresh opening answer verified one venue; the two-venue acceptance condition failed. Dependent sends stopped and the approved conditional rollback completed.
+
+### Publication and deployment
+
+- Published exactly the five reviewed paths as `089d0a8656bacc1185a23d82dc647dd428beaf46` to the existing draft PR. The single push succeeded; its follow-up `ls-remote` timed out. Read-only GitHub API reconciliation confirmed the exact commit, parent and five paths without another push. Automatic offline CI passed: push `39371635920`, pull request `39371638619`.
+- Fresh readiness verified Runtime 24, the old corpus, the actual Lambda asset/hash, all nine immutable prompts, rollback-image retention, GitHub access, Docker and the owned UI. Saved a fresh private rollback baseline. No prompt synchronization or Docker restart occurred.
+- Built once, audited and pushed once: `site-fix-089d0a8-20261020045120-arm64`, OCI index `sha256:736deb62613dce489d5126d20fd5632dfa7ec14c10f7caa211005c50c675fde8`, Linux ARM64 child `sha256:057257314711406ffc2bc51c266ac820ceec3f89d4b78b51c0fc4522edda417d`. Audit verified UID 1000, 90 exact files, FontTools 4.67.0 and the unchanged nine-prompt manifest. No agent was started for the audit.
+- Uploaded one immutable Lambda asset, SHA256 `5930934e5f4e1f1563bc00b169bbec7bc0550ab39249014ba3105e8d0c96cb33`, containing only the reviewed handler and unchanged schema/requirements. Verified stored bytes before deployment.
+- The basic CloudFormation change-set view conservatively listed gateway/role references in addition to the two intended resources. Execution paused. The complete `IncludePropertyValues=True` view resolved references and showed exactly two non-replacing Modify entries and the three approved property leaves; all other template resources were identical. Executed that same change set once, without expanding scope or creating a second one. AWS documents this reference-resolution precision in its [enhanced change-set announcement](https://aws.amazon.com/about-aws/whats-new/2024/04/aws-cloudformation-changesets-enhanced-change-visibility-deployments/).
+- Stack reached UPDATE_COMPLETE and Runtime/DEFAULT READY version 25. Verified the new Lambda code hash, image, flag, unchanged other environment values, resource identities, outputs and guardrails.
+- Reactivated the retained four-source generation after verifying all four original hashes, 37 chunks and existing vectors/query readiness. Used **zero ingestion embeddings and zero vector writes**.
+- Restarted only the owned UI with its matching existing virtual environment and preserved configuration. The venv launcher spawned a child listener; read-only process/source/configuration checks resolved the initial exact-PID assertion without another restart.
+
+### Recording controls and actual acceptance
+
+- Preserved two zero-query takes. The first controller's stdin closed across the user handoff; replaced it with a persistent file queue that reserves command identities and never replays uncertain sends. Automatic approval review rejected a proposed Node inspector attachment because it could expose process/session memory; no debugger was enabled. Recovery used an ordinary fresh owned browser and file queue.
+- The second take appeared empty during recording but finalized to valid silent chatbot footage on stop. ScreenPolish's buffering caused the premature failure assumption. An unnecessary preflight theme-menu action also triggered the controller's stop guard before any paid query. Preserved this evidence and reset only the unused capture conversation. No theme change or application request occurred in those two takes.
+- The final selected native source was uniquely named `Restaurant Finder FINAL capture`; the user refreshed the Window list and clicked Record because the Windows control helper still could not click the app controls. Used the persistent queue and did not repeat the buffering/menu checks.
+- Consumed **one fresh application request: D1**. Actual completed answer began: “Verified 1 of 2 document-covered Italian restaurants in Kuala Lumpur through online search.” It listed Natalina and explicitly said some covered venues could not be verified. The footer/completion repair worked: acceptance evaluated the completed assistant message, not the watermark or a partial stream.
+- Captured tool evidence shows Natalina's organic search returned genuine official-domain URLs, including its home, reservations and menu pages. Nero Nero's search returned `SEARCH_PROVIDER_UNAVAILABLE`, no sources, after **30.18 seconds**. This is consistent with the handler's configured 30-second HTTP timeout; the sanitized result does not prove the underlying provider/network exception. No extra search was made to diagnose it.
+- Two discovery searches were captured; duplicate parent-span representations are not extra calls. Parent output guardrail decision was `approved`, action `NONE`, with output unchanged. Initial spans/telemetry were saved. The runtime-log group read timed out; preserve that gap. No extra inference was used for traces, and the optional delayed phase was not needed for this diagnosis.
+- D2–D4 remain unused. Source opens: zero. Downloads: zero. Stopped and retained the native failed take at `C:/Users/kinoc/Videos/ScreenPolish/2026-10-20_13-35-58/`. No finished demo MP4 was exported and no answer was fabricated or reused.
+
+### Verified restored state
+
+1. Closed only the owned capture browser and paused its verified UI.
+2. Restored fixture generation `29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a` while the candidate still supported schema 1. Verified six originals, 14 chunks and existing vectors/query readiness with zero embeddings/vector writes.
+3. Reviewed and executed the sole conditional rollback. Stack UPDATE_COMPLETE; Runtime/DEFAULT **READY version 26**; exact baseline image/environment/template, previous Lambda code hash and pointer verified. Kept guardrails and outputs unchanged.
+4. Restored the prior owned UI code/configuration, verified against `b76ba9a`, and checked localhost health without inference. Restored the saved native capture defaults and verified ScreenPolish idle.
+5. Retained both candidate images, Lambda assets, real generation, prompt version 4 and all failed/empty recording evidence. The unrelated owner file remains unchanged/untracked. Private section-12 receipts are under the existing generated `r12/` folder. Publication remains in Git; rollback does not retract it.
+
+## 14. Proposed completion: three connected document questions — approval required
+
+### Outcome and scope
+
+Finish a concise silent LinkedIn demo of the existing document RAG functionality using the remaining three questions. Show real menu comparison, a linked multi-criterion follow-up with inspectable originals, and an explicit insufficient-evidence response. The external live-discovery opening is omitted from this proposed film because its provider failure is blocking recording.
+
+**No further product-code changes, image build/push, Lambda update, prompt synchronization, corpus ingestion or benchmark are proposed.** Reuse the audited `089d0a8` image and retained real corpus above. This changes the approved scene sequence and requires one new Runtime rollout after the completed rollback; wait for sign-off.
+
+### Exact three-turn script and acceptance
+
+Use one new conversation, once each, in this order:
+
+1. `Compare Margherita prices at Natalina and Nero Nero. Show the sources.` Require both real venues, listed MYR prices 48 and 39, RM9 lower for Nero Nero, preserved service/tax qualifiers and two original-menu citations at pages 6 and 9. Do not invent serving-size comparability.
+2. `What about both restaurants' prices and cancellation policies?` Require the follow-up to retain both venue identities/item, retrieve fresh evidence, preserve complete cancellation/late/no-show/date-change/per-person qualifiers, and present four citations belonging to this answer.
+3. `According to Natalina's documents, is valet parking available?` Require the existing insufficient-evidence response and no invented valet assertion or citations.
+
+Successful delivery requires all three completed/approved answers, six required source opens, readable focus transitions, compressed waiting time, a silent landscape 1920×1080 MP4 and the editable ScreenPolish project. Do not present skipped web discovery as demonstrated, or claim measured latency/cost gains.
+
+### Exact execution envelope if approved
+
+1. **Readiness and retained artifacts.** Recheck the current stable account/region, stack/Runtime/DEFAULT, Lambda, pointer, owned UI, existing image index/ARM64 child and all nine pinned prompts. Save fresh rollback configuration. Last verified Runtime is 26; do not assume it remains current. Stop on drift or unavailable retained data. Docker is not needed for this reuse path.
+2. **One Runtime-only update.** Derive a change set from the fresh deployed template. Change only its container URI to the verified `site-fix-089d0a8-20261020045120-arm64` image and set `DOCUMENT_REAL_SOURCES_ENABLED=true`. Require a complete reference-resolved review showing one Modify operation without replacement, unchanged Lambda/IAM/gateway/guardrails/other environment values/outputs, then execute once. Require matching READY Runtime/DEFAULT and UPDATE_COMPLETE; predict no version number.
+3. **Reactivate retained data, pointer last.** Verify the exact real generation, four original byte hashes, manifest, 37 chunks and stored vectors/query readiness. Switch the active pointer conditionally only after the candidate is ready. Zero ingestion embeddings, zero vector writes and no source re-uploads. Preserve both generations.
+4. **Owned UI and capture preparation.** Permit one necessary owned UI restart, reusing the already reviewed staged source viewer and matching venv with preserved environment/appearance. Adapt only the private persistent-queue recorder to the three-turn numbering and expected citation counts (2/4/0); use UTF-8 explicitly for evidence. Keep send reservation before dispatch and fail closed on uncertain/failed sends. Use a fresh unique owned browser window/profile/ledger. No debugger, stdin-dependent control, theme/menu rehearsal or new capability recording. Ask for the minimum manual Window selection/Record click if the Windows control helper still cannot operate ScreenPolish.
+5. **One fresh native take and at most three sends.** Verify the uniquely selected Window through current window metadata/native recording status. Reuse the validated capture setup; media can be finalized on stop. Set microphone/webcam/system audio Off. Send the three questions exactly once; no web-discovery question, warm-up, diagnostic, rehearsal or automatic retry. These are the three unused application slots, not three on top of them: two failed opening sends across sections 9/12 plus these three would make the overall maximum five. Existing configured routing/model/parent-guardrail bounds apply inside these requests; expected document query embeddings remain seven (2+4+1), with no standalone provider/model/guardrail checks.
+6. **Originals and bounded evidence.** Open both menus for answer 1, and both menus/two policies for answer 2: six required opens. Allow at most eight including two optional public booking-origin opens, with zero downloads. Keep complete item/charge and policy context visible. Allow one initial and one delayed read of known trace/request groups, ten pages maximum per group total for this new take; no inference for logs. Bound each readiness stage's read-only polling to 15 minutes. Stop dependent sends on wrong facts, missing sources, moderation failure, unavailable service or incomplete response.
+7. **One conditional compatible rollback.** On acceptance/deployment failure, pause the owned UI/sends, restore/verify the fresh old pointer first, then review and execute at most one no-replacement Runtime-only rollback to the fresh baseline, and restore the owned UI. Keep Lambda unchanged, retain all artifacts, use no embeddings/vector writes or post-rollback inference. Stop for a recovery decision if compatibility/pointer restoration cannot be verified.
+8. **Native edit/export and delivery.** Keep only chatbot/source-viewer footage, zoom into typing, pull out on send/wait and zoom into completed answers/originals. Accelerate/cut idle time as already requested. No audio, narration, captions, overlays or architecture/title scenes. Use native ScreenPolish editing/export; reload the saved project through Library before export. Verify decoded focus/source frames, actual 1920×1080 output and absence of an audio stream; retain raw/editable files. Deliver the MP4 and optional concise attributed LinkedIn copy. The owner posts it.
+
+This proposed approval also covers bounded private helper adaptation and a documentation-only closeout in the same PRD/draft PR. It includes no merge, force-push, product fix, new image/asset, IAM/gateway/guardrail change, Docker action, deletion, paid media service or LinkedIn posting. A nonconforming result returns for a focused decision.
