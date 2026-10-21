@@ -13,7 +13,7 @@ class NativeRecord:
     quote: str
     amount: Decimal
     currency: str | None
-    charge_note: str
+    charge_note: str | None
     evidence: object
     category: str
     anchor_length: int
@@ -62,18 +62,29 @@ def registered_records(item, restaurant_id, evidence, manifest):
             match = matches[0]
             if not re.search(r"(?<!\w)"+re.escape(anchor.category)+r"(?!\w)", passage.text[:match.start()], re.I):
                 raise EvidenceIntegrityError("Native menu category is missing")
-            note = canonical_text(anchor.charge_note)
-            if passage.text.count(note) != 1:
+            captured_page = source.provenance.kind == "menu_page_pdf"
+            note = canonical_text(anchor.charge_note) if anchor.charge_note is not None else None
+            if note is None and not captured_page:
+                raise EvidenceIntegrityError("Only a captured menu page may omit a printed charge note")
+            if note is not None and passage.text.count(note) != 1:
                 raise EvidenceIntegrityError("Native menu charge note is missing or ambiguous")
             body = canonical_text(match[1])
-            pattern = r"(?P<price>\d{1,8}(?:\.\d{1,2})?)\s+(?P<description>.+)" if anchor.price_position == "after_title" else r"(?P<description>.+?)\s+(?P<price>\d{1,8}(?:\.\d{1,2})?)"
+            price_token = r"(?P<price>\d{1,8}(?:\.\d{1,2})?)"
+            if captured_page:
+                # Preserve the page's actual currency token; do not rewrite the
+                # original into the numeric-only grammar of issued menu PDFs.
+                price_token = r"(?P<currency>RM|MYR)\s*" + price_token
+            pattern = (price_token + r"\s+(?P<description>.+)" if anchor.price_position == "after_title"
+                       else r"(?P<description>.+?)\s+" + price_token)
             parsed = re.fullmatch(pattern, body)
             if not parsed or not re.search(r"[A-Za-z]", parsed["description"]):
                 raise EvidenceIntegrityError("Native item amount is not adjacent to its record")
+            if captured_page and source.native_menu.currency != "MYR":
+                raise EvidenceIntegrityError("Menu-page currency differs from reviewed MYR evidence")
             quote = canonical_text(match[0])
             if len(quote) > 600:
                 raise EvidenceIntegrityError("Native row exceeds the quote bound")
-            anchor_length = len(start)+1+len(parsed["price"]) if anchor.price_position == "after_title" else len(quote)
+            anchor_length = (len(start)+1+parsed.end("price") if anchor.price_position == "after_title" else len(quote))
             results.append(NativeRecord(quote, Decimal(parsed["price"]), source.native_menu.currency, note,
                                         passage, anchor.category, anchor_length))
     # Duplicated retrieval of the exact same row is harmless; different categories,

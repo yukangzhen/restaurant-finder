@@ -65,7 +65,7 @@ def public_source_url(value: str) -> str:
 
 
 class SourceProvenance(Contract):
-    kind: Literal["official_pdf", "booking_page_snapshot", "booking_page_pdf"]
+    kind: Literal["official_pdf", "booking_page_snapshot", "booking_page_pdf", "menu_page_pdf"]
     origin_url: str
     resolved_url: str
     website_url: str
@@ -86,7 +86,7 @@ class NativeMenuAnchor(Contract):
     start: str = Field(min_length=1, max_length=100)
     end: str = Field(min_length=1, max_length=100)
     price_position: Literal["after_title", "after_description"]
-    charge_note: str = Field(min_length=1, max_length=300)
+    charge_note: str | None = Field(default=None, min_length=1, max_length=300)
 
 
 class NativeMenuProfile(Contract):
@@ -126,12 +126,17 @@ class DocumentSpec(Contract):
     @model_validator(mode="after")
     def source_profile(self):
         if self.native_menu is not None and (self.document_type != "menu" or not self.path.lower().endswith(".pdf")
-                or self.provenance is None or self.provenance.kind != "official_pdf"):
-            raise ValueError("Native menu profiles require an official menu PDF")
-        if self.provenance and ((self.provenance.kind in {"official_pdf", "booking_page_pdf"}) != self.path.lower().endswith(".pdf")):
+                or self.provenance is None or self.provenance.kind not in {"official_pdf", "menu_page_pdf"}):
+            raise ValueError("Native menu profiles require an official or captured menu PDF")
+        if self.provenance and ((self.provenance.kind in {"official_pdf", "booking_page_pdf", "menu_page_pdf"}) != self.path.lower().endswith(".pdf")):
             raise ValueError("Source provenance differs from original format")
         if self.provenance and self.provenance.kind == "booking_page_pdf" and self.document_type != "policy":
             raise ValueError("Booking-page PDFs must contain policy documents")
+        if self.provenance and self.provenance.kind == "menu_page_pdf" and self.document_type != "menu":
+            raise ValueError("Menu-page PDFs must contain menu documents")
+        if self.native_menu and self.provenance.kind != "menu_page_pdf" and any(
+                record.charge_note is None for record in self.native_menu.records):
+            raise ValueError("Official native menu PDFs require a reviewed printed charge note")
         return self
 
 

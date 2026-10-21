@@ -78,11 +78,15 @@ def render_document_answer(draft, evidence, manifest):
             for anchor in source.native_menu.records:
                 rows = registered_records(anchor.item, item.restaurant_id, [item], manifest)
                 if rows and canonical_text(selection.quote) == rows[0].quote:
-                    text += f'\n\nSource {index} menu charge note (same cited page; excluded from the listed amount):\n\n> "{safe_markdown(rows[0].charge_note)}"'
+                    if rows[0].charge_note is None:
+                        text += f"\n\nSource {index}: charge information is not stated in the captured menu page."
+                    else:
+                        text += f'\n\nSource {index} menu charge note (same cited page; excluded from the listed amount):\n\n> "{safe_markdown(rows[0].charge_note)}"'
                     break
         if source.provenance:
             kind = {"booking_page_snapshot": "Captured booking-page snapshot",
                     "booking_page_pdf": "PDF rendering of a captured booking page (not a restaurant-issued PDF)",
+                    "menu_page_pdf": "PDF rendering of a captured official menu page (not a restaurant-issued PDF)",
                     "official_pdf": "Official menu PDF snapshot"}[source.provenance.kind]
             text += f"\n\nSource {index}: {kind}; captured {safe_markdown(source.provenance.captured_at[:10])}."
         filename = PurePosixPath(source.path).name
