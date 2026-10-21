@@ -61,7 +61,8 @@ def pdf(lines, pages=1, text_page=1):
 
 
 def synthetic_corpus(root):
-    venues = router_catalog(include_real=True)[-2:]
+    catalog = {venue["restaurant_id"]: venue for venue in router_catalog(include_real=True)}
+    venues = [catalog[N], catalog[R]]
     specs = []
     for venue, stem, amount, page in [(venues[0], "natalina", 48, 6), (venues[1], "nero", 39, 9)]:
         body = pdf(["Synthetic native menu", "Pizza", f"Margherita {amount}", "Tomato and cheese.", "Next item 99", "Other dish.", NOTE], page, page)
@@ -157,7 +158,7 @@ class RealSourceTests(unittest.TestCase):
         manifest,_=prepare_generation(Path("sample_documents/corpus-v2.json"))
         self.assertEqual(manifest.generation_id,"29a3a897b651c3d9fe153ce5c819f3acfe29e2ab786ac56d82e998821598267a")
         self.assertEqual(len(router_catalog(include_real=False)),3)
-        self.assertEqual(len(router_catalog(include_real=True)),5)
+        self.assertEqual(len(router_catalog(include_real=True)),7)
 
     def test_original_hash_provenance_and_schema_cannot_be_reinterpreted(self):
         for mutate in (lambda x:x.update(schema_version=1),

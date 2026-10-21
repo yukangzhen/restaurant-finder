@@ -1067,3 +1067,34 @@ Verify the actual completed answers/citations, matching candidate corpus, correc
 ### Gate B approval and preflight
 
 The owner approved **“Approve Gate B deployment and continuation.”** Fresh read-only preflight confirmed Runtime/DEFAULT 28 READY, unchanged expected image/environment, the accepted 20-chunk active generation, retained baseline image, 900-second idle session timeout, unchanged Lambda hash, GitHub draft PR/head/branch, and the owned UI's process/creation time/AWS connection. Docker reported a healthy Linux engine. No restart, build, publication, ingestion or further application request had occurred at this checkpoint. Private Gate B receipts and independent action budgets are under `.generated/discovered-coverage-r29/gate-b/`; proceed with the explicit section-30 envelope.
+
+## 31. Proposed bounded recovery — repair the catalog-dependent CI fixture
+
+### Observed problem and current release state
+
+Section 30's six paths were published as commit `0be123dddf7052f5bf3c79e33a51625beb230250` to the existing draft PR. Both automatic Offline quality checks runs failed: push run `39541060026` and pull-request run `39541062441`. UI and infrastructure jobs passed; the API regression job failed with two failures and seven errors among 345 tests. All nine failures are in `tests/test_real_document_sources.py`.
+
+The inspected fixture uses `router_catalog(include_real=True)[-2:]` to manufacture synthetic Natalina/Nero documents. After the intended catalog expansion, those last two entries are Ciccio/Bottega. Subsequent assertions still address Natalina/Nero stable IDs, causing missing-restaurant errors and absent native-row lookup. The other assertion expects five total catalog entries, whereas the intended catalog now has seven (three fictional plus four real). The failure log and exact fixture were inspected; no live application failure is inferred from these test failures.
+
+The single authorized ARM64 build completed and passed its offline file-inventory, non-root UID, platform and immutable-prompt audits. It is built from the published commit above, with local image ID `sha256:f6860fb4d1c9752eb7b280d9358f400a315d5e1d4104caa380de658d9737b9cb`. No image push, Runtime release, corpus activation, new application request or capture has occurred. The existing Runtime and active generation remain in place. The six-path publication allowance excludes the test file, so obtain explicit recovery approval before changing it or publishing another commit.
+
+### Exact requested correction and publication
+
+Change only `restaurant-finder-api/tests/test_real_document_sources.py`:
+
+1. Replace the positional last-two selection with a catalog dictionary keyed by `restaurant_id`, then select `[catalog[N], catalog[R]]`. Keep the existing synthetic restaurant identities, menu/policy bytes, amounts, page numbers and all evidence/security assertions intact. Missing IDs must still fail rather than silently skipping fixtures.
+2. Update the existing exact total-count assertion from five to seven to match the approved catalog expansion. Keep the fictional-only count of three and the pinned fictional generation assertion unchanged. Do not disable tests, reduce the suite, alter production routing or manufacture passing source evidence.
+
+Publish one recovery commit containing exactly that test file and this PRD to the same branch/draft PR. Preserve private sources, the unrelated owner warning document, other untracked files and historical receipts. Observe only the existing automatic push/PR CI runs; no local test-suite run, manual workflow dispatch or extra benchmark is requested. Record actual results. If further failures remain, stop and report their evidence rather than broadening the correction.
+
+### Reuse the audited image and retain existing limits
+
+Do not rebuild. Before using the existing image, prove that the recovery commit changes only the test file and this document; verify every committed build-context file and the pinned prompt manifest against the existing audited inventory. Keep the image's actual original commit/revision label, and record the later CI commit separately with the identical-product-bytes proof. Do not claim the image was built from the recovery commit. If any build input differs, stop: another build is not authorized here.
+
+Only after both automatic CI runs pass and the unchanged-image proof succeeds, resume section 30's remaining already-approved image push, single Runtime release, bounded corpus activation and recording. Refresh non-mutating identity/baseline/session readiness checks before mutations and stop on drift. This recovery adds no AWS inference, embeddings, vector writes, deployment, source opens, log queries, captures or restart allowance. All original caps and conditional rollback rules remain in force. Private helpers may record separate publication/CI/image identities and enforce this proof; they must not bypass a failed gate.
+
+### Observable completion and approval boundary
+
+Recovery is complete when the existing fixture uses stable Natalina/Nero IDs, the catalog assertion matches the intended seven entries, both automatic CI runs pass, the exact two-path recovery commit is recorded, and the original audited image is proved byte-compatible with all current build inputs. The overall deliverable is still the connected, silent <=60-second video from section 30. This proposed recovery is pending owner sign-off under AGENTS.md and the frozen publication scope. No additional product code or billable budget is requested.
+
+The owner approved **“Approve section 31 CI recovery.”** Proceed with the exact two-path correction/publication and unchanged-image proof above, retaining all section-30 limits. No local test suite or rebuild is included.
