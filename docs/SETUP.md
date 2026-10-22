@@ -75,7 +75,7 @@ $env:AWS_REGION = 'us-east-2'
 aws sts get-caller-identity --profile $env:AWS_PROFILE --region us-east-2
 ```
 
-If authentication fails, complete your profile's login flow: `aws login --profile default` for AWS CLI login profiles, or `aws sso login --profile YOUR_PROFILE` for SSO. Verify the account printed above before proceeding. Never copy the author's account identifiers from historical runbooks.
+If authentication fails, complete your profile's login flow: `aws login --profile default` for AWS CLI login profiles, or `aws sso login --profile YOUR_PROFILE` for SSO. Verify the account printed above before proceeding.
 
 Additional prerequisites:
 
@@ -220,7 +220,7 @@ Optional **billable** checks, after deciding your budget:
 4. Ask: "Which is cheaper?" with follow-ups enabled.
 5. Ask an explicit unsupported parking question; missing evidence must not become a fact.
 
-These use fictional fixtures, not Ciccio/Bottega. Search can return names outside the document corpus. The known early source-viewer mismatch remains unresolved; independently verify source associations.
+These use fictional fixtures, not Ciccio/Bottega. Search can return names outside the document corpus. The source-viewer association issue remains unresolved; independently verify source associations.
 
 ## 5. Optional local API
 
@@ -265,6 +265,6 @@ Retained ECR images/repository, S3 versions, S3 vector bucket/index and telemetr
 
 ## 8. Verification boundaries
 
-The 2026-10-22 cleanup checks command contracts and offline behavior. It does **not** run a fresh-account AWS deployment or certify model availability, IAM permissions, current prices, Runtime state or end-to-end source viewing. Historical runbooks describe their own checkpoints, not your account.
+Offline checks validate workflow behavior and contracts with simulated dependencies. They do **not** certify a fresh-account AWS deployment, model availability, IAM permissions, current prices, Runtime state or end-to-end source viewing. Verify those in your own account before relying on the application.
 
-See [the readiness plan](HANDOFF_PRD_PUBLIC_REPOSITORY_READINESS.md) for execution evidence and the remaining publication gate.
+See [the evaluation guide](CI_AND_RAG_EVALUATION.md) for report interpretation and links to current automated checks.

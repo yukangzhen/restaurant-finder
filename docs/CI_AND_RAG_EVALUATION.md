@@ -57,8 +57,8 @@ Reports distinguish `offline_regression` / `simulated_dependencies`, case comple
 
 The RAG scorer also supports normalized imported observations via `--observations`. Declaring `origin=recorded` does not authenticate their origin: imported observations remain `imported_unverified`. The offline CLI deliberately has no live invocation option. Existing AgentCore live evaluators (`runner`, `on_demand`, `online`) are separate, potentially billable tools.
 
-## Existing evidence
+## Inspect CI results
 
-Demo head `3b116a0133d1e0f5318f1add2d8ed0d2e4daa44f` passed [push CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/39541595559) and [PR CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/39541597336) on 2026-10-21. Those existing runs predate the local README/configuration cleanup; do not label them as its fresh CI.
+Open [CI results for main](https://github.com/yukangzhen/restaurant-finder/actions/workflows/ci.yml?query=branch%3Amain) and select the commit you want to inspect. Check the API, UI, infrastructure and aggregate jobs, then inspect the document summaries and artifacts. Match the run SHA to your source revision.
 
-Earlier [CI implementation](HANDOFF_PRD_CI_AND_RAG_EVALUATION.md), [follow-up](HANDOFF_PRD_DOCUMENT_CONVERSATION_FOLLOWUPS.md), [hybrid retrieval](HANDOFF_PRD_HYBRID_DOCUMENT_RETRIEVAL.md) and [complete-record acceptance](HANDOFF_PRD_SINGLE_RECORD_PUBLICATION_AND_ROLLOUT.md) records retain historical results. The current [readiness record](HANDOFF_PRD_PUBLIC_REPOSITORY_READINESS.md) reports the cleanup's actual local validation and gaps.
+Artifacts are retained for seven days. For an older revision whose artifacts have expired, rerun the documented offline checks rather than infer a result from a different revision. A green CI run establishes the checks described here, not live AWS deployment or model quality.
