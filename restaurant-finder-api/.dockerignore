@@ -1,0 +1,38 @@
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+.bedrock_agentcore.yaml
+
+# Version control and local tooling
+.git
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
+build/
+dist/
+*.egg-info/
+logs/
+*.log
+sample_documents/
+tests/
+tmp/
+.generated/uv-cache/
+.generated/uv-python/
+.generated/rag/
+.generated/citations/
+# Private third-party originals and offline preparation evidence are never runtime assets.
+.generated/real-restaurants*/
+
+# Keep the parent traversable; only immutable prompt metadata is a runtime asset.
+.generated/**
+!.generated/prompt-manifest.json

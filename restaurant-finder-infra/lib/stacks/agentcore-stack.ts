@@ -11,6 +11,50 @@ import * as fs from "fs";
 
 export interface AgentCoreStackProps extends BaseStackProps {
   imageUri: string;
+  ragDocumentBucketName: string;
+  ragDocumentBucketArn: string;
+  ragVectorIndexArn: string;
+  documentMultipartEnabled?: boolean;
+  documentFollowupsEnabled?: boolean;
+  documentRealSourcesEnabled?: boolean;
+  ragRetrievalMode?: "vector" | "hybrid";
+  guardrailId?: string;
+  guardrailVersion?: string;
+}
+
+/** Strict opt-in accepted from CLI string context or programmatic boolean context. */
+export function validateDocumentFollowupsEnabled(value: unknown): boolean {
+  if (value === undefined || value === false || value === "false") return false;
+  if (value === true || value === "true") return true;
+  throw new Error("documentFollowupsEnabled must be true or false; omission defaults to false.");
+}
+
+export function validateDocumentRealSourcesEnabled(value: unknown): boolean {
+  if (value === undefined || value === false || value === "false") return false;
+  if (value === true || value === "true") return true;
+  throw new Error("documentRealSourcesEnabled must be true or false; omission defaults to false.");
+}
+
+/** CLI contexts and direct props use the same exact retrieval mode strings. */
+export function validateRagRetrievalMode(value: unknown): "vector" | "hybrid" {
+  if (value === undefined || value === "vector") return "vector";
+  if (value === "hybrid") return "hybrid";
+  throw new Error("ragRetrievalMode must be vector or hybrid; omission defaults to vector.");
+}
+
+/** Validate both CLI contexts and programmatic props before constructing resources. */
+export function validateGuardrailBinding(guardrailId: unknown, guardrailVersion: unknown): {
+  guardrailId?: string;
+  guardrailVersion?: string;
+} {
+  if (guardrailId === undefined && guardrailVersion === undefined) return {};
+  if (
+    typeof guardrailId !== "string" || guardrailId.trim() !== guardrailId || !/^[a-z0-9]{1,2048}$/.test(guardrailId) ||
+    typeof guardrailVersion !== "string" || guardrailVersion.trim() !== guardrailVersion || !/^[1-9][0-9]{0,7}$/.test(guardrailVersion)
+  ) {
+    throw new Error("guardrailId and guardrailVersion must be supplied together as a valid ID and positive numbered version.");
+  }
+  return { guardrailId, guardrailVersion };
 }
 
 export class AgentCoreStack extends cdk.Stack {
@@ -21,9 +65,24 @@ export class AgentCoreStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props: AgentCoreStackProps) {
     super(scope, id, props);
+    const guardrailBinding = validateGuardrailBinding(props.guardrailId, props.guardrailVersion);
+    const ragRetrievalMode = validateRagRetrievalMode(props.ragRetrievalMode);
+    if (props.documentFollowupsEnabled !== undefined && typeof props.documentFollowupsEnabled !== "boolean") {
+      throw new Error("documentFollowupsEnabled prop must be a boolean.");
+    }
+    if (props.documentRealSourcesEnabled !== undefined && typeof props.documentRealSourcesEnabled !== "boolean") {
+      throw new Error("documentRealSourcesEnabled prop must be a boolean.");
+    }
 
     const region = cdk.Stack.of(this).region;
     const accountId = cdk.Stack.of(this).account;
+    const inferenceProfileId = "us.anthropic.claude-haiku-4-5-20251001-v1:0";
+    const foundationModelId = "anthropic.claude-haiku-4-5-20251001-v1:0";
+    const inferenceProfileArn = `arn:aws:bedrock:${region}:${accountId}:inference-profile/${inferenceProfileId}`;
+    const inferenceModelArns = ["us-east-1", "us-east-2", "us-west-2"].map(
+      (modelRegion) =>
+        `arn:aws:bedrock:${modelRegion}::foundation-model/${foundationModelId}`,
+    );
 
     /*****************************
      * AgentCore Gateway
@@ -44,6 +103,18 @@ export class AgentCoreStack extends cdk.Stack {
         secretObjectValue: {
           api_key: cdk.SecretValue.unsafePlainText(""),
         },
+      },
+    );
+
+    // Keep the Jev provider key in Secrets Manager instead of the runtime
+    // environment or container image. Populate this after deployment.
+    const jevRouterSecretName = `${props.appName}/jev-router-key`;
+    const jevRouterSecret = new secretsmanager.Secret(
+      this,
+      `${props.appName}-JevRouterSecret`,
+      {
+        secretName: jevRouterSecretName,
+        description: "TypeSafe API key for the Jev intent router.",
       },
     );
 
@@ -192,6 +263,30 @@ export class AgentCoreStack extends cdk.Stack {
      * AgentCore Runtime
      ******************************/
 
+    // Keep application telemetry separate from AgentCore's own runtime logs.
+    // OTLP requires the target group and stream to exist before the app starts.
+    const telemetryLogGroupName = `/aws/vendedlogs/bedrock-agentcore/${props.appName}-telemetry`;
+    const telemetryLogGroupArn = `arn:aws:logs:${region}:${accountId}:log-group:${telemetryLogGroupName}`;
+    const telemetryLogStreamArn = `${telemetryLogGroupArn}:log-stream:agentcore`;
+    const telemetryLogGroup = new logs.LogGroup(
+      this,
+      `${props.appName}-TelemetryLogGroup`,
+      {
+        logGroupName: telemetryLogGroupName,
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      },
+    );
+    const telemetryLogStream = new logs.CfnLogStream(
+      this,
+      `${props.appName}-TelemetryLogStream`,
+      {
+        logGroupName: telemetryLogGroup.logGroupName,
+        logStreamName: "agentcore",
+      },
+    );
+    telemetryLogStream.node.addDependency(telemetryLogGroup);
+
     // taken from https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-permissions.html#runtime-permissions-execution
     const runtimePolicy = new iam.PolicyDocument({
       statements: [
@@ -240,25 +335,24 @@ export class AgentCoreStack extends cdk.Stack {
           effect: iam.Effect.ALLOW,
           actions: ["cloudwatch:PutMetricData"],
           resources: ["*"],
+          // Keep classic metric writes in the AgentCore namespace while allowing
+          // the CloudWatch OTLP ingest path, where this key may be absent.
           conditions: {
-            StringEquals: { "cloudwatch:namespace": "bedrock-agentcore" },
+            StringEqualsIfExists: { "cloudwatch:namespace": "bedrock-agentcore" },
           },
         }),
-        // OpenTelemetry OTLP exporter permissions for CloudWatch observability
+        // The OTLP log group and stream are created by this stack.
         new iam.PolicyStatement({
-          sid: "OTLPCloudWatchExport",
+          sid: "OTLPCloudWatchLogWrite",
           effect: iam.Effect.ALLOW,
-          actions: [
-            "logs:PutLogEvents",
-            "logs:CreateLogStream",
-            "logs:CreateLogGroup",
-            "logs:DescribeLogStreams",
-          ],
-          resources: [
-            `arn:aws:logs:${region}:${accountId}:log-group:/aws/vendedlogs/bedrock-agentcore/*`,
-            `arn:aws:logs:${region}:${accountId}:log-group:/aws/vendedlogs/bedrock-agentcore/*:log-stream:*`,
-            `arn:aws:logs:${region}:${accountId}:log-group:aws/spans:*`,
-          ],
+          actions: ["logs:PutLogEvents"],
+          resources: [telemetryLogStreamArn],
+        }),
+        new iam.PolicyStatement({
+          sid: "OTLPCloudWatchLogStreamRead",
+          effect: iam.Effect.ALLOW,
+          actions: ["logs:DescribeLogStreams"],
+          resources: [telemetryLogGroupArn],
         }),
         new iam.PolicyStatement({
           sid: "GetAgentAccessToken",
@@ -274,22 +368,19 @@ export class AgentCoreStack extends cdk.Stack {
           ],
         }),
         new iam.PolicyStatement({
+          sid: "BedrockInferenceProfileAccess",
+          effect: iam.Effect.ALLOW,
+          actions: ["bedrock:GetInferenceProfile"],
+          resources: [inferenceProfileArn],
+        }),
+        new iam.PolicyStatement({
           sid: "BedrockModelInvocation",
           effect: iam.Effect.ALLOW,
           actions: [
             "bedrock:InvokeModel",
             "bedrock:InvokeModelWithResponseStream",
           ],
-          resources: [
-            `arn:aws:bedrock:*::foundation-model/*`,
-            `arn:aws:bedrock:${region}:${accountId}:*`,
-          ],
-        }),
-        new iam.PolicyStatement({
-          sid: "BedrockPromptsAccess",
-          effect: iam.Effect.ALLOW,
-          actions: ["bedrock:ListPrompts", "bedrock:GetPrompt"],
-          resources: [`arn:aws:bedrock:${region}:${accountId}:prompt/*`],
+          resources: [inferenceProfileArn, ...inferenceModelArns],
         }),
         // Guardrails - create, list, version, and apply
         new iam.PolicyStatement({
@@ -310,28 +401,24 @@ export class AgentCoreStack extends cdk.Stack {
           actions: ["bedrock:ListGuardrails"],
           resources: ["*"],
         }),
-        // Bedrock Runtime - ApplyGuardrail and Converse API
+        // Model calls use InvokeModel / InvokeModelWithResponseStream above.
         new iam.PolicyStatement({
           sid: "BedrockRuntimeOperations",
           effect: iam.Effect.ALLOW,
-          actions: [
-            "bedrock:ApplyGuardrail",
-            "bedrock:Converse",
-            "bedrock:ConverseStream",
-          ],
-          resources: [
-            `arn:aws:bedrock:${region}:${accountId}:guardrail/*`,
-            `arn:aws:bedrock:*::foundation-model/*`,
-          ],
+          actions: ["bedrock:ApplyGuardrail"],
+          resources: [`arn:aws:bedrock:${region}:${accountId}:guardrail/*`],
         }),
-        // AgentCore Memory operations - full access to memory resources
+        // AgentCore Memory events used by the LangGraph checkpointer and memory tools.
         new iam.PolicyStatement({
           sid: "BedrockAgentCoreMemory",
           effect: iam.Effect.ALLOW,
-          actions: ["bedrock-agentcore:*"],
-          resources: [
-            `arn:aws:bedrock-agentcore:${region}:${accountId}:memory/*`,
+          actions: [
+            "bedrock-agentcore:CreateEvent",
+            "bedrock-agentcore:ListEvents",
+            "bedrock-agentcore:DeleteEvent",
+            "bedrock-agentcore:RetrieveMemoryRecords",
           ],
+          resources: [this.agentCoreMemory.attrMemoryArn],
         }),
         // AgentCore Browser operations (AWS-managed browser resource)
         new iam.PolicyStatement({
@@ -342,52 +429,39 @@ export class AgentCoreStack extends cdk.Stack {
             "bedrock-agentcore:StopBrowserSession",
             "bedrock-agentcore:GetBrowserSession",
             "bedrock-agentcore:SendBrowserCommand",
+            "bedrock-agentcore:ConnectBrowserAutomationStream",
           ],
           resources: [`arn:aws:bedrock-agentcore:${region}:aws:browser/*`],
         }),
-        // CloudWatch Logs Delivery API for application observability
+        // Dedicated read-only RAG index. Filtering/metadata also require GetVectors.
         new iam.PolicyStatement({
-          sid: "CloudWatchLogsDelivery",
-          effect: iam.Effect.ALLOW,
-          actions: [
-            "logs:PutDeliverySource",
-            "logs:PutDeliveryDestination",
-            "logs:CreateDelivery",
-            "logs:GetDeliverySource",
-            "logs:GetDeliveryDestination",
-            "logs:GetDelivery",
-            "logs:DeleteDeliverySource",
-            "logs:DeleteDeliveryDestination",
-            "logs:DeleteDelivery",
-          ],
-          resources: ["*"],
-        }),
-        // S3 Vector Store operations
-        new iam.PolicyStatement({
-          sid: "S3VectorStoreAccess",
+          sid: "DocumentRagVectorRead",
           effect: iam.Effect.ALLOW,
           actions: [
             "s3vectors:QueryVectors",
-            "s3vectors:PutVectors",
             "s3vectors:GetVectors",
-            "s3vectors:DeleteVectors",
+            "s3vectors:GetIndex",
           ],
-          resources: [`arn:aws:s3vectors:${region}:${accountId}:bucket/*`],
+          resources: [props.ragVectorIndexArn],
         }),
-        // S3 bucket access for documents and vectors
+        // Runtime cannot read originals/cache or write the corpus/active pointer.
         new iam.PolicyStatement({
-          sid: "S3BucketAccess",
+          sid: "DocumentRagObjectRead",
           effect: iam.Effect.ALLOW,
           actions: [
             "s3:GetObject",
-            "s3:PutObject",
-            "s3:DeleteObject",
-            "s3:ListBucket",
           ],
           resources: [
-            `arn:aws:s3:::${props.appName.toLowerCase()}-*`,
-            `arn:aws:s3:::${props.appName.toLowerCase()}-*/*`,
+            `${props.ragDocumentBucketArn}/rag/active.json`,
+            `${props.ragDocumentBucketArn}/rag/generations/*/manifest.json`,
+            `${props.ragDocumentBucketArn}/rag/generations/*/chunks/*`,
           ],
+        }),
+        new iam.PolicyStatement({
+          sid: "DocumentRagEmbeddingInvocation",
+          effect: iam.Effect.ALLOW,
+          actions: ["bedrock:InvokeModel"],
+          resources: [`arn:aws:bedrock:${region}::foundation-model/amazon.titan-embed-text-v2:0`],
         }),
       ],
     });
@@ -403,6 +477,7 @@ export class AgentCoreStack extends cdk.Stack {
         },
       },
     );
+    jevRouterSecret.grantRead(runtimeRole);
 
     this.agentCoreRuntime = new bedrockagentcore.CfnRuntime(
       this,
@@ -427,10 +502,31 @@ export class AgentCoreStack extends cdk.Stack {
           GATEWAY_URL: this.agentCoreGateway.attrGatewayUrl,
           GATEWAY_ID: this.agentCoreGateway.attrGatewayIdentifier,
           MEMORY_ID: this.agentCoreMemory.attrMemoryId,
+          TYPESAFE_SECRET_ARN: jevRouterSecret.secretArn,
+
+          // Require the generated immutable Bedrock prompt manifest at runtime.
+          REQUIRE_PROMPT_MANIFEST: "true",
+          DOCUMENT_RAG_ENABLED: "true",
+          DOCUMENT_MULTIPART_ENABLED: props.documentMultipartEnabled === true ? "true" : "false",
+          DOCUMENT_FOLLOWUPS_ENABLED: props.documentFollowupsEnabled === true ? "true" : "false",
+          DOCUMENT_REAL_SOURCES_ENABLED: props.documentRealSourcesEnabled === true ? "true" : "false",
+          RAG_DOCUMENT_BUCKET: props.ragDocumentBucketName,
+          RAG_VECTOR_INDEX_ARN: props.ragVectorIndexArn,
+          RAG_ACTIVE_MANIFEST_KEY: "rag/active.json",
+          RAG_EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0",
+          RAG_EMBEDDING_DIMENSIONS: "512",
+          RAG_TOP_K: "5",
+          RAG_RETRIEVAL_MODE: ragRetrievalMode,
+          RAG_MAX_CONTEXT_CHARACTERS: "9000",
+          RAG_REQUEST_TIMEOUT_SECONDS: "60",
 
           // Feature Flags
           ENABLE_BROWSER_TOOLS: "true",
           GUARDRAIL_ENABLED: "true",
+          ...(guardrailBinding.guardrailId !== undefined ? {
+            BEDROCK_GUARDRAIL_ID: guardrailBinding.guardrailId,
+            BEDROCK_GUARDRAIL_VERSION: guardrailBinding.guardrailVersion!,
+          } : {}),
 
           // OpenTelemetry Observability Configuration
           // These enable CloudWatch GenAI Observability integration
@@ -443,15 +539,27 @@ export class AgentCoreStack extends cdk.Stack {
           OTEL_METRICS_EXPORTER: "otlp",
           OTEL_LOGS_EXPORTER: "otlp",
 
-          // OTLP endpoint for CloudWatch (region-specific)
-          OTEL_EXPORTER_OTLP_ENDPOINT: `https://xray.${region}.amazonaws.com`,
+          // Use each CloudWatch OTLP signal endpoint explicitly.
+          OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `https://xray.${region}.amazonaws.com/v1/traces`,
+          OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: "http/protobuf",
+          OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `https://logs.${region}.amazonaws.com/v1/logs`,
+          OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: "http/protobuf",
+          OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: `https://monitoring.${region}.amazonaws.com/v1/metrics`,
+          OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: "http/protobuf",
+
+          // ADOT signs each signal with the runtime's AWS credentials.
+          OTEL_PYTHON_EXPORTER_OTLP_HTTP_TRACES_CREDENTIAL_PROVIDER: "aws_sigv4",
+          OTEL_PYTHON_EXPORTER_OTLP_HTTP_LOGS_CREDENTIAL_PROVIDER: "aws_sigv4",
+          OTEL_PYTHON_EXPORTER_OTLP_HTTP_METRICS_CREDENTIAL_PROVIDER: "aws_sigv4",
 
           // Trace propagation format
           OTEL_PROPAGATORS: "xray,tracecontext,baggage",
 
-          // CloudWatch log configuration for OTLP
-          OTEL_RESOURCE_ATTRIBUTES: `service.name=${props.appName}-agent,aws.log.group.names=/aws/bedrock-agentcore/runtimes/${props.appName}-agent,cloud.region=${region}`,
-          OTEL_EXPORTER_OTLP_LOGS_HEADERS: `x-aws-log-group=/aws/bedrock-agentcore/runtimes/${props.appName}-agent,x-aws-log-stream=runtime-logs,x-aws-metric-namespace=bedrock-agentcore`,
+          // Route app telemetry to a CDK-managed group, not the runtime's own group.
+          OTEL_RESOURCE_ATTRIBUTES: `service.name=${props.appName}-agent,aws.log.group.names=${telemetryLogGroupName},cloud.region=${region}`,
+          OTEL_EXPORTER_OTLP_LOGS_HEADERS: `x-aws-log-group=${telemetryLogGroupName},x-aws-log-stream=agentcore`,
+          OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false",
+          UNIFIED_TRACES_DESTINATION_ENABLED: "false",
         },
       },
     );
@@ -543,6 +651,12 @@ export class AgentCoreStack extends cdk.Stack {
       value: searchSecret.secretArn,
       description: "Search API secret ARN",
       exportName: `${props.appName}-SearchSecretArn`,
+    });
+
+    new cdk.CfnOutput(this, "JevSecretArn", {
+      value: jevRouterSecret.secretArn,
+      description: "Secrets Manager ARN for the TypeSafe Jev router key",
+      exportName: `${props.appName}-JevSecretArn`,
     });
 
     // Additional Memory outputs

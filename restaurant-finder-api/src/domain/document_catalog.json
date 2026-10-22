@@ -1,0 +1,8 @@
+{
+  "fictional": true,
+  "restaurants": [
+    {"restaurant_id":"demo-harbor-pasta","name":"Harbor Pasta Lab (fictional demo)","aliases":["Harbor Pasta Lab","Harbor Pasta","Harbor"]},
+    {"restaurant_id":"demo-sakura-table","name":"Sakura Table Lab (fictional demo)","aliases":["Sakura Table Lab","Sakura Table","Sakura"]},
+    {"restaurant_id":"demo-spice-garden","name":"Spice Garden Lab (fictional demo)","aliases":["Spice Garden Lab","Spice Garden","Spice"]}
+  ]
+}

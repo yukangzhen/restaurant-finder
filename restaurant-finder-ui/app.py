@@ -5,6 +5,7 @@ import os
 import aiohttp
 import chainlit as cl
 from chainlit.input_widget import TextInput
+from source_documents import prepare_source_elements
 
 
 # --- Connection mode configuration ---
@@ -18,6 +19,11 @@ AGENTCORE_API_URL = os.environ.get("AGENTCORE_API_URL", "http://localhost:8080/i
 # AWS mode settings
 AGENT_RUNTIME_ARN = os.environ.get("AGENT_RUNTIME_ARN", "")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-2")
+RAG_DOCUMENT_BUCKET = os.environ.get("RAG_DOCUMENT_BUCKET", "").strip()
+DOCUMENT_SOURCE_VIEWER_ENABLED = os.environ.get("DOCUMENT_SOURCE_VIEWER_ENABLED", "true").lower() == "true"
+# Optional single-user identity for local development. In production, actor IDs
+# must come from authenticated server-side identity, not a client-controlled value.
+MEMORY_ACTOR_ID = os.environ.get("MEMORY_ACTOR_ID", "").strip()
 
 # Lazily initialized boto3 client for AWS mode
 _agentcore_client = None
@@ -28,8 +34,27 @@ def _get_agentcore_client():
     global _agentcore_client
     if _agentcore_client is None:
         import boto3
-        _agentcore_client = boto3.client("bedrock-agentcore", region_name=AWS_REGION)
+        from botocore.config import Config
+
+        runtime_config = Config(
+            connect_timeout=10,
+            read_timeout=300,
+            retries={"total_max_attempts": 1},
+        )
+        _agentcore_client = boto3.client(
+            "bedrock-agentcore",
+            region_name=AWS_REGION,
+            config=runtime_config,
+        )
     return _agentcore_client
+
+
+def _next_stream_item(iterator, sentinel):
+    """Read one blocking SDK stream item without leaking StopIteration."""
+    try:
+        return next(iterator)
+    except StopIteration:
+        return sentinel
 
 
 @cl.on_settings_update
@@ -90,26 +115,52 @@ async def _aws_sse_lines(payload, conversation_id):
     import asyncio
 
     client = _get_agentcore_client()
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        None,
-        lambda: client.invoke_agent_runtime(
+    deadline = asyncio.get_running_loop().time() + 300
+    response = await asyncio.wait_for(
+        asyncio.to_thread(
+            client.invoke_agent_runtime,
             agentRuntimeArn=AGENT_RUNTIME_ARN,
             qualifier="DEFAULT",
             runtimeSessionId=conversation_id,
             payload=json.dumps(payload),
         ),
+        timeout=300,
     )
-
-    content_type = response.get("contentType", "")
-    if "text/event-stream" in content_type:
-        for line in response["response"].iter_lines(chunk_size=1):
-            if line:
-                yield line.decode("utf-8")
-    else:
-        for event in response.get("response", []):
-            chunk = event.decode("utf-8") if isinstance(event, bytes) else str(event)
-            yield f'data: {json.dumps({"chunk": chunk})}'
+    body = response.get("response")
+    sentinel = object()
+    try:
+        if "text/event-stream" in response.get("contentType", ""):
+            iterator = await asyncio.to_thread(body.iter_lines, chunk_size=1)
+            while True:
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise TimeoutError("AgentCore response exceeded 300 seconds")
+                line = await asyncio.wait_for(
+                    asyncio.to_thread(_next_stream_item, iterator, sentinel),
+                    timeout=remaining,
+                )
+                if line is sentinel:
+                    break
+                if line:
+                    yield line.decode("utf-8", errors="replace") if isinstance(line, bytes) else str(line)
+        elif body is not None:
+            iterator = await asyncio.to_thread(iter, body)
+            while True:
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise TimeoutError("AgentCore response exceeded 300 seconds")
+                item = await asyncio.wait_for(
+                    asyncio.to_thread(_next_stream_item, iterator, sentinel),
+                    timeout=remaining,
+                )
+                if item is sentinel:
+                    break
+                chunk = item.decode("utf-8") if isinstance(item, bytes) else str(item)
+                yield f'data: {json.dumps({"chunk": chunk})}'
+    finally:
+        close = getattr(body, "close", None)
+        if callable(close):
+            await asyncio.to_thread(close)
 
 
 @cl.on_message
@@ -118,10 +169,12 @@ async def on_message(message: cl.Message):
     customer_name = cl.user_session.get("customer_name", "Guest")
     conversation_id = cl.user_session.get("conversation_id")
 
-    msg = cl.Message(content="")
+    msg = cl.Message(content="Working on your request…")
     await msg.send()
 
-    await _invoke_agent(msg, message.content, customer_name, conversation_id)
+    answer_number = cl.user_session.get("answer_number", 0) + 1
+    cl.user_session.set("answer_number", answer_number)
+    await _invoke_agent(msg, message.content, customer_name, conversation_id, answer_number)
 
 
 async def _invoke_agent(
@@ -129,6 +182,7 @@ async def _invoke_agent(
     user_input: str,
     customer_name: str,
     conversation_id: str,
+    answer_number: int = 1,
 ):
     """Invoke the agent via local API or AWS AgentCore Runtime based on config."""
     if AGENT_CONNECTION_MODE == "aws" and not AGENT_RUNTIME_ARN:
@@ -141,8 +195,15 @@ async def _invoke_agent(
         "customer_name": customer_name,
         "conversation_id": conversation_id,
     }
+    if MEMORY_ACTOR_ID:
+        payload["actor_id"] = MEMORY_ACTOR_ID
 
     full_response = ""
+    streamed_content = False
+    citation_metadata = None
+    citation_answer = None
+    completed = False
+    msg.elements = []
 
     try:
         if AGENT_CONNECTION_MODE == "aws":
@@ -163,20 +224,52 @@ async def _invoke_agent(
                     data = json.loads(data[6:].strip())
 
                 if isinstance(data, dict):
+                    if data.get("blocked") is True:
+                        blocked_message = data.get("message")
+                        if not isinstance(blocked_message, str) or not blocked_message.strip():
+                            blocked_message = "I couldn't process that request. Please try a restaurant-related question."
+                        msg.content = blocked_message
+                        await msg.update()
+                        return
+
                     if "chunk" in data:
                         chunk = data["chunk"]
+                        if not isinstance(chunk, str):
+                            chunk = str(chunk)
+                        if not streamed_content:
+                            msg.content = ""
+                            streamed_content = True
                         await msg.stream_token(chunk)
                         full_response += chunk
+                        # References belong to one complete approved envelope only.
+                        if "citations" in data and full_response == chunk:
+                            citation_metadata = data["citations"]
+                            citation_answer = chunk
+                        elif citation_metadata is not None:
+                            citation_answer = None
 
                     elif "error" in data:
                         msg.content = f"Error: {data['error']}"
                         await msg.update()
                         return
+                    elif data.get("done") is True:
+                        completed = True
 
             except json.JSONDecodeError:
                 continue
 
         msg.content = full_response if full_response else "No response received."
+        if (DOCUMENT_SOURCE_VIEWER_ENABLED and completed and citation_metadata
+                and citation_answer == full_response):
+            msg.elements, notice, links = await prepare_source_elements(
+                citation_metadata, full_response, RAG_DOCUMENT_BUCKET, AWS_REGION, answer_number,
+            )
+            # Distinct element names disambiguate native source links across answers.
+            # Only decorate the trusted navigation label; quotes/provenance stay intact.
+            for label, name in links.items():
+                msg.content = msg.content.replace(f"Source: {label} — ", f"Source: {name} — ", 1)
+            if notice:
+                msg.content += "\n\n" + notice
         await msg.update()
 
     except aiohttp.ClientResponseError as e:
@@ -188,7 +281,7 @@ async def _invoke_agent(
     except Exception as e:
         if AGENT_CONNECTION_MODE == "aws":
             error_name = type(e).__name__
-            msg.content = f"AWS Runtime Error ({error_name}): {str(e)}"
+            msg.content = f"AWS Runtime Error ({error_name}). Please try again later."
         else:
             msg.content = "An unexpected error occurred. Please try again."
         await msg.update()

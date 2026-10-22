@@ -5,7 +5,7 @@ from langchain_core.messages import BaseMessage
 
 
 # Intent types for routing decisions
-IntentType = Literal["restaurant_search", "simple", "off_topic"]
+IntentType = Literal["restaurant_search", "document_qa", "simple", "off_topic"]
 
 
 class OrchestratorState(TypedDict):
@@ -32,7 +32,28 @@ class OrchestratorState(TypedDict):
 
     # Intent classification for routing (set by router_node)
     intent: IntentType
+    coverage_discovery_requested: bool
 
     # Tool call tracking (for efficiency limits)
     tool_call_count: int  # Number of tool calls in current turn
     made_tool_calls: bool  # Whether any tool calls were made this turn
+
+    # Final response state set only after the output guardrail approves/blocks.
+    response_status: Literal["pending", "approved", "blocked"]
+    rag_status: str | None
+    rag_mode: Literal["single", "comparison", "multipart"] | None
+    rag_generation: str | None
+    rag_pending_scope: str | None
+    rag_approved_scope: str | None
+    rag_retrieval_count: int
+    rag_pending_citations: list[dict]
+    rag_approved_citations: list[dict]
+    rag_pending_coverage: dict | None
+    rag_approved_coverage: dict | None
+    last_approved_intent: IntentType | None
+    # Private continuation candidates reset each turn; approved values survive checkpoints.
+    rag_followup_resolution: dict | None
+    rag_pending_context: dict | None
+    rag_pending_followup: dict | None
+    rag_approved_context: dict | None
+    rag_approved_followup: dict | None

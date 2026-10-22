@@ -1,9 +1,29 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
 import { BaseStackProps } from "../lib/types";
-import { EcrStack, AgentCoreStack } from "../lib/stacks";
+import { EcrStack, AgentCoreStack, RagStack, validateGuardrailBinding } from "../lib/stacks";
+import { validateDocumentFollowupsEnabled, validateDocumentRealSourcesEnabled, validateRagRetrievalMode } from "../lib/stacks/agentcore-stack";
 
 const app = new cdk.App();
+const ragRetrievalMode = validateRagRetrievalMode(app.node.tryGetContext("ragRetrievalMode"));
+const documentFollowupsEnabled = validateDocumentFollowupsEnabled(app.node.tryGetContext("documentFollowupsEnabled"));
+const documentRealSourcesEnabled = validateDocumentRealSourcesEnabled(app.node.tryGetContext("documentRealSourcesEnabled"));
+const guardrailBinding = validateGuardrailBinding(
+  app.node.tryGetContext("guardrailId"),
+  app.node.tryGetContext("guardrailVersion"),
+);
+
+// Explicit opt-in for the bounded multi-part document workflow. CDK context
+// supplied via -c is a string; programmatic context may use a boolean.
+const multipartContext: unknown = app.node.tryGetContext("documentMultipartEnabled");
+let documentMultipartEnabled = false;
+if (typeof multipartContext === "boolean") {
+  documentMultipartEnabled = multipartContext;
+} else if (multipartContext === "true" || multipartContext === "false") {
+  documentMultipartEnabled = multipartContext === "true";
+} else if (multipartContext !== undefined) {
+  throw new Error("documentMultipartEnabled must be true or false; omission defaults to false.");
+}
 
 // Override image URI via context variable:
 //   npx cdk deploy --all -c imageUri=<account>.dkr.ecr.<region>.amazonaws.com/restaurantfinder-agent:<tag>
@@ -13,21 +33,12 @@ const existingImageUri = app.node.tryGetContext("imageUri") as
 
 const deploymentProps: BaseStackProps = {
   appName: "restaurantFinder",
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
-
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
-
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+  // Keep project resources in us-east-2 even when the AWS CLI profile defaults elsewhere.
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: "us-east-2",
+  },
 };
-
 // ECR repository is always created as infrastructure
 const ecrStack = new EcrStack(
   app,
@@ -46,13 +57,23 @@ if (existingImageUri) {
   console.log(`Using default ECR image URI: ${imageUri}`);
 }
 
+const ragStack = new RagStack(app, "restaurantFinder-RagStack", deploymentProps);
 const agentCoreStack = new AgentCoreStack(
   app,
   `restaurantFinder-AgentCoreStack`,
   {
     ...deploymentProps,
     imageUri: imageUri,
+    documentMultipartEnabled,
+    documentFollowupsEnabled,
+    documentRealSourcesEnabled,
+    ragRetrievalMode,
+    ...guardrailBinding,
+    ragDocumentBucketName: ragStack.documentBucket.bucketName,
+    ragDocumentBucketArn: ragStack.documentBucket.bucketArn,
+    ragVectorIndexArn: ragStack.vectorIndex.attrIndexArn,
   },
 );
 
 agentCoreStack.addDependency(ecrStack);
+agentCoreStack.addDependency(ragStack);

@@ -24,8 +24,8 @@ Thumbs.db
 
 # Environment variables
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 restaurant-finder-api/.env
 restaurant-finder-ui/.env
 

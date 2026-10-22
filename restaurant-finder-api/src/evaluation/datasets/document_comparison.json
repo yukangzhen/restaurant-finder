@@ -1,0 +1,1127 @@
+{
+  "schema_version": 1,
+  "name": "fictional-document-comparison",
+  "cases": [
+    {
+      "id": "price_v2",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor Pasta Lab and Sakura Table Lab. Show the sources.",
+      "expected": {
+        "status": "answered",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "difference": "4",
+        "cheaper_id": "demo-harbor-pasta",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "price_v1",
+      "corpus": "corpus.json",
+      "question": "Compare mushroom pasta prices at Harbor and Sakura.",
+      "expected": {
+        "status": "answered",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM28 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "28",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "difference": "8",
+        "cheaper_id": "demo-harbor-pasta",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM28 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "difference_form",
+      "corpus": "corpus-v2.json",
+      "question": "What is the price difference for mushroom pasta between Harbor and Sakura?",
+      "expected": {
+        "status": "answered",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "difference": "4",
+        "cheaper_id": "demo-harbor-pasta",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cheaper_form",
+      "corpus": "corpus-v2.json",
+      "question": "Which is cheaper for mushroom pasta: Harbor or Sakura?",
+      "expected": {
+        "status": "answered",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "difference": "4",
+        "cheaper_id": "demo-harbor-pasta",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "short_aliases",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta price at Harbor Pasta and Sakura Table.",
+      "expected": {
+        "status": "answered",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "difference": "4",
+        "cheaper_id": "demo-harbor-pasta",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "reverse_order",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Sakura and Harbor.",
+      "expected": {
+        "status": "answered",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          }
+        ],
+        "difference": "4",
+        "cheaper_id": "demo-harbor-pasta",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "case_whitespace",
+      "corpus": "corpus-v2.json",
+      "question": "  Compare  mushroom pasta  prices at HARBOR and SAKURA?  Show the sources.  ",
+      "expected": {
+        "status": "answered",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "difference": "4",
+        "cheaper_id": "demo-harbor-pasta",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "missing_right",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor and Spice.",
+      "expected": {
+        "status": "partial",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-spice-garden",
+            "status": "missing"
+          }
+        ],
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-spice-garden",
+            "selector": {
+              "status": "insufficient_evidence",
+              "selections": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "missing_left",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Spice and Harbor.",
+      "expected": {
+        "status": "partial",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-spice-garden",
+            "status": "missing"
+          },
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          }
+        ],
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-spice-garden",
+            "selector": {
+              "status": "insufficient_evidence",
+              "selections": []
+            }
+          },
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "missing_both",
+      "corpus": "corpus-v2.json",
+      "question": "Compare truffle risotto prices at Harbor and Sakura.",
+      "expected": {
+        "status": "insufficient_evidence",
+        "item": "truffle risotto",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "missing"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "missing"
+          }
+        ],
+        "text": "The retrieved menus do not contain enough evidence to compare that item.",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "insufficient_evidence",
+              "selections": []
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "insufficient_evidence",
+              "selections": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "unknown_operand",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor and Mystery Place.",
+      "expected": {
+        "status": "clarify",
+        "text": "Please name two different fictional catalog restaurants and one menu item to compare. For example: Compare mushroom pasta prices at Harbor and Sakura. Show the sources.",
+        "calls": {
+          "pin": 1,
+          "embedding": 0,
+          "retrieval": 0,
+          "selector": 0,
+          "rewrite": 0,
+          "chunk_reads": 0
+        }
+      },
+      "simulation": {
+        "workers": []
+      }
+    },
+    {
+      "id": "duplicate_operand",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor and Harbor Pasta Lab.",
+      "expected": {
+        "status": "clarify",
+        "text": "Please name two different fictional catalog restaurants and one menu item to compare. For example: Compare mushroom pasta prices at Harbor and Sakura. Show the sources.",
+        "calls": {
+          "pin": 1,
+          "embedding": 0,
+          "retrieval": 0,
+          "selector": 0,
+          "rewrite": 0,
+          "chunk_reads": 0
+        }
+      },
+      "simulation": {
+        "workers": []
+      }
+    },
+    {
+      "id": "third_restaurant",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor and Sakura and Spice.",
+      "expected": {
+        "status": "clarify",
+        "text": "Please name two different fictional catalog restaurants and one menu item to compare. For example: Compare mushroom pasta prices at Harbor and Sakura. Show the sources.",
+        "calls": {
+          "pin": 1,
+          "embedding": 0,
+          "retrieval": 0,
+          "selector": 0,
+          "rewrite": 0,
+          "chunk_reads": 0
+        }
+      },
+      "simulation": {
+        "workers": []
+      }
+    },
+    {
+      "id": "extra_criterion",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices and cancellation policy at Harbor and Sakura.",
+      "expected": {
+        "status": "clarify",
+        "text": "Please name two different fictional catalog restaurants and one menu item to compare. For example: Compare mushroom pasta prices at Harbor and Sakura. Show the sources.",
+        "calls": {
+          "pin": 1,
+          "embedding": 0,
+          "retrieval": 0,
+          "selector": 0,
+          "rewrite": 0,
+          "chunk_reads": 0
+        }
+      },
+      "simulation": {
+        "workers": []
+      }
+    },
+    {
+      "id": "two_items",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta and tomato pasta prices at Harbor and Sakura.",
+      "expected": {
+        "status": "clarify",
+        "text": "Please name two different fictional catalog restaurants and one menu item to compare. For example: Compare mushroom pasta prices at Harbor and Sakura. Show the sources.",
+        "calls": {
+          "pin": 1,
+          "embedding": 0,
+          "retrieval": 0,
+          "selector": 0,
+          "rewrite": 0,
+          "chunk_reads": 0
+        }
+      },
+      "simulation": {
+        "workers": []
+      }
+    },
+    {
+      "id": "wrong_item_quote",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor and Sakura.",
+      "expected": {
+        "status": "invalid_answer",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "invalid"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "text": "I couldn't validate the document comparison. Please rephrase your question.",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Tomato pasta - RM24 per serving. Vegan. Available at lunch and dinner."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "forged_chunk",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor and Sakura.",
+      "expected": {
+        "status": "invalid_answer",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "invalid"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "text": "I couldn't validate the document comparison. Please rephrase your question.",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+                  "chunk_id_override": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "modified_quote",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor and Sakura.",
+      "expected": {
+        "status": "invalid_answer",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "invalid"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "text": "I couldn't validate the document comparison. Please rephrase your question.",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM99 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "worker_unavailable",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor and Sakura.",
+      "expected": {
+        "status": "partial",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "unavailable"
+          }
+        ],
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 1,
+          "rewrite": 0,
+          "chunk_reads": 1
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "insufficient_evidence",
+              "selections": []
+            },
+            "fault": "provider_error"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pointer_changes",
+      "corpus": "corpus-v2.json",
+      "question": "Compare mushroom pasta prices at Harbor and Sakura.",
+      "expected": {
+        "status": "answered",
+        "item": "mushroom pasta",
+        "rows": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "status": "supported",
+            "quote": {
+              "document_id": "harbor-menu",
+              "version": "v2",
+              "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk.",
+              "page": 1
+            },
+            "amount": "32",
+            "unit": "serving"
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "status": "supported",
+            "quote": {
+              "document_id": "sakura-menu",
+              "version": "v1",
+              "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only.",
+              "section": "Main dishes",
+              "line_start": 5,
+              "line_end": 11
+            },
+            "amount": "36",
+            "unit": "serving"
+          }
+        ],
+        "difference": "4",
+        "cheaper_id": "demo-harbor-pasta",
+        "calls": {
+          "pin": 1,
+          "embedding": 2,
+          "retrieval": 2,
+          "selector": 2,
+          "rewrite": 0,
+          "chunk_reads": 3
+        }
+      },
+      "simulation": {
+        "workers": [
+          {
+            "restaurant_id": "demo-harbor-pasta",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "harbor-menu",
+                  "quote": "Mushroom pasta - RM32 per serving. Contains wheat and milk."
+                }
+              ]
+            }
+          },
+          {
+            "restaurant_id": "demo-sakura-table",
+            "selector": {
+              "status": "answered",
+              "selections": [
+                {
+                  "document_id": "sakura-menu",
+                  "quote": "Mushroom pasta - RM36 per serving. Contains wheat and milk. Available at dinner only."
+                }
+              ]
+            }
+          }
+        ],
+        "pointer_changes": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "fictional": true,
+  "cases": [
+    {"id":"harbor-v1","question":"According to Harbor Pasta Lab's menu, how much is mushroom pasta?","restaurant_id":"demo-harbor-pasta","document_id":"harbor-menu","version":"v1","contains":"RM28","page":1},
+    {"id":"harbor-cancel","question":"What is Harbor Pasta Lab's documented cancellation policy?","restaurant_id":"demo-harbor-pasta","document_id":"harbor-policy","contains":"24 hours","section":"Reservations and cancellation"},
+    {"id":"sakura-price","question":"What does Sakura Table Lab's menu say mushroom pasta costs?","restaurant_id":"demo-sakura-table","document_id":"sakura-menu","contains":"RM36"},
+    {"id":"followup","question":"And what about its cancellation fee?","restaurant_id":"demo-sakura-table","document_id":"sakura-policy","contains":"RM15"},
+    {"id":"missing","question":"According to Harbor's documents, does it offer valet parking?","restaurant_id":"demo-harbor-pasta","status":"insufficient_evidence"},
+    {"id":"ambiguous","question":"What does the uploaded menu say mushroom pasta costs?","status":"clarify"},
+    {"id":"harbor-v2","question":"According to Harbor Pasta Lab's menu, how much is mushroom pasta?","restaurant_id":"demo-harbor-pasta","document_id":"harbor-menu","version":"v2","contains":"RM32","page":1}
+  ]
+}

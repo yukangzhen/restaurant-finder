@@ -24,11 +24,30 @@ Usage:
     results = await runner.run_full_evaluation()
 """
 
-from src.evaluation.client import EvaluationClient
-from src.evaluation.on_demand import run_on_demand_evaluation, evaluate_session
-from src.evaluation.online import setup_online_evaluation, OnlineEvaluationManager
-from src.evaluation.test_cases import RESTAURANT_EVAL_CASES, EvalTestCase, TestCategory
-from src.evaluation.runner import EvaluationRunner
+from importlib import import_module
+
+# Importing the package or offline CLI must not load the live evaluation SDK.
+_EXPORTS = {
+    "EvaluationClient": "client",
+    "EvaluationRunner": "runner",
+    "run_on_demand_evaluation": "on_demand",
+    "evaluate_session": "on_demand",
+    "setup_online_evaluation": "online",
+    "OnlineEvaluationManager": "online",
+    "RESTAURANT_EVAL_CASES": "test_cases",
+    "EvalTestCase": "test_cases",
+    "TestCategory": "test_cases",
+}
+
+
+def __getattr__(name):
+    if name not in _EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return getattr(import_module(f"{__name__}.{_EXPORTS[name]}"), name)
+
+
+def __dir__():
+    return sorted(set(globals()) | set(_EXPORTS))
 
 __all__ = [
     "EvaluationClient",

@@ -1,17 +1,31 @@
+import asyncio
+from datetime import datetime, timezone
+import hashlib
 import time
+import uuid
+from typing import cast
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 from loguru import logger
 
 from src.application.orchestrator.workflow.state import OrchestratorState, IntentType
+from src.application.orchestrator.workflow.edges import MAX_TOOL_CALLS_PER_TURN
 from src.application.orchestrator.workflow.chains import (
     get_search_agent_chain,
     get_router_chain,
     get_simple_response_chain,
 )
+from src.config import settings
 from src.infrastructure.model import extract_text_content as _extract_text_content
 from src.infrastructure.memory import get_memory_instance
 from src.infrastructure.observability import get_observability_manager
+from src.infrastructure.jev_router import classify_with_jev, bedrock_routing_messages
+from src.application.document_rag.retrieval import router_catalog
+from src.infrastructure.guardrails import (
+    apply_output_guardrail,
+    get_blocked_output_message,
+    guardrail_span_attributes,
+)
 
 
 async def search_agent_node(
@@ -48,15 +62,17 @@ async def search_agent_node(
 
     configurable = config.get("configurable", {})
     customer_name = configurable.get("customer_name", "Guest")
-    session_id = configurable.get("thread_id", "unknown")
-    actor_id = configurable.get("actor_id", "unknown")
     tool_call_count = state.get("tool_call_count", 0)
     react_iteration = tool_call_count + 1  # Track which ReAct loop iteration
+    remaining_tool_calls = max(0, MAX_TOOL_CALLS_PER_TURN - tool_call_count)
 
     messages = list(state["messages"])
 
     # Get the chain and prompt metadata for tracing
-    chain_result = get_search_agent_chain(customer_name=customer_name)
+    chain_result = get_search_agent_chain(
+        customer_name=customer_name,
+        allow_tool_calls=remaining_tool_calls > 0,
+    )
     prompt_meta = chain_result.prompt_metadata
 
     logger.debug(
@@ -66,10 +82,6 @@ async def search_agent_node(
 
     # Build comprehensive span attributes for observability
     span_attributes = {
-        # Customer/session context
-        "customer.name": customer_name,
-        "session.id": session_id,
-        "actor.id": actor_id,
         # Prompt metadata (for prompt version tracking)
         "prompt.name": prompt_meta.name,
         "prompt.version": prompt_meta.version or "unknown",
@@ -94,9 +106,17 @@ async def search_agent_node(
         )
 
     # Track tool calls for efficiency limiting
-    has_tool_calls = hasattr(response, "tool_calls") and response.tool_calls
-    new_tool_count = tool_call_count + (len(response.tool_calls) if has_tool_calls else 0)
-    tool_names = [tc.get("name", "unknown") for tc in response.tool_calls] if has_tool_calls else []
+    requested_tool_calls = getattr(response, "tool_calls", []) or []
+    if len(requested_tool_calls) > remaining_tool_calls:
+        # Keep only executable calls in the message. Dropped calls never enter
+        # graph state, so there can be no unmatched tool-call IDs.
+        response = response.model_copy(
+            update={"tool_calls": requested_tool_calls[:remaining_tool_calls]}
+        )
+    tool_calls = getattr(response, "tool_calls", []) or []
+    has_tool_calls = bool(tool_calls)
+    new_tool_count = tool_call_count + len(tool_calls)
+    tool_names = [tc.get("name", "unknown") for tc in tool_calls]
 
     # Record workflow step completion with comprehensive metadata
     duration_ms = (time.time() - start_time) * 1000
@@ -131,6 +151,96 @@ async def search_agent_node(
     }
 
 
+async def output_guardrail_node(
+    state: OrchestratorState,
+    config: RunnableConfig,
+) -> dict:
+    """Approve, anonymize, or replace the complete answer before persistence."""
+    messages = state.get("messages", [])
+    latest_user_index = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], HumanMessage)
+        ),
+        -1,
+    )
+    final_message = next(
+        (
+            message
+            for message in reversed(messages[latest_user_index + 1 :])
+            if isinstance(message, AIMessage) and not message.tool_calls
+        ),
+        None,
+    )
+    raw_text = _extract_text_content(final_message.content) if final_message else ""
+    if not raw_text.strip():
+        raw_text = "I couldn't prepare a complete answer. Please try again."
+
+    observability = get_observability_manager()
+    with observability.create_span(
+        "guardrail.output",
+        attributes={"output.length": len(raw_text)},
+    ) as guardrail_span:
+        result = None
+        try:
+            result = await asyncio.to_thread(apply_output_guardrail, raw_text)
+        finally:
+            if guardrail_span is not None:
+                try:
+                    for key, value in guardrail_span_attributes(result, raw_text).items():
+                        guardrail_span.set_attribute(key, value)
+                except Exception:
+                    # Telemetry failure cannot change approval or expose data.
+                    pass
+
+    if result.allowed:
+        approved_text = result.output
+        response_status = "approved"
+        if approved_text != raw_text:
+            observability.add_span_event(
+                "guardrail.anonymized",
+                attributes={"action": result.action if result.action in {"NONE", "GUARDRAIL_INTERVENED"} else "unknown"},
+            )
+    else:
+        approved_text = get_blocked_output_message()
+        response_status = "blocked"
+        observability.add_span_event(
+            "guardrail.blocked",
+            attributes={"action": result.action if result.action in {"NONE", "GUARDRAIL_INTERVENED"} else "unknown"},
+        )
+
+    replacement = AIMessage(
+        content=approved_text,
+        additional_kwargs=(final_message.additional_kwargs if final_message else {}),
+        id=(final_message.id if final_message and final_message.id else str(uuid.uuid4())),
+    )
+    update = {"messages": replacement, "response_status": response_status,
+              "rag_pending_citations": [], "rag_approved_citations": [],
+              "rag_pending_coverage": None, "rag_approved_coverage": None}
+    references, coverage = [], None
+    if (response_status == "approved" and approved_text == raw_text
+            and state.get("intent") == "document_qa" and state.get("rag_status") in {"answered", "partial"}):
+        from src.domain.document_rag import validate_approved_document_payload
+        pending = state.get("rag_pending_citations", [])
+        references, coverage = validate_approved_document_payload(state.get("rag_mode"), state.get("rag_status"),
+            state.get("rag_generation"), pending, state.get("rag_pending_coverage"))
+        update["rag_approved_citations"] = [c.model_dump() for c in references]
+        update["rag_approved_coverage"] = coverage.model_dump() if coverage else None
+    if response_status == "approved":
+        update["last_approved_intent"] = state.get("intent")
+    # Only an approved document turn advances scope. All per-turn fields reset upstream.
+    if response_status == "approved" and state.get("rag_mode") in {"comparison", "multipart"}:
+        update["rag_approved_scope"] = None
+    elif response_status == "approved" and state.get("rag_pending_scope"):
+        update["rag_approved_scope"] = state["rag_pending_scope"]
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED:
+        from src.application.document_rag.conversation import approved_context_update
+        update.update(approved_context_update(state, config, replacement,
+            response_status == "approved" and approved_text == raw_text, references, coverage))
+    return update
+
+
 async def router_node(
     state: OrchestratorState,
     config: RunnableConfig,
@@ -155,31 +265,97 @@ async def router_node(
 
     messages = list(state["messages"])
 
-    router_chain = get_router_chain()
+    from src.application.document_rag.discovery import is_coverage_discovery_request
+    question = next((_extract_text_content(m.content) for m in reversed(messages) if isinstance(m, HumanMessage)), "")
+    if settings.DOCUMENT_RAG_ENABLED and settings.DOCUMENT_REAL_SOURCES_ENABLED and is_coverage_discovery_request(question):
+        observability.record_workflow_step(step_name="router", step_type="node", duration_ms=(time.time()-start_time)*1000,
+            success=True, metadata={"intent":"restaurant_search", "provider":"coverage_discovery"})
+        return {"intent":"restaurant_search", "coverage_discovery_requested":True, "rag_followup_resolution":None,
+                "rag_pending_context":None, "rag_pending_followup":None}
+
+    routing_scope = state.get("rag_approved_scope") if state.get("last_approved_intent") == "document_qa" else None
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED and settings.DOCUMENT_RAG_ENABLED:
+        from src.application.document_rag.conversation import eligible_context, latest_question, resolve_followup
+        from src.infrastructure.rag_observability import rag_span
+        resolution = resolve_followup(latest_question(state), state, config)
+        context = eligible_context(state, config)
+        try:
+            with rag_span("rag.followup.resolve") as span:
+                if span is not None:
+                    for name, value in {"rag.followup.decision": resolution.decision, "rag.followup.reason": resolution.reason,
+                        "rag.followup.operation": resolution.operation or "none", "rag.followup.restaurant_count": len(resolution.restaurant_ids),
+                        "rag.followup.context_valid": context is not None, "rag.followup.resumed": resolution.reason == "resumed",
+                        "rag.followup.mode": resolution.mode}.items():
+                        span.set_attribute(name, value)
+        except Exception:
+            # Optional resolver telemetry cannot change the admission decision.
+            pass
+        routing_scope = context.restaurant_ids[0] if context and len(context.restaurant_ids) == 1 else None
+        if resolution.decision != "not_applicable":
+            observability.record_workflow_step(step_name="router", step_type="node", duration_ms=(time.time()-start_time)*1000,
+                success=True, metadata={"intent": "document_qa", "provider": "document_followup", "decision": resolution.decision})
+            return {"intent": "document_qa", "coverage_discovery_requested":False, "rag_followup_resolution": resolution.model_dump(mode="json"),
+                    "rag_pending_context": None, "rag_pending_followup": None}
 
     with observability.create_span(
         "router.classify",
         attributes={"message.count": len(messages)},
-    ):
-        response = await router_chain.ainvoke(
-            {"messages": messages},
-            config,
-        )
+    ) as router_span:
+        provider = "jev"
+        model = settings.JEV_ROUTER_MODEL
+        confidence = None
+        fallback_reason = None
 
-    # Parse the intent from the response
-    response_text = _extract_text_content(response.content).strip().lower()
+        try:
+            with observability.create_span(
+                "router.jev",
+                attributes={"router.model": model},
+            ):
+                classification = await classify_with_jev(messages, approved_document_scope=routing_scope)
+            intent = cast(IntentType, classification.intent)
+            confidence = classification.confidence
+        except Exception as error:
+            provider = "bedrock"
+            model = settings.ROUTER_MODEL_ID
+            fallback_reason = type(error).__name__
+            logger.warning(
+                "Jev routing failed; using Bedrock fallback (error_type={})",
+                fallback_reason,
+            )
 
-    # Map response to intent type
-    if "restaurant_search" in response_text:
-        intent: IntentType = "restaurant_search"
-    elif "simple" in response_text:
-        intent = "simple"
-    elif "off_topic" in response_text:
-        intent = "off_topic"
-    else:
-        # Default to restaurant_search if unclear
-        logger.warning(f"Unclear intent classification: {response_text}, defaulting to restaurant_search")
-        intent = "restaurant_search"
+            with observability.create_span(
+                "router.bedrock_fallback",
+                attributes={
+                    "router.model": model,
+                    "fallback.reason": fallback_reason,
+                },
+            ):
+                response = await get_router_chain().ainvoke(
+                    {"messages": bedrock_routing_messages(messages), "router_context": str({"document_catalog": router_catalog(), "approved_document_scope": routing_scope})},
+                    config,
+                )
+
+            response_text = _extract_text_content(response.content).strip().lower()
+            if response_text == "document_qa":
+                intent = "document_qa"
+            elif "restaurant_search" in response_text:
+                intent = "restaurant_search"
+            elif "simple" in response_text:
+                intent = "simple"
+            elif "off_topic" in response_text:
+                intent = "off_topic"
+            else:
+                logger.warning("Unclear Bedrock fallback intent; defaulting to restaurant_search")
+                intent = "restaurant_search"
+
+        if router_span is not None:
+            router_span.set_attribute("router.intent", intent)
+            router_span.set_attribute("router.provider", provider)
+            router_span.set_attribute("router.model", model)
+            if confidence is not None:
+                router_span.set_attribute("router.confidence", confidence)
+            if fallback_reason is not None:
+                router_span.set_attribute("router.fallback.reason", fallback_reason)
 
     duration_ms = (time.time() - start_time) * 1000
     observability.record_workflow_step(
@@ -187,12 +363,26 @@ async def router_node(
         step_type="node",
         duration_ms=duration_ms,
         success=True,
-        metadata={"intent": intent, "raw_response": response_text[:50]},
+        metadata={
+            "intent": intent,
+            "provider": provider,
+            "model": model,
+            "confidence": confidence,
+            "fallback_reason": fallback_reason,
+        },
     )
 
-    logger.info(f"Router classified intent: {intent}")
+    logger.info(
+        "Router classified intent={} provider={} model={} fallback_reason={}",
+        intent,
+        provider,
+        model,
+        fallback_reason or "none",
+    )
 
-    return {"intent": intent}
+    if settings.DOCUMENT_FOLLOWUPS_ENABLED:
+        return {"intent": intent, "coverage_discovery_requested":False, "rag_followup_resolution": None, "rag_pending_context": None, "rag_pending_followup": None}
+    return {"intent": intent, "coverage_discovery_requested":False}
 
 
 async def simple_response_node(
@@ -232,7 +422,6 @@ async def simple_response_node(
     with observability.create_span(
         "simple_response.generate",
         attributes={
-            "customer.name": customer_name,
             "intent": intent,
         },
     ):
@@ -281,25 +470,35 @@ async def memory_post_hook(
     actor_id = configurable.get("actor_id", "user:default")
     session_id = configurable.get("thread_id", "default_session")
 
+    if state.get("response_status") != "approved":
+        logger.debug("Response was not approved; skipping memory save")
+        observability.add_span_event(
+            "memory.skipped",
+            attributes={"reason": "response_not_approved"},
+        )
+        return {}
+
     messages = state.get("messages", [])
 
-    # Find the latest user input and agent response
-    user_input = ""
-    agent_response = ""
+    latest_user_index = next(
+        (index for index in range(len(messages) - 1, -1, -1)
+         if isinstance(messages[index], HumanMessage)),
+        None,
+    )
+    latest_user = messages[latest_user_index] if latest_user_index is not None else None
+    final_assistant = next(
+        (
+            msg
+            for msg in reversed(messages[latest_user_index + 1 :])
+            if isinstance(msg, AIMessage) and msg.content and not msg.tool_calls
+        ),
+        None,
+    ) if latest_user_index is not None else None
 
-    for msg in reversed(messages):
-        if isinstance(msg, AIMessage) and not agent_response:
-            # Skip tool calls, get the actual response
-            if msg.content and not msg.tool_calls:
-                # Extract text from content (handles both string and list formats)
-                agent_response = _extract_text_content(msg.content)
-        elif isinstance(msg, HumanMessage) and not user_input:
-            user_input = _extract_text_content(msg.content)
+    user_input = _extract_text_content(latest_user.content) if latest_user else ""
+    agent_response = _extract_text_content(final_assistant.content) if final_assistant else ""
 
-        if user_input and agent_response:
-            break
-
-    if not user_input or not agent_response:
+    if not user_input or not agent_response or latest_user is None or final_assistant is None:
         logger.debug("Missing user input or agent response, skipping memory save")
         observability.add_span_event(
             "memory.skipped",
@@ -308,44 +507,59 @@ async def memory_post_hook(
         return {}
 
     memory = get_memory_instance()
+    event_time_text = latest_user.additional_kwargs.get("agentcore_event_timestamp")
+    try:
+        event_timestamp = (
+            datetime.fromisoformat(event_time_text.replace("Z", "+00:00"))
+            if isinstance(event_time_text, str)
+            else datetime.now(timezone.utc)
+        )
+    except ValueError:
+        event_timestamp = datetime.now(timezone.utc)
+
+    user_message_id = latest_user.id or ""
+    assistant_message_id = final_assistant.id or ""
+    if not user_message_id:
+        user_message_id = hashlib.sha256(user_input.encode("utf-8")).hexdigest()
+    if not assistant_message_id:
+        assistant_message_id = hashlib.sha256(agent_response.encode("utf-8")).hexdigest()
 
     try:
-        with observability.create_span(
-            "memory.process_turn",
-            attributes={
-                "actor.id": actor_id,
-                "session.id": session_id,
-            }
-        ):
-            result = memory.process_turn(
+        with observability.create_span("memory.save"):
+            result = await asyncio.to_thread(
+                memory.process_turn,
                 actor_id=actor_id,
                 session_id=session_id,
                 user_input=user_input,
                 agent_response=agent_response,
+                user_message_id=user_message_id,
+                assistant_message_id=assistant_message_id,
+                event_timestamp=event_timestamp,
             )
 
+        duration_ms = (time.time() - start_time) * 1000
         if result.get("success"):
-            logger.info(f"Saved conversation turn to memory for actor={actor_id}")
-            duration_ms = (time.time() - start_time) * 1000
+            observability.record_memory_operation("save", success=True, duration_ms=duration_ms)
             observability.record_workflow_step(
                 step_name="memory_post_hook",
                 step_type="node",
                 duration_ms=duration_ms,
                 success=True,
-                metadata={"actor_id": actor_id, "session_id": session_id}
             )
         else:
-            logger.warning(f"Memory save returned error: {result.get('error')}")
+            observability.record_memory_operation("save", success=False, duration_ms=duration_ms)
             observability.add_span_event(
                 "memory.error",
-                attributes={"error": result.get("error", "unknown")}
+                attributes={"error.type": result.get("error", "MemorySaveFailed")}
             )
 
     except Exception as e:
-        logger.error(f"Memory post-hook failed: {e}")
+        duration_ms = (time.time() - start_time) * 1000
+        observability.record_memory_operation("save", success=False, duration_ms=duration_ms)
+        logger.error(f"Memory post-hook failed: {type(e).__name__}")
         observability.add_span_event(
             "memory.exception",
-            attributes={"error.type": type(e).__name__, "error.message": str(e)}
+            attributes={"error.type": type(e).__name__}
         )
 
     return {}

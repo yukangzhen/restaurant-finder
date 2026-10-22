@@ -11,7 +11,7 @@ This module works with the AWS Distro for OpenTelemetry (ADOT) SDK which
 automatically instruments the agent to capture telemetry data.
 
 Environment Variables Required:
-    AGENT_OBSERVABILITY_ENABLED: Enable observability (default: true)
+    AGENT_OBSERVABILITY_ENABLED: Enable observability (default: false)
     OTEL_PYTHON_DISTRO: Set to "aws_distro" for ADOT
     OTEL_PYTHON_CONFIGURATOR: Set to "aws_configurator" for ADOT
     OTEL_EXPORTER_OTLP_PROTOCOL: Set to "http/protobuf"
@@ -25,18 +25,22 @@ Usage:
 
 from typing import Optional
 from contextlib import contextmanager
+import time
 
 from loguru import logger
 
 # OpenTelemetry imports - gracefully handle if not installed
 try:
-    from opentelemetry import trace, baggage, context
+    from opentelemetry import _logs, metrics, trace, baggage
     from opentelemetry.context import attach, detach
+    from opentelemetry._logs import LogRecord, SeverityNumber
     from opentelemetry.trace import SpanKind, Status, StatusCode
     OTEL_AVAILABLE = True
 except ImportError:
     OTEL_AVAILABLE = False
     # Define stub types to prevent NameError at class definition time
+    _logs = None  # type: ignore
+    metrics = None  # type: ignore
     trace = None  # type: ignore
     baggage = None  # type: ignore
     context = None  # type: ignore
@@ -45,6 +49,8 @@ except ImportError:
     SpanKind = None  # type: ignore
     Status = None  # type: ignore
     StatusCode = None  # type: ignore
+    LogRecord = None  # type: ignore
+    SeverityNumber = None  # type: ignore
     logger.warning(
         "OpenTelemetry packages not installed. "
         "Observability features will be disabled."
@@ -76,13 +82,32 @@ class ObservabilityManager:
         self.service_name = service_name
         self.enabled = enabled and OTEL_AVAILABLE
         self._tracer = None  # Type: Optional[trace.Tracer] when OTEL available
+        self._memory_save_counter = None
+        self._memory_retrieve_counter = None
+        self._memory_duration = None
+        self._otel_logger = None
 
         if self.enabled and trace is not None:
             self._tracer = trace.get_tracer(
                 instrumenting_module_name=service_name,
                 tracer_provider=trace.get_tracer_provider(),
             )
-            logger.info(f"Observability initialized for service: {service_name}")
+            meter = metrics.get_meter(service_name) if metrics is not None else None
+            if meter is not None:
+                self._memory_save_counter = meter.create_counter(
+                    "agentcore.memory.save.count", unit="{event}"
+                )
+                self._memory_retrieve_counter = meter.create_counter(
+                    "agentcore.memory.retrieve.count", unit="{operation}"
+                )
+                self._memory_duration = meter.create_histogram(
+                    "agentcore.memory.operation.duration", unit="ms"
+                )
+            if _logs is not None:
+                self._otel_logger = _logs.get_logger(service_name)
+            logger.info(
+                "OpenTelemetry instrumentation initialized; export delivery is not verified at startup"
+            )
         else:
             logger.info("Observability disabled or OpenTelemetry not available")
 
@@ -105,7 +130,7 @@ class ObservabilityManager:
         try:
             ctx = baggage.set_baggage("session.id", session_id)
             token = attach(ctx)
-            logger.debug(f"Session ID set in observability context: {session_id}")
+            logger.debug("Session ID attached to observability context")
             return token
         except Exception as e:
             logger.warning(f"Failed to set session ID in baggage: {e}")
@@ -186,9 +211,10 @@ class ObservabilityManager:
         ) as span:
             try:
                 yield span
-            except Exception as e:
-                span.set_status(Status(StatusCode.ERROR, str(e)))
-                span.record_exception(e)
+            except Exception as error:
+                # Exception messages can contain request data or provider details.
+                span.set_attribute("error.type", type(error).__name__)
+                span.set_status(Status(StatusCode.ERROR))
                 raise
 
     def add_span_attribute(self, key: str, value: str) -> None:
@@ -263,6 +289,45 @@ class ObservabilityManager:
                 attributes[f"workflow.step.{key}"] = str(value)
 
         self.add_span_event(f"workflow.{step_name}", attributes)
+
+    def record_memory_operation(
+        self,
+        operation: str,
+        success: bool,
+        duration_ms: float,
+        category: str | None = None,
+    ) -> None:
+        """Record bounded-cardinality memory metrics and a sanitized OTel log."""
+        if operation not in {"save", "retrieve"}:
+            return
+
+        status = "success" if success else "error"
+        attributes = {"operation": operation, "status": status}
+        if category in {"preferences", "facts", "summaries"}:
+            attributes["category"] = category
+
+        counter = (
+            self._memory_save_counter
+            if operation == "save"
+            else self._memory_retrieve_counter
+        )
+        if counter is not None:
+            counter.add(1, attributes)
+        if self._memory_duration is not None:
+            self._memory_duration.record(duration_ms, attributes)
+
+        if self._otel_logger is not None and LogRecord is not None:
+            severity = SeverityNumber.INFO if success else SeverityNumber.ERROR
+            self._otel_logger.emit(
+                LogRecord(
+                    timestamp=time.time_ns(),
+                    observed_timestamp=time.time_ns(),
+                    severity_number=severity,
+                    severity_text="INFO" if success else "ERROR",
+                    body=f"memory.{operation}",
+                    attributes=attributes,
+                )
+            )
 
 
 # Global observability manager instance

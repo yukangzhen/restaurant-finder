@@ -1,4 +1,6 @@
-from pydantic import Field
+from typing import Literal
+
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,17 +13,66 @@ class Settings(BaseSettings):
 
     # --- Model configurations ---
     ORCHESTRATOR_MODEL_ID: str = Field(
-        default="us.anthropic.claude-3-5-haiku-20241022-v1:0",
+        default="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         description="Model for main orchestrator (tool selection, conversation management).",
     )
     EXTRACTION_MODEL_ID: str = Field(
-        default="us.anthropic.claude-3-5-haiku-20241022-v1:0",
+        default="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         description="Model for data extraction tasks (JSON parsing, structured data).",
     )
     ROUTER_MODEL_ID: str = Field(
-        default="us.anthropic.claude-3-5-haiku-20241022-v1:0",
+        default="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         description="Model for router/intent classification (lightweight, fast).",
     )
+
+    # --- Jev router configuration ---
+    TYPESAFE_API_KEY: SecretStr | None = Field(
+        default=None,
+        description="TypeSafe API key used by the Jev intent router.",
+    )
+    TYPESAFE_SECRET_ARN: str = Field(
+        default="",
+        description="Secrets Manager ARN containing the TypeSafe API key for deployed runtimes.",
+    )
+    JEV_ROUTER_MODEL: str = Field(
+        default="jev-1.13.0",
+        description="Pinned Jev model version for intent classification.",
+    )
+    JEV_ROUTER_TIMEOUT_SECONDS: float = Field(
+        default=2.0,
+        gt=0,
+        description="Maximum time allowed for a Jev routing request before Bedrock fallback.",
+    )
+
+    # --- Controlled document RAG (runtime reads only) ---
+    DOCUMENT_RAG_ENABLED: bool = False
+    DOCUMENT_MULTIPART_ENABLED: bool = False
+    DOCUMENT_FOLLOWUPS_ENABLED: bool = False
+    DOCUMENT_REAL_SOURCES_ENABLED: bool = False
+    RAG_RETRIEVAL_MODE: Literal["vector", "hybrid"] = "vector"
+    RAG_DOCUMENT_BUCKET: str = ""
+    RAG_VECTOR_INDEX_ARN: str = ""
+    RAG_ACTIVE_MANIFEST_KEY: str = "rag/active.json"
+    RAG_EMBEDDING_MODEL_ID: str = "amazon.titan-embed-text-v2:0"
+    RAG_EMBEDDING_DIMENSIONS: int = 512
+    RAG_TOP_K: int = Field(default=5, ge=1, le=10)
+    RAG_MAX_CONTEXT_CHARACTERS: int = Field(default=9000, ge=1800, le=9000)
+    RAG_REQUEST_TIMEOUT_SECONDS: float = Field(default=60, gt=0, le=60)
+
+    @model_validator(mode="before")
+    @classmethod
+    def hybrid_integer_bounds(cls, values):
+        if isinstance(values, dict) and values.get("RAG_RETRIEVAL_MODE") == "hybrid":
+            value = values.get("RAG_TOP_K", 5)
+            if isinstance(value, bool) or not isinstance(value, (int, str)):
+                raise ValueError("Hybrid RAG_TOP_K must be an integer")
+        return values
+
+    @model_validator(mode="after")
+    def hybrid_budget(self):
+        if self.RAG_RETRIEVAL_MODE == "hybrid" and self.RAG_TOP_K > 5:
+            raise ValueError("Hybrid RAG_TOP_K must be at most 5")
+        return self
 
     # --- Browser Tools Configuration ---
     ENABLE_BROWSER_TOOLS: bool = Field(
@@ -36,11 +87,11 @@ class Settings(BaseSettings):
     )
     BEDROCK_GUARDRAIL_ID: str = Field(
         default="",
-        description="The Bedrock guardrail ID (auto-populated on startup if empty).",
+        description="Explicit Bedrock guardrail ID requires a positive numbered version. Empty ID with DRAFT enables automatic setup.",
     )
     BEDROCK_GUARDRAIL_VERSION: str = Field(
         default="DRAFT",
-        description="The Bedrock guardrail version (e.g., 'DRAFT', '1', '2').",
+        description="Immutable positive numbered version for an explicit ID; DRAFT is only for unconfigured automatic setup.",
     )
     GUARDRAIL_ENABLED: bool = Field(
         default=True,
@@ -75,7 +126,7 @@ class Settings(BaseSettings):
 
     # --- Observability configurations ---
     AGENT_OBSERVABILITY_ENABLED: bool = Field(
-        default=True,
+        default=False,
         description="Enable OpenTelemetry-based observability for CloudWatch GenAI Observability.",
     )
     OTEL_SERVICE_NAME: str = Field(

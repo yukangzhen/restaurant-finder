@@ -1,0 +1,8 @@
+{
+  "restaurants": [
+    {"restaurant_id":"demo-natalina-kl","name":"Natalina Italian Kitchen","aliases":["Natalina","Natalina KL"],"fictional":false,"city":"Kuala Lumpur","cuisine":"Italian","website":"https://www.natalinakl.com/"},
+    {"restaurant_id":"demo-nero-nero-kl","name":"Nero Nero Kuala Lumpur","aliases":["Nero Nero","Nero Nero KL"],"fictional":false,"city":"Kuala Lumpur","cuisine":"Italian","website":"https://www.neronerokl.com/"},
+    {"restaurant_id":"demo-ciccio-kl","name":"Ciccio Bar Pizzeria","aliases":["Ciccio"],"fictional":false,"city":"Kuala Lumpur","cuisine":"Italian","website":"https://ciccio.com.my/"},
+    {"restaurant_id":"demo-bottega-kl","name":"Bottega KL","aliases":["Bottega Mediterranea Kuala Lumpur"],"fictional":false,"city":"Kuala Lumpur","cuisine":"Italian","website":"https://kl.bottega.my/"}
+  ]
+}

@@ -1,14 +1,9 @@
-"""
-Browser infrastructure for AgentCore Browser integration.
+"""Factories for isolated AgentCore Browser operations."""
 
-This module provides a managed browser toolkit using AWS Bedrock AgentCore Browser,
-which enables agents to interact with web applications in a secure, isolated environment.
+from __future__ import annotations
 
-Thread-based session isolation: Each unique thread_id in the config creates a
-separate browser session, allowing concurrent operations.
-"""
-
-from typing import Dict, List
+import asyncio
+import uuid
 
 from langchain_aws.tools import create_browser_toolkit
 from langchain_aws.tools.browser_toolkit import BrowserToolkit
@@ -17,100 +12,34 @@ from loguru import logger
 
 from src.config import settings
 
-# Global browser toolkit instance (singleton)
-# The toolkit internally manages separate sessions per thread_id
-_browser_toolkit: BrowserToolkit | None = None
-_browser_tools: List[BaseTool] | None = None
-_browser_tools_by_name: Dict[str, BaseTool] | None = None
+
+def create_browser_operation(parent_config: dict | None = None) -> tuple[BrowserToolkit, dict[str, BaseTool], dict]:
+    """Create a toolkit, tools, and unique session config owned by one operation."""
+    operation_id = f"browser-{uuid.uuid4().hex}"
+    toolkit, _ = create_browser_toolkit(region=settings.AWS_REGION)
+    tools = toolkit.get_tools_by_name()
+    config = dict(parent_config or {})
+    configurable = dict(config.get("configurable", {}))
+    conversation_id = configurable.get("thread_id")
+    configurable["thread_id"] = operation_id
+    if conversation_id:
+        configurable["conversation_id"] = conversation_id
+    config["configurable"] = configurable
+    logger.info("Created isolated browser operation {}", operation_id)
+    return toolkit, tools, config
 
 
-def get_browser_toolkit() -> BrowserToolkit:
-    """
-    Get or create the browser toolkit singleton.
-
-    The toolkit manages separate browser sessions for each thread_id passed
-    via config when invoking tools or agents.
-
-    Returns:
-        BrowserToolkit: The initialized browser toolkit instance.
-    """
-    global _browser_toolkit, _browser_tools, _browser_tools_by_name
-
-    if _browser_toolkit is None:
-        region = settings.AWS_REGION
-        _browser_toolkit, _browser_tools = create_browser_toolkit(region=region)
-        _browser_tools_by_name = _browser_toolkit.get_tools_by_name()
-        logger.info(f"Browser toolkit initialized for region: {region}")
-
-    return _browser_toolkit
-
-
-def get_browser_tools() -> List[BaseTool]:
-    """
-    Get the list of browser tools from the toolkit.
-
-    Returns:
-        List[BaseTool]: List of LangChain browser tools.
-    """
-    global _browser_tools
-    get_browser_toolkit()  # Ensure toolkit is initialized
-    return _browser_tools
-
-
-def get_browser_tools_with_config(thread_id: str) -> List[BaseTool]:
-    """
-    Get browser tools with config pre-bound for a specific thread_id.
-
-    This ensures the thread_id is always passed to each tool call,
-    solving the issue where agents don't propagate config to tools.
-
-    Args:
-        thread_id: Unique identifier for the browser session.
-
-    Returns:
-        List[BaseTool]: List of browser tools with config bound.
-    """
-    get_browser_toolkit()  # Ensure toolkit is initialized
-    config = {"configurable": {"thread_id": thread_id}}
-
-    # Bind the config to each tool so thread_id is always used
-    bound_tools = [tool.bind(config) for tool in _browser_tools]
-    logger.info(f"Browser tools bound with thread_id: {thread_id}")
-    return bound_tools
-
-
-def get_browser_tools_by_name() -> Dict[str, BaseTool]:
-    """
-    Get browser tools as a dictionary keyed by tool name.
-
-    This allows direct tool invocation with config:
-        tools_by_name["navigate_browser"].invoke({"url": "..."}, config=config)
-
-    Returns:
-        Dict[str, BaseTool]: Dictionary of tool_name -> BaseTool.
-    """
-    global _browser_tools_by_name
-    get_browser_toolkit()  # Ensure toolkit is initialized
-    return _browser_tools_by_name
-
-
-async def cleanup_browser_sessions() -> None:
-    """
-    Clean up all browser sessions and reset the toolkit singleton.
-
-    Call this after each browser search to release resources and
-    ensure fresh sessions for subsequent searches.
-    """
-    global _browser_toolkit, _browser_tools, _browser_tools_by_name
-
-    if _browser_toolkit is not None:
+async def close_browser_operation(toolkit: BrowserToolkit) -> None:
+    """Close only the toolkit owned by the completed browser operation."""
+    cleanup_task = asyncio.create_task(toolkit.cleanup())
+    try:
+        await asyncio.shield(cleanup_task)
+    except asyncio.CancelledError:
+        # Let the operation's own toolkit finish closing before propagating
+        # cancellation to the caller.
         try:
-            await _browser_toolkit.cleanup()
-            logger.info("Browser sessions cleaned up successfully")
-        except Exception as e:
-            logger.warning(f"Error cleaning up browser sessions: {e}")
+            await asyncio.shield(cleanup_task)
         finally:
-            # Reset singleton so next search gets a fresh toolkit
-            _browser_toolkit = None
-            _browser_tools = None
-            _browser_tools_by_name = None
+            raise
+    except Exception as error:
+        logger.warning("Browser operation cleanup failed (error_type={})", type(error).__name__)
