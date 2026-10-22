@@ -4,6 +4,14 @@ An AI engineering portfolio project using **LangGraph**, **Amazon Bedrock AgentC
 
 Adapted from [Joud Awad's original project](https://github.com/JoudAwad97/agentic-ai-langgraph-and-aws-agentcore). This repository extends that foundation; it does not claim authorship of the original application. It is a demonstration, not an operated production service.
 
+## Demo
+
+[![Open the Restaurant Finder walkthrough: document-backed menu comparison with source citations](docs/assets/demo-preview.jpg)](https://github.com/yukangzhen/restaurant-finder/releases/tag/demo-walkthrough)
+
+**[Open the demo release](https://github.com/yukangzhen/restaurant-finder/releases/tag/demo-walkthrough)** · [Download the MP4 (21 MB)](https://github.com/yukangzhen/restaurant-finder/releases/download/demo-walkthrough/restaurant-finder-demo.mp4)
+
+Silent, 55 seconds, 1080p. The walkthrough shows restaurant discovery, cited menu comparison, a contextual follow-up and AWS deployment/tracing evidence. Your browser may download the MP4 rather than play it inline.
+
 ## What this version adds
 
 - **Jev routing with a Bedrock fallback:** TypeSafe Jev classifies intent; Claude Haiku 4.5 handles routing when Jev is unavailable. No measured latency or cost saving is claimed.
