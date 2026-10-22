@@ -32,3 +32,7 @@ tmp/
 .generated/citations/
 # Private third-party originals and offline preparation evidence are never runtime assets.
 .generated/real-restaurants*/
+
+# Keep the parent traversable; only immutable prompt metadata is a runtime asset.
+.generated/**
+!.generated/prompt-manifest.json

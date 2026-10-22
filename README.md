@@ -1,568 +1,120 @@
-# Restaurant Finder - Agentic AI with AWS Bedrock AgentCore
+# Restaurant Finder: agent workflows, document RAG and AWS deployment
 
-An AI engineering portfolio demo built with **AWS Bedrock AgentCore**, **LangGraph**, and **Chainlit**. It searches for restaurants, remembers dining preferences, and answers questions from controlled documents with verified quotations. It demonstrates deployment, retrieval, tracing and safety patterns; it is not operated as a production service.
+An AI engineering portfolio project using **LangGraph**, **Amazon Bedrock AgentCore**, and **Chainlit**. It finds restaurants through web search, answers bounded questions from versioned menu/policy documents, and lets users inspect cited originals. The Python backend runs in an ARM64 container on AWS; the demonstrated Chainlit interface runs locally and calls that cloud backend.
 
-Adapted from [Joud Awad's original restaurant finder](https://github.com/JoudAwad97/agentic-ai-langgraph-and-aws-agentcore). This fork adds Jev routing with a Bedrock fallback, integration/correctness repairs, and a custom versioned document RAG pipeline with inspectable original-source citations.
+Adapted from [Joud Awad's original project](https://github.com/JoudAwad97/agentic-ai-langgraph-and-aws-agentcore). This repository extends that foundation; it does not claim authorship of the original application. It is a demonstration, not an operated production service.
 
-Offline GitHub checks cover the API, UI and infrastructure. A 17-case document RAG dataset checks extractive answers, pinned source citations and safe failure/scope behavior with explicitly simulated model dependencies. See [automated checks and RAG evaluation](docs/CI_AND_RAG_EVALUATION.md) for commands, report interpretation and the distinction between offline regression and measured live model quality.
+The public release brings the demonstrated implementation and setup guide together on `main`. The [release pull request](https://github.com/yukangzhen/restaurant-finder/pull/1) records the implementation, verification and known limitations.
 
-The multi-part document extension combines menu-price and cancellation-policy questions for one or two named fictional restaurants. It checks a structured task plan, retrieves at most four tasks with concurrency two, and supports up to four inspectable originals. It is disabled by default (`DOCUMENT_MULTIPART_ENABLED=false`) and has a separate 40-case offline evaluation. The first trial on 2026-10-13 was blocked by final moderation and rolled back to Runtime 15. The pinned-guardrail retry on 2026-10-14 passed all six live cases and retained READY Runtime/DEFAULT 16, with multipart enabled and immutable guardrail `ih5xpt3qi946:1`. Four original downloads were hash-verified. See the [accepted retry record](docs/HANDOFF_PRD_PINNED_GUARDRAIL_AND_MULTIPART_RETRY.md#14-gate-b-execution-and-acceptance---2026-10-14) and [draft PR #1](https://github.com/yukangzhen/restaurant-finder/pull/1). The planner adds a model call; no measured cost or performance improvement is claimed.
+## What this version adds
 
-The conversation extension adds bounded follow-ups such as “What about its cancellation fee?” and “Which is cheaper?” from approved structured context. Ambiguous references ask which restaurant; an immediate restaurant-name reply resumes the question. Each answer retrieves fresh evidence and keeps its own clickable sources. It is disabled by default (`DOCUMENT_FOLLOWUPS_ENABLED=false`) and has a separate 24-conversation offline regression. The 2026-10-14 rollout passed seven actual UI/Runtime requests and retained READY Runtime/DEFAULT 17 with follow-ups and multipart enabled, using immutable guardrail `ih5xpt3qi946:1`. Three original downloads were hash-verified. Traces show two Jev seed classifications and five deterministic shortcuts; cost and performance gains remain unmeasured. See the [local implementation](docs/HANDOFF_PRD_DOCUMENT_CONVERSATION_FOLLOWUPS.md) and [accepted rollout record](docs/HANDOFF_PRD_FOLLOWUP_PUBLICATION_AND_ROLLOUT.md#12-phase-b-execution-and-acceptance).
-
-## Hybrid retrieval extension
-
-The optional `RAG_RETRIEVAL_MODE=hybrid` combines local BM25 keyword ranking with the existing scoped vector search using Reciprocal Rank Fusion. Both branches use one pinned generation, and every candidate is verified against its stored chunk before selection. Hybrid retrieval keeps at most five complete passages, requires no additional model or search service, and retains the existing original-source citations. The default `vector` mode preserves the previous retrieval path.
-
-Phase A local acceptance passed on 2026-10-15: 290 API, 32 UI and 55 infrastructure tests, all four existing evaluations and the new 24-case/57-variant retrieval regression. Release `22f8d9c` was published on 2026-10-19 and passed both automatic CI runs. Its controlled deployment reached READY Runtime/DEFAULT 18, then restored the previous image at READY version 19 because UI automation failed before submitting the first acceptance question. Hybrid live acceptance was incomplete at that checkpoint. The later approved browser recovery stopped after L1 omitted required menu qualifiers and restored the prior vector image at READY Runtime/DEFAULT 21; see the recovery closeout below. The subsequent complete-record release passed at Runtime 22, as recorded in the next section. See the [earlier rollout and recovery record](docs/HANDOFF_PRD_HYBRID_RETRIEVAL_PUBLICATION_AND_ROLLOUT.md#11-phase-b-execution-and-recovery). Semantic candidates in the new evaluation are simulated, so it does not measure live retrieval quality, cost or latency. See the [hybrid retrieval PRD](docs/HANDOFF_PRD_HYBRID_DOCUMENT_RETRIEVAL.md) and [engineering guide](docs/DOCUMENT_RAG.md#hybrid-retrieval).
-
-## Complete records in single document answers
-
-The local repair now completes an authentic shortened model quote from one unambiguous record in the same verified retrieved passage. A price answer retains allergens and availability qualifiers; a cancellation answer retains both the free-cancellation window and late fee. Forged quotes, conflicting records, unknown boundaries and unsupported layouts produce a safe non-answer. Completion adds no model, embedding or retrieval call and preserves original-source citations and the final approval gate.
-
-Offline verification passed **322 API, 50 UI and 55 infrastructure tests**, including 31 new record tests and one evaluator mutation test, plus all five document evaluations. Release `0ec71ad` passed both automatic CI artifact sets and the separately approved seven-request live trial on 2026-10-19. **READY Runtime/DEFAULT 22 is retained with hybrid retrieval enabled.** All complete menu/policy answers, the unsupported-parking abstention, follow-ups, fourteen citation opens/reopens and four hash-verified original downloads passed. Traces confirm twelve hybrid retrieval paths, four Jev routes, three deterministic follow-ups and seven unchanged final approvals. See the [repair record](docs/HANDOFF_PRD_SINGLE_DOCUMENT_RECORD_COMPLETENESS.md#8-local-execution-record) and [accepted rollout](docs/HANDOFF_PRD_SINGLE_RECORD_PUBLICATION_AND_ROLLOUT.md#16-live-acceptance-and-retention). This controlled matrix does not measure general retrieval quality, latency or cost savings.
+- **Jev routing with a Bedrock fallback:** TypeSafe Jev classifies intent; Claude Haiku 4.5 handles routing when Jev is unavailable. No measured latency or cost saving is claimed.
+- **Document RAG:** Titan V2 embeddings, S3 Vectors, private S3 originals, immutable corpus generations, scoped retrieval and verified quotations. Optional hybrid retrieval combines BM25 and vector rankings with Reciprocal Rank Fusion.
+- **Bounded parallel work:** price comparisons and multipart price/cancellation-policy questions use validated tasks and at most two concurrent document workers. Supported follow-ups resolve restaurant/item context and retrieve fresh evidence.
+- **Inspectable evidence:** approved responses carry source metadata; Chainlit fetches the corresponding original, verifies its hash and opens a PDF page or numbered Markdown text.
+- **Safety and reliability repairs:** tool budgets, isolated browser lifecycles, complete-answer moderation, approved memory writes and regression coverage.
+- **Engineering evidence:** credential-free CI with five simulated document evaluations, CDK infrastructure, immutable prompt metadata and correlated AWS spans/logs.
 
 ## Architecture
 
-The document RAG extension is described in the [engineering guide](docs/DOCUMENT_RAG.md), with deployment evidence and rollback in the [approved handoff](docs/HANDOFF_PRD_DOCUMENT_RAG.md). The 2026-10-08 rollout verified scoped menu/policy retrieval, exact citations, an RM28-to-RM32 corpus update, Chainlit delivery, and fresh CloudWatch RAG spans. This is a controlled fictional corpus demo.
-
-### Key Components
-
-| Component                | Technology                 | Purpose                                                  |
-| ------------------------ | -------------------------- | -------------------------------------------------------- |
-| **Multi-Agent Workflow** | LangGraph                  | Jev router (Bedrock fallback) → Search Agent → tools → approved memory |
-| **Runtime**              | Bedrock AgentCore          | Containerized Python app with auto-scaling               |
-| **Tool Routing**         | MCP Gateway + Lambda       | Restaurant search via SearchAPI                          |
-| **Memory**               | AgentCore Memory           | User preferences, semantic facts, conversation summaries |
-| **Document RAG**         | Titan V2 + S3 Vectors + S3  | Versioned fictional menus/policies, scoped retrieval and exact-quote citations |
-| **Prompt versions**      | Bedrock Prompt Management  | Explicitly synchronized, immutable prompt versions      |
-| **Guardrails**           | Bedrock Guardrails         | Content filtering, PII protection, topic control         |
-| **Observability**        | OpenTelemetry + CloudWatch | Distributed tracing, GenAI Observability dashboard       |
-| **UI**                   | Chainlit                   | Chat interface using Server-Sent Events                  |
-| **Infrastructure**       | AWS CDK (TypeScript)       | Full IaC for all AWS resources                           |
-| **CI/CD**                | GitHub Actions             | Automated infra deployment + container builds            |
-
-### Turn safety and result handling
-
-- New approved document citations open the exact original version in Chainlit,
-  with PDF page selection, full Markdown text/line numbers and original downloads.
-  The local UI verifies source hashes from the private S3 bucket. Configure
-  `RAG_DOCUMENT_BUCKET` in the UI environment; source viewing is a local controlled
-  demo feature, not a public/private-document authorization service.
-
-- Each user turn starts with a fresh budget of at most four tool calls. If the
-  agent reaches that limit, it produces a final answer instead of leaving an
-  unfinished tool request in the conversation.
-- A graph turn runs once. The API buffers the complete answer, checks it with
-  the output guardrail, and then emits one complete SSE chunk. This prevents
-  unchecked partial text from reaching the UI.
-- Conversation memory is saved only after the final answer is approved. If the
-  guardrail masks sensitive text, the masked answer is the text shown and saved.
-- Browser search and restaurant research each own a separate browser toolkit
-  and session. Cleanup closes only the toolkit owned by that operation.
-- SearchAPI and browser extraction share result validation. Missing facts remain
-  unknown, generic web pages are kept as sources rather than restaurant records,
-  and browser search is used only when the primary search has fewer than
-  `min(4, requested count)` verified records.
-
-## Project Structure
-
-```
-├── restaurant-finder-api/          # Backend agent application
-│   ├── src/
-│   │   ├── application/            # Orchestrator workflow
-│   │   │   └── orchestrator/
-│   │   │       ├── streaming.py           # One complete workflow turn
-│   │   │       └── workflow/
-│   │   │           ├── agents/     # Specialized agents (data, explorer, research)
-│   │   │           ├── chains.py   # LLM chain construction
-│   │   │           ├── edges.py    # Graph routing logic
-│   │   │           ├── graph.py    # LangGraph workflow definition
-│   │   │           ├── nodes.py    # Graph node implementations
-│   │   │           ├── state.py    # Workflow state definition
-│   │   │           └── tools.py    # Tool definitions
-│   │   ├── domain/                 # Domain models and prompts
-│   │   │   ├── models.py          # Pydantic models (Restaurant, SearchResult)
-│   │   │   ├── prompts.py         # LLM prompt definitions
-│   │   │   └── utils.py           # Shared utility functions
-│   │   ├── evaluation/            # Agent evaluation framework
-│   │   │   ├── client.py          # Evaluation API client
-│   │   │   ├── on_demand.py       # On-demand evaluation
-│   │   │   ├── online.py          # Production evaluation
-│   │   │   ├── runner.py          # Evaluation orchestrator
-│   │   │   └── test_cases.py      # Test case definitions
-│   │   └── infrastructure/        # AWS service integrations
-│   │       ├── api.py             # BedrockAgentCoreApp entrypoint
-│   │       ├── browser.py         # AgentCore Browser toolkit
-│   │       ├── guardrails.py      # Bedrock Guardrails management
-│   │       ├── jev_router.py      # TypeSafe Jev router client and classification
-│   │       ├── mcp_client.py      # MCP Gateway client
-│   │       ├── memory.py          # AgentCore Memory manager
-│   │       ├── model.py           # Bedrock model configuration
-│   │       ├── observability.py   # OpenTelemetry setup
-│   │       ├── prompt_manager.py  # Bedrock Prompt Management sync
-│   │       ├── startup.py         # Application initialization
-│   │       └── utils.py           # Streaming + guardrail utilities
-│   ├── Dockerfile                 # Container build with OTEL instrumentation
-│   ├── Makefile                   # Development and evaluation tasks
-│   └── pyproject.toml             # Python dependencies
-│
-├── restaurant-finder-infra/        # AWS CDK infrastructure
-│   ├── bin/cdk.ts                 # CDK app entry point
-│   ├── lib/stacks/
-│   │   ├── agentcore-stack.ts     # Gateway, Memory, Runtime, Lambda
-│   │   └── ecr-stack.ts           # ECR container repository
-│   ├── mcp/lambda/                # MCP Lambda function
-│   │   ├── handler.py             # SearchAPI integration
-│   │   └── tools_schema.json      # Tool schema definition
-│   └── package.json               # CDK dependencies
-│
-├── restaurant-finder-ui/           # Chainlit chat frontend
-│   ├── app.py                     # Chat application (local + AWS modes)
-│   ├── pyproject.toml             # UI dependencies
-│   └── .env.example               # UI configuration template
-│
-└── .github/workflows/              # CI/CD pipelines
-    ├── deploy-image.yml           # Build + deploy container
-    ├── deploy-infra.yml           # Deploy CDK stacks
-    └── destroy-infra.yml          # Tear down infrastructure
+```mermaid
+flowchart TD
+    User[Local Chainlit UI] --> Runtime[ARM64 backend on AgentCore Runtime]
+    Runtime --> Route[Jev router / Haiku fallback]
+    Route --> Search[Restaurant search workflow]
+    Search --> Gateway[MCP Gateway / Lambda / SearchAPI]
+    Search --> Browser[Optional AgentCore Browser tools]
+    Route --> RAG[Document workflow / bounded parallel workers]
+    RAG --> Vectors[Titan V2 / S3 Vectors / optional BM25]
+    RAG --> Corpus[Private S3: versioned documents and chunks]
+    Runtime --> Approval[Final Bedrock guardrail check]
+    Approval --> Memory[Approved conversation memory]
+    Approval --> User
+    User --> Originals[Hash-verified original source viewer]
+    Originals --> Corpus
+    Runtime --> Telemetry[OpenTelemetry / CloudWatch]
 ```
 
-## Prerequisites
+The API buffers the answer for final moderation before sending a complete SSE text chunk. This is not token-by-token output streaming. Prompt synchronization is an explicit deployment operation, separate from application startup. CDK defines ECR, RAG and AgentCore stacks; regional trace-destination setup is a separate account operation.
 
-- **AWS Account** with access to the Claude Haiku 4.5 inference profile (`us.anthropic.claude-haiku-4-5-20251001-v1:0`)
-- **AWS CLI** configured with credentials (`aws configure`)
-- **Node.js 20+** (for CDK)
-- **Python 3.11+**
-- **uv** - Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
-- **Docker** (for building container images)
-- **SearchAPI.io API key** ([sign up](https://www.searchapi.io/)) - for restaurant search data
-- **Bedrock AgentCore CLI** (`pip install bedrock-agentcore`)
+## Get started
 
-## Quick Start (Local Development)
-
-### 1. Clone the Repository
-
-```bash
-git clone <repository-url>
-cd restaurant-finder-agentic-ai-with-agentcore
+```powershell
+git clone https://github.com/yukangzhen/restaurant-finder.git
+Set-Location restaurant-finder
 ```
 
-### 2. Deploy Infrastructure First
+| Goal | Guide | AWS credentials / charges |
+| --- | --- | --- |
+| Inspect code and run offline checks | [Setup: offline checks](docs/SETUP.md#2-offline-checks) | No AWS login or inference; dependency downloads require internet. |
+| Deploy in your own AWS account | [Setup: first AWS deployment](docs/SETUP.md#3-first-aws-deployment) | Required; creates resources and can incur charges. |
+| Use a local UI with an existing cloud backend | [Setup: connect the UI](docs/SETUP.md#4-connect-the-local-ui-to-aws) | Required; requests use billable AWS/provider services. |
+| Run the backend locally | [Setup: local API](docs/SETUP.md#5-optional-local-api) | Still uses AWS models, gateway, memory and optional document stores. |
 
-Even for local development, the Gateway and Memory must be deployed. The AgentCore Runtime stack also expects its container image to exist in ECR, so deploy the ECR repository, build and push the initial image, then deploy the AgentCore stack:
+Use **Python 3.11.9+ within 3.11**, **uv**, and **Node.js 22** for the documented checks. AWS deployment also needs a working AWS CLI/profile, Docker with ARM64 build support, Bedrock model access, and a SearchAPI key. A TypeSafe key enables Jev; without it the router uses Bedrock. The [setup guide](docs/SETUP.md) specifies paths, prerequisites, feature switches, secrets, ingestion, ports and verification boundaries.
 
-```bash
-cd restaurant-finder-infra
-npm ci
-npx cdk bootstrap "aws://$(aws sts get-caller-identity --query Account --output text)/us-east-2"   # First time only
-npx cdk deploy restaurantFinder-EcrStack
+## Documents and the recorded demonstration
 
-cd ..
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-ECR_URI="$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent"
-TAG=$(date -u +%Y%m%d%H%M%S)
-aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com"
+The recording starts with unrestricted discovery of vegetarian-friendly Italian restaurants in Kuala Lumpur, then continues with document questions about Ciccio and Bottega. Their reviewed menu documents were prepared and activated separately after discovery. The final video joins those recording sessions; documents are not automatically collected or ingested by restaurant search.
 
-cd restaurant-finder-api
-uv sync --extra local-aws
-python -m src.deployment.sync_prompts --profile default --region us-east-2
-python -m src.deployment.validate_prompts
-cd ..
-docker build --platform linux/arm64 -t "$ECR_URI:$TAG" ./restaurant-finder-api
-docker push "$ECR_URI:$TAG"
+The real-source catalog and validation code are committed, but the privately prepared third-party corpus is **not** bundled. A captured web-page PDF is labeled as a capture, not as an original restaurant-issued PDF. The committed [sample corpus](restaurant-finder-api/sample_documents/corpus.json) instead provides six fictional menu/policy documents for Harbor Pasta Lab, Sakura Table Lab and Spice Garden Lab. Use those fixtures for a reproducible setup.
 
-cd restaurant-finder-infra
-npx cdk deploy restaurantFinder-AgentCoreStack -c "imageUri=$ECR_URI:$TAG"
+Discovery can return restaurants outside the active document corpus. Missing cancellation-policy evidence is reported as insufficient evidence; it does not mean free cancellation or no cancellation policy. Prices describe captured documents, not guaranteed current offers.
+
+## Configuration at a glance
+
+| Setting | Local API default | CDK Runtime default |
+| --- | --- | --- |
+| `DOCUMENT_RAG_ENABLED` | `false` | `true`; requires an activated corpus |
+| `DOCUMENT_MULTIPART_ENABLED` | `false` | `false`; context `documentMultipartEnabled=true` |
+| `DOCUMENT_FOLLOWUPS_ENABLED` | `false` | `false`; context `documentFollowupsEnabled=true` |
+| `DOCUMENT_REAL_SOURCES_ENABLED` | `false` | `false`; context `documentRealSourcesEnabled=true` |
+| `RAG_RETRIEVAL_MODE` | `vector` | `vector`; context `ragRetrievalMode=hybrid` |
+| `AGENT_OBSERVABILITY_ENABLED` | `false` | `true`; export still needs account configuration |
+| `REQUIRE_PROMPT_MANIFEST` | `false` | `true` |
+
+See the [API environment example](restaurant-finder-api/.env.example), [UI environment example](restaurant-finder-ui/.env.example), and [CDK entry point](restaurant-finder-infra/bin/cdk.ts). The setup guide explicitly enables multipart/follow-ups/hybrid for the fictional walkthrough. Real-source mode needs a separately reviewed compatible corpus.
+
+## Repository map
+
+```text
+restaurant-finder-api/
+  src/application/orchestrator/   Parent LangGraph workflow, routing and web tools
+  src/application/document_rag/   Ingestion, retrieval, comparisons and follow-ups
+  src/domain/                     Contracts, catalogs and prompts
+  src/infrastructure/             AWS/provider adapters, safety and observability
+  src/deployment/                 Prompt sync and explicit corpus preparation/publication
+  src/evaluation/                 Offline regressions and separate live evaluators
+  sample_documents/               Reproducible fictional fixtures
+  tests/                          API and workflow regressions
+restaurant-finder-ui/             Chainlit app, SSE handling and original-source viewer
+restaurant-finder-infra/          CDK stacks and SearchAPI Lambda
+.github/workflows/               Offline CI and manual deployment/destruction
+docs/                            Setup, engineering guides and historical execution records
 ```
 
-Use the same version-specific image tag for the build, push, and CDK deployment. Avoid
-relying on `latest` for an existing Runtime; its tag can point to an older image.
+## Verification and deployment
 
-Note the stack outputs — you'll need `GatewayUrl`, `GatewayId`, and `MemoryId`.
+The [offline CI workflow](.github/workflows/ci.yml) runs API/UI tests, five document evaluations, TypeScript compilation, Jest and CDK synthesis without AWS lookups. Evaluations exercise real workflow/validation code with simulated cloud and model dependencies; they do not measure live model accuracy, retrieval recall, latency or cost.
 
-Prompt sync reuses a matching immutable version and never deletes older
-versions. It writes `restaurant-finder-api/.generated/prompt-manifest.json`,
-which is included in the image and ignored by Git. The deployed Runtime requires
-the manifest; local development can run without it.
+The inspected demo head `3b116a0` passed [push CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/39541595559) and [PR CI](https://github.com/yukangzhen/restaurant-finder/actions/runs/39541597336) on 2026-10-21. Those runs predate the local documentation cleanup. Consult the run SHA rather than treating historical results as proof for later changes.
 
-### 3. Set the SearchAPI Secret
+Image and infrastructure deployment workflows are **manual-only** in this revision. Offline CI remains automatic on pushes/PRs. The manual infrastructure workflow does not pass all document feature contexts; use the [reviewed CDK commands](docs/SETUP.md#3-first-aws-deployment) for the documented walkthrough. [Cleanup](docs/SETUP.md#7-cleanup-and-retained-resources) leaves retained resources that may continue to incur charges.
 
-After CDK deployment, update the secret with your SearchAPI key:
+## Limits and known issues
 
-```bash
-aws secretsmanager put-secret-value \
-  --secret-id restaurantFinder/restaurant-search-key \
-  --secret-string '{"api_key":"YOUR_SEARCHAPI_KEY"}'
-```
+- Document support is bounded: one/two restaurants, admitted menu-price/cancellation forms, at most six documents and 48 chunks per generation. OCR and arbitrary table reconstruction are unsupported.
+- The UI is a local controlled demo. Caller-provided actor/session IDs and access to the source bucket are not authentication or document-level authorization for a shared public service.
+- An early source-viewer interaction in recording showed a mismatched original. Later inspected sources were correct, but the earlier viewer issue remains unresolved; the video edit did not repair application code. Independently inspect restaurant, document and quotation before relying on a citation.
+- CloudWatch can contain prompts/results. Keep trace/log access restricted and choose suitable retention. Dashboard/indexing availability depends on regional account configuration.
+- No production availability, measured cost reduction, general answer-accuracy score or fresh-account deployment certification is claimed.
 
-The CDK stack also creates a Secrets Manager secret named `restaurantFinder/jev-router-key`. Copy the `TYPESAFE_API_KEY` value from your local `.env` into that secret in the AWS console. The deployed Runtime reads it using its execution role; the key is not included in the image or CloudFormation environment values.
+## Further reading and attribution
 
-### 4. Set Up the API
+- [Canonical setup instructions](docs/SETUP.md)
+- [Document RAG engineering guide](docs/DOCUMENT_RAG.md)
+- [Offline checks and evaluation interpretation](docs/CI_AND_RAG_EVALUATION.md)
+- [Backend](restaurant-finder-api/README.md), [UI](restaurant-finder-ui/README.md), [infrastructure](restaurant-finder-infra/README.md)
+- [Original repository](https://github.com/JoudAwad97/agentic-ai-langgraph-and-aws-agentcore) and [author's walkthrough](https://joudwawad.medium.com/production-ready-ai-agent-from-scratch-with-langgraph-aws-agentcore-e236cd3f675f)
 
-```bash
-cd restaurant-finder-api
-cp .env.example .env
-```
-
-Edit `.env` and fill in the CDK stack output values:
-
-```env
-AWS_REGION=us-east-2
-GATEWAY_URL=https://your-gateway-url.gateway.bedrock-agentcore.us-east-2.amazonaws.com/mcp
-GATEWAY_ID=your-gateway-id
-MEMORY_ID=your-memory-id
-TYPESAFE_API_KEY=your-typesafe-api-key
-```
-
-The TypeSafe key is used by the local Jev router. Keep it in the ignored `.env` file and never commit it. For the deployed Runtime, also copy it to the `restaurantFinder/jev-router-key` Secrets Manager secret created by CDK.
-
-For local AWS CLI-based development, install optional CRT support with
-`uv sync --extra local-aws`. The API `.env.example` leaves remote observability
-off for local runs; CDK enables it for the deployed Runtime.
-
-Install dependencies and start the local server:
-
-```bash
-uv sync --extra local-aws
-agentcore dev
-```
-
-The API server starts on `http://localhost:8080`.
-
-### 5. Set Up the UI
-
-```bash
-cd restaurant-finder-ui
-cp .env.example .env
-uv sync --extra local-aws
-chainlit run app.py
-```
-
-The UI opens at `http://localhost:8000`.
-
-### 6. Test It
-
-Open `http://localhost:8000` and try:
-
-- "Find Italian restaurants in San Francisco"
-- "I need vegan-friendly Thai food under $20"
-- "Tell me more about The French Laundry"
-
-## AWS Deployment (Production)
-
-### 1. Deploy Infrastructure
-
-```bash
-cd restaurant-finder-infra
-npm ci
-npx cdk bootstrap "aws://$(aws sts get-caller-identity --query Account --output text)/us-east-2"   # First time only
-npx cdk deploy restaurantFinder-EcrStack
-```
-
-This first creates the ECR repository. The AgentCore stack cannot be deployed until its initial image has been pushed.
-
-### 2. Build and Push the Container
-
-**Option A: Automatic via GitHub Actions**
-
-Push to `main` with changes in `restaurant-finder-api/` — the `deploy-image.yml` workflow builds and deploys automatically.
-
-**Option B: Manual deployment**
-
-```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-ECR_URI="$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent"
-TAG=$(date -u +%Y%m%d%H%M%S)
-aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com"
-cd restaurant-finder-api
-uv sync --extra local-aws
-python -m src.deployment.sync_prompts --profile default --region us-east-2
-python -m src.deployment.validate_prompts
-cd ..
-docker build --platform linux/arm64 -t "$ECR_URI:$TAG" ./restaurant-finder-api
-docker push "$ECR_URI:$TAG"
-```
-
-### 3. Deploy the AgentCore Stack
-
-After the initial container image is available in ECR, deploy the stack that creates the Gateway, Memory, Runtime, Lambda, and supporting roles:
-
-```bash
-cd restaurant-finder-infra
-npx cdk deploy restaurantFinder-AgentCoreStack -c "imageUri=$ECR_URI:$TAG"
-```
-
-### 4. Set the SearchAPI Secret
-
-```bash
-aws secretsmanager put-secret-value \
-  --secret-id restaurantFinder/restaurant-search-key \
-  --secret-string '{"api_key":"YOUR_SEARCHAPI_KEY"}'
-```
-
-### 5. Set the TypeSafe Jev Secret
-
-Copy the `TYPESAFE_API_KEY` value from `restaurant-finder-api/.env` into the `restaurantFinder/jev-router-key` secret in AWS Secrets Manager, in `us-east-2`.
-
-### 6. Connect the UI to AWS
-
-```bash
-cd restaurant-finder-ui
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-AGENT_CONNECTION_MODE=aws
-AGENT_RUNTIME_ARN=arn:aws:bedrock-agentcore:us-east-2:<ACCOUNT_ID>:runtime/<RUNTIME_ID>
-AWS_REGION=us-east-2
-AWS_PROFILE=default
-# Optional: keep dining preferences across chats on your own local UI.
-# Use an identity unique to you. A shared UI requires authenticated identities.
-MEMORY_ACTOR_ID=local:your-user-name
-```
-
-```bash
-uv sync --locked --extra local-aws
-uv run --no-sync chainlit run app.py --host 127.0.0.1
-```
-
-On Windows, open PowerShell in `restaurant-finder-ui`. If AWS reports expired
-credentials, run `aws login --profile default` there and then start the UI with
-the command above. Chainlit reads `.env` from the current directory. Open
-`http://localhost:8000` after the server starts. An empty `MEMORY_ACTOR_ID`
-isolates anonymous memory to each conversation.
-
-If `uv run` cannot access its local cache but the UI virtual environment is
-already installed, start Chainlit directly from the UI directory with
-`.\.venv\Scripts\chainlit.exe run app.py --host 127.0.0.1 --port 8000`.
-
-### Monitoring and regional trace destination
-
-The Runtime sends OpenTelemetry traces to the X-Ray OTLP endpoint and logs and
-metrics to CloudWatch. Transaction Search is enabled in `us-east-2` for this
-development account, and the trace destination is `CloudWatchLogs` with status
-`ACTIVE`. AWS manages the `aws/spans` log group; it appeared after the destination
-was enabled and has 30-day retention. The account's Default trace indexing rule is
-kept at 0%. This regional setting is outside the CDK stacks and applies to other
-tracing workloads in the account as well.
-
-The regional setup uses the scoped CloudWatch resource policy
-`restaurantFinder-TransactionSearchAccess`. The existing
-`restaurantFinder-XRayCloudWatchLogsAccess` policy was left unchanged. See
-[AWS ADOT setup prerequisites](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-OTLP-UsingADOT.html)
-and [Enable Transaction Search](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Enable-TransactionSearch.html).
-Instrumentation startup messages alone do not prove delivery; check recent span,
-log, and metric data. Trace ingestion can incur charges even when indexing is 0%.
-
-### Development checkpoint — October 7, 2026
-
-Branch `feat/jev-router` contains commit `8685344` (`Fix memory recall routing
-and blocked UI messages`). The deployed ARM64 image is
-`memory-ui-tracing-8685344-20261007-143849-arm64`, digest
-`sha256:b05d66c817047d09a93b4633831a470cea588f270abdd933f92d5e581690d6a3`.
-The AgentCore stack is `UPDATE_COMPLETE`; Runtime
-`restaurantFinder_Agent-Ha58oX5Psu` is `READY` on this image. Prompt Management
-updated `ROUTER_PROMPT` and `SEARCH_AGENT_PROMPT` to version 2; the other four
-prompts reused their existing version 1.
-
-Verification completed:
-
-- API tests: 18 passed; UI SSE tests: 6 passed; API compile and UI syntax checks
-  passed.
-- Real local provider checks: 11/11 Jev cases passed; 3/3 Claude Haiku 4.5
-  fallback cases passed.
-- Runtime memory check: the synthetic actor saved vegan, Thai, and under-$25
-  preferences; a different session recalled all three from memory without
-  receiving them in the question. A second synthetic actor had no preference
-  records.
-- Browser check: greeting and memory recall worked in the local UI. Direct and
-  nested `blocked` SSE fixtures rendered their explanatory messages, and normal
-  fixture streaming still worked.
-- CloudWatch check: correlated traces included `workflow.execution`,
-  `router.classify`, `router.jev`, and `execute_tool memory_retrieval_tool`.
-  Router attributes identified Jev and `restaurant_search`. Fresh successful
-  memory save/retrieve logs and save/retrieve counters and duration histogram
-  metrics were present; no fresh trace/log exporter 400/403 errors were found.
-
-Known limits: these are smoke checks, not a performance or cost benchmark, and
-they do not establish production identity isolation. The synthetic memory records
-were retained. Browser console messages were not captured in this run. Do not
-claim a latency or cost improvement without a separate benchmark.
-
-### Correctness and reliability deployment status - October 7, 2026
-
-The correctness and reliability repairs described above are implemented and
-passed local verification on `feat/jev-router` (47 API tests and 8 UI tests).
-The updated runtime has been deployed to the existing development stack.
-
-Prompt synchronization in `us-east-2` created `SEARCH_AGENT_PROMPT` v3,
-`RESTAURANT_EXPLORER_PROMPT` v2, and `RESTAURANT_EXTRACTION_PROMPT` v2. It reused
-`ROUTER_PROMPT` v2, `SIMPLE_RESPONSE_PROMPT` v1, and
-`RESEARCH_EXTRACTION_PROMPT` v1. The validated ARM64 image is
-`447393541969.dkr.ecr.us-east-2.amazonaws.com/restaurantfinder-agent:correctness-f9dcf56-20261007135110-arm64`,
-digest `sha256:0614966b8424edbeba937ca6f4014d492ccc624d347ecc2ec4f14c35fbcc23c2`.
-
-The change set was
-`arn:aws:cloudformation:us-east-2:447393541969:changeSet/correctness-20261007135110/d26ae023-1cee-4f86-bda7-52b8efa5a3ca`.
-Its enhanced property-value preview showed only the Lambda code asset and
-Runtime image URI changing. The GatewayTarget and IAM policy properties matched
-the deployed template; their extra entries in the standard preview were
-dynamic dependency predictions caused by the Lambda ARN reference. The change
-set was then executed. CloudFormation reached `UPDATE_COMPLETE`, and Runtime
-`restaurantFinder_Agent-Ha58oX5Psu` reached `READY`, version 9, using the image
-tag above. The Lambda kept its existing physical function identity; its
-post-deployment `CodeSha256` is
-`XvwOFiXGSO8vUE/WrHckfd22jGCKZ/x2q6OJkj/7rJc=`. Read-only checks confirmed the
-GatewayTarget is `READY` and still points to the existing Lambda, and the
-gateway policy still allows only `lambda:InvokeFunction` on that function and
-its qualified ARN. The latest stack events show a clean `UPDATE_COMPLETE` with
-the Lambda and Runtime updates and no rollback.
-
-Ten live Runtime responses completed successfully, covering greetings, restaurant
-search, same-session follow-up, the Chainlit UI, synthetic memory save and recall,
-actor isolation, and a denied-topic request that returned `blocked=true` with no
-text. One request was rejected before reaching the Runtime because the AWS
-session expired, bringing the conservative count to 11 of 12 allowed attempts.
-Memory appeared in the preference namespace on poll 5, the same actor recalled it
-in a new session, and a second synthetic actor saw no saved preferences. The
-records were retained.
-
-Output PII masking passed with the synthetic address `test@example.com`: the
-guardrail reported `EMAIL / ANONYMIZED`, and the original address was absent.
-An initial `.invalid` test address triggered the denied-topic classifier instead
-of masking; the policy was left unchanged. Two concurrent Browser operations
-received distinct IDs, navigated without exceptions, and the second still
-returned extracted page text after the first toolkit was closed. Both toolkits
-were cleaned up. The final diagnostic print failed on a Unicode character that
-the Windows CP1252 console could not encode, so the expected page-marker value
-was not captured; the two operations were not repeated.
-
-The Runtime CloudWatch group had 113 events in the six-hour window, no traceback
-or `error` text, and no events later than `2026-10-07T19:29:39Z`. The GenAI
-telemetry group had no events later than `2026-10-07T19:29:42Z`, so there is no
-fresh trace/log evidence for the October 8 checks. No tracing setting was
-changed. `git diff --check` and the credential-pattern scan passed; no `.env` or
-generated prompt manifest appears in Git status. Earlier local verification
-passed 47 API tests and 8 UI tests; these suites were not rerun after
-documentation-only edits. No benchmark was run. The implementation was
-committed as `169d56f` and pushed to `origin/feat/jev-router`; the telemetry and
-Browser output-capture limits remain recorded.
-
-## CI/CD Pipelines
-
-The workflows in this repository can change AWS resources when they run. Whether Actions are enabled is controlled by the GitHub repository settings, so verify that setting before pushing deployment-related changes. Keep deployment credentials out of the repository and enable these workflows only when you are ready to use them.
-
-| Workflow            | Trigger                                  | Action                                           |
-| ------------------- | ---------------------------------------- | ------------------------------------------------ |
-| `deploy-infra.yml`  | Push to `main` (infra changes) or manual | Deploys CDK stacks (ECR + AgentCore)             |
-| `deploy-image.yml`  | Push to `main` (API changes) or manual   | Builds container, pushes to ECR, updates runtime |
-| `destroy-infra.yml` | Manual only (requires confirmation)      | Destroys selected CDK stacks                     |
-
-**Required GitHub Secrets:**
-
-- `AWS_ACCESS_KEY_ID` - IAM access key with deployment permissions
-- `AWS_SECRET_ACCESS_KEY` - Corresponding secret key
-
-## Configuration Reference
-
-### API Environment Variables (`restaurant-finder-api/.env`)
-
-| Variable                      | Required | Default                   | Description                             |
-| ----------------------------- | -------- | ------------------------- | --------------------------------------- |
-| `AWS_REGION`                  | Yes      | `us-east-2`               | AWS region for all services             |
-| `TYPESAFE_API_KEY`            | For Jev  | -                         | Secret TypeSafe API key for local Jev routing |
-| `TYPESAFE_SECRET_ARN`         | Runtime | Set by CDK                | Secrets Manager ARN used by deployed Jev routing |
-| `JEV_ROUTER_MODEL`            | No       | `jev-1.13.0`               | Jev model used for intent classification |
-| `JEV_ROUTER_TIMEOUT_SECONDS`  | No       | `2.0`                     | Jev request timeout before Bedrock fallback |
-| `ORCHESTRATOR_MODEL_ID`       | No       | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Bedrock model for the orchestrator |
-| `EXTRACTION_MODEL_ID`         | No       | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Bedrock model for structured data extraction |
-| `ROUTER_MODEL_ID`             | No       | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Bedrock router used when Jev fails |
-| `GATEWAY_URL`                 | Yes      | -                         | MCP Gateway URL (CDK output)            |
-| `GATEWAY_ID`                  | Yes      | -                         | Gateway identifier (CDK output)         |
-| `MEMORY_ID`                   | Yes      | -                         | Memory identifier (CDK output)          |
-| `RUNTIME_ID`                  | No       | -                         | Runtime ID (needed for evaluation only) |
-| `ENABLE_BROWSER_TOOLS`        | No       | `true`                    | Enable browser-based agent tools        |
-| `GUARDRAIL_ENABLED`           | No       | `true`                    | Enable Bedrock content guardrails       |
-| `AGENT_OBSERVABILITY_ENABLED` | No       | `false`                   | Enable OpenTelemetry tracing; enabled by CDK in the deployed Runtime |
-| `OTEL_SERVICE_NAME`           | No       | `restaurant-finder-agent` | Service name for traces                 |
-| `REQUIRE_PROMPT_MANIFEST`     | No       | `false`                   | Require the generated immutable prompt manifest; CDK sets true in AWS |
-
-### UI Environment Variables (`restaurant-finder-ui/.env`)
-
-| Variable                | Required    | Default                             | Description              |
-| ----------------------- | ----------- | ----------------------------------- | ------------------------ |
-| `AGENT_CONNECTION_MODE` | No          | `local`                             | `local` or `aws`         |
-| `AGENTCORE_API_URL`     | No          | `http://localhost:8080/invocations` | Local API endpoint       |
-| `AGENT_RUNTIME_ARN`     | If aws mode | -                                   | Runtime ARN (CDK output) |
-| `AWS_REGION`            | No          | `us-east-2`                         | AWS region               |
-| `AWS_PROFILE`           | No          | default profile                     | AWS CLI login profile used by the local UI |
-| `MEMORY_ACTOR_ID`       | No          | unset                               | Optional stable identity for local single-user memory; production identity must be set server-side from authentication |
-
-## Evaluation
-
-The project includes a comprehensive evaluation framework:
-
-```bash
-cd restaurant-finder-api
-
-# Run full evaluation suite (all test cases + built-in evaluators)
-make eval
-
-# Run specific categories
-make eval-categories CATEGORIES="basic_search dietary_search"
-
-# Run safety evaluations only
-make eval-safety
-
-# Evaluate an existing session
-make eval-session SESSION_ID=your-session-id
-
-# Set up online (production) evaluation
-make eval-online SAMPLING_RATE=10
-```
-
-Test categories: `basic_search`, `filtered_search`, `dietary_search`, `memory_recall`, `research`, `safety`, `multi_step`, `out_of_scope`
-
-## Development
-
-### Code Quality
-
-```bash
-cd restaurant-finder-api
-
-# Format code
-make format-fix
-
-# Lint code
-make lint-fix
-
-# Check formatting (CI)
-make format-check
-
-# Check linting (CI)
-make lint-check
-```
-
-## Cleanup
-
-To tear down all AWS resources:
-
-```bash
-cd restaurant-finder-infra
-npx cdk destroy --all
-```
-
-Or use the GitHub Actions `destroy-infra.yml` workflow with manual dispatch.
-
-## Browser acceptance recovery
-
-The approved [recovery plan](docs/HANDOFF_PRD_HYBRID_RETRIEVAL_RECOVERY.md) completed Gate A on 2026-10-19: 50 UI tests (32 existing plus 18 helper regressions), seven mock sends in two distinct conversations, 14 native source opens and four UI original downloads with matching hashes. AWS/external clients were blocked in the local fixture. The durable `restaurant-finder-ui/acceptance.py` helper compiles complete Playwright page functions, verifies exact input before one durable dispatch reservation, handles the new-chat confirmation and waits for expected source content. This rehearsal establishes UI/tool compatibility only. At that local checkpoint, Gate B publication/live execution were pending and the recovered vector deployment was unchanged. The following historical failure and the later accepted complete-record rollout record the subsequent results.
-
-## Recovery closeout — FAILED / RECOVERED
-
-The repaired tooling release `e4d147e` passed both automatic CI runs: 290 API, 50 UI and 55 infrastructure tests, with all five regression reports verified. The real trial reached hybrid Runtime 20 and sent L1 exactly once. Its RM32 quote omitted the required wheat/milk qualifier, although the native PDF viewer showed the complete record. L2–L7 remain unused; the full live source/download/trace matrix is unmet.
-
-The authorized rollback restored the prior vector image at matching READY Runtime/DEFAULT **21**. Surrounding resources, settings, IAM/guardrail and corpus passed preservation checks. The existing UI was reused; no rebuild, Docker operation, benchmark or demo occurred in that recovery. See the [full recovery record](docs/HANDOFF_PRD_HYBRID_RETRIEVAL_RECOVERY.md#recovery-closeout--failed--recovered). The subsequent complete-record repair and separately approved rollout passed at Runtime 22; the earlier failed attempt remains recorded independently above.
+Historical `HANDOFF_PRD_*` documents preserve decisions and observed rollout results; they are not current setup guides or live account-status reports. Neither this repository nor upstream had an identified license file at review time. No new license covering inherited code or third-party documents is asserted here.

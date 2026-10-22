@@ -1,11 +1,6 @@
 name: Deploy Application Image
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "restaurant-finder-api/**"
-      - ".github/workflows/deploy-image.yml"
   workflow_dispatch:
     inputs:
       skip_runtime_update:
