@@ -1,6 +1,6 @@
 # Document RAG engineering guide
 
-Use [Setup](SETUP.md) for current commands and the [evaluation guide](CI_AND_RAG_EVALUATION.md) for offline checks. Historical rollout records describe observations at their own dates; they do not establish current Runtime state.
+Use [Setup](SETUP.md) for commands and the [evaluation guide](CI_AND_RAG_EVALUATION.md) for offline checks and report interpretation.
 
 ## What this adds
 
@@ -89,7 +89,7 @@ Context records validated targets/item/generation/ownership consistency, not cac
 
 The API sends citation metadata, not public S3 URLs. The local Chainlit UI derives a generation-specific original key, fetches at most 5 MiB, verifies SHA-256 and opens the cited PDF page or numbered Markdown text with a download option. Set the UI's `RAG_DOCUMENT_BUCKET` and allow its profile `s3:GetObject` on the source prefix.
 
-The corpus bucket remains private. This source viewer is a local controlled feature, not a shared-service authorization boundary. An early recording interaction showed a mismatched original; that earlier association issue remains unresolved even though later sources were inspected successfully. The video correction did not repair product code.
+The corpus bucket remains private. This source viewer is a local controlled feature, not a shared-service authorization boundary. A source interaction has shown a mismatched original; that association issue remains unresolved. Independently verify that the displayed restaurant, quotation and document match the answer.
 
 ## Feature defaults and bounds
 
@@ -97,8 +97,8 @@ Local API RAG defaults off. CDK enables RAG but leaves multipart, follow-ups and
 
 Generations have at most six documents and 48 chunks. Each source is at most 5 MiB and 100,000 extracted characters; PDFs must be unencrypted with 1-12 pages and extractable text (reviewed decorative pages may be skipped). Chunking uses complete records of at most 1,800 characters with bounded whole-record overlap. Selected quotations are bounded to 600 characters; context is bounded to 9,000. OCR, scanned documents and arbitrary PDF table reconstruction are unsupported. These constraints are intentional demo boundaries.
 
-## Rollback and evidence
+## Corpus rollback
 
 The explicit ingestion CLI supports `--publish --rollback-generation` for a verified retained generation, with the same account/region/store configuration. Review the target first; do not mutate the active pointer by hand. Corpus and Runtime compatibility must be preserved together.
 
-Historical [document rollout](HANDOFF_PRD_DOCUMENT_RAG.md), [complete-record acceptance](HANDOFF_PRD_SINGLE_RECORD_PUBLICATION_AND_ROLLOUT.md) and [connected demo record](HANDOFF_PRD_CONNECTED_REAL_RESTAURANT_DEMO.md) preserve observed results. They are not fresh deployment checks. See [Setup verification boundaries](SETUP.md#8-verification-boundaries) before making public performance, security or accuracy claims.
+See [Setup verification boundaries](SETUP.md#8-verification-boundaries) for the distinction between offline checks and validation in your AWS account.
