@@ -14,23 +14,13 @@ Silent, 55 seconds, 1080p. The walkthrough shows restaurant discovery, cited men
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    User[Local Chainlit UI] --> Runtime[ARM64 backend on AgentCore Runtime]
-    Runtime --> Route[Jev router / Haiku fallback]
-    Route --> Search[Restaurant search workflow]
-    Search --> Gateway[MCP Gateway / Lambda / SearchAPI]
-    Search --> Browser[Optional AgentCore Browser tools]
-    Route --> RAG[Document workflow / bounded parallel workers]
-    RAG --> Vectors[Titan V2 / S3 Vectors / optional BM25]
-    RAG --> Corpus[Private S3: versioned documents and chunks]
-    Runtime --> Approval[Final Bedrock guardrail check]
-    Approval --> Memory[Approved conversation memory]
-    Approval --> User
-    User --> Originals[Hash-verified original source viewer]
-    Originals --> Corpus
-    Runtime --> Telemetry[OpenTelemetry / CloudWatch]
-```
+[![Architecture: local Chainlit UI calls an AWS AgentCore backend; Jev routing selects restaurant search or document RAG, with final moderation, approved memory, separate original-source inspection and CloudWatch observability.](docs/assets/architecture.png)](docs/assets/architecture.svg)
+
+[Open the full-size diagram](docs/assets/architecture.svg) · [Component-to-code map and logo credits](docs/assets/architecture-sources.md)
+
+- **Follow the numbered flow:** the local UI calls the deployed backend; input checks and routing select a workflow; the final answer is moderated before delivery and durable memory writes.
+- **Choose a workflow:** restaurant search calls live web tools, while document RAG retrieves from a separately prepared corpus and validates quotations. These are alternative paths, not consecutive steps.
+- **Inspect the evidence:** citation clicks use a separate local viewer to fetch and hash-check the original from private S3. The backend reads manifests/chunks and vectors, not those originals.
 
 The API buffers the answer for final moderation before sending a complete SSE text chunk. This is not token-by-token output streaming. Prompt synchronization is an explicit deployment operation, separate from application startup. CDK defines ECR, RAG and AgentCore stacks; regional trace-destination setup is a separate account operation.
 
