@@ -15,6 +15,6 @@ Open `http://127.0.0.1:8000`. Chainlit reads `.env` from this directory. AWS mod
 
 Source viewing additionally requires `DOCUMENT_SOURCE_VIEWER_ENABLED=true` and `RAG_DOCUMENT_BUCKET` matching the backend corpus bucket. The UI identity needs `s3:GetObject` on that bucket's `rag/generations/*/sources/*` objects. Reads use immutable generation keys and verify content hashes; they do not make the bucket public or provide document-level authorization for a shared service.
 
-Leave `MEMORY_ACTOR_ID` empty to isolate anonymous memory per conversation. A stable value is for local single-user demonstrations. Shared public use needs authenticated identities assigned by the server. See the root [known issues](../README.md#limits-and-known-issues), including the unresolved early source-viewer mismatch.
+Leave `MEMORY_ACTOR_ID` empty to isolate anonymous memory per conversation. A stable value is for local single-user demonstrations. Shared public use needs authenticated identities assigned by the server. Citations open dedicated document views; use the view's back arrow to return to chat. This avoids Chainlit 2.12's automatic grouping of side elements. Browser verification used fictional fixtures; see the root [known issues](../README.md#limits-and-known-issues) for the live-verification boundary.
 
 Offline UI regressions: `uv run --no-sync python -m unittest discover -s tests -q`, from a clean checkout/environment without real `.env` credentials as described in [Setup](../docs/SETUP.md#2-offline-checks).
