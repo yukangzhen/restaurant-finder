@@ -136,11 +136,13 @@ def viewer_name(citation, answer_number):
 
 
 def make_elements(citation, content, answer_number=1):
+    # Chainlit 2.12 groups all "side" elements beneath the last element's title.
+    # A dedicated page keeps each citation bound to one original document.
     name = viewer_name(citation, answer_number)
     if citation.format == "pdf":
-        viewer = cl.Pdf(name=name, content=content, display="side", page=citation.page)
+        viewer = cl.Pdf(name=name, content=content, display="page", page=citation.page)
     else:
-        viewer = cl.Text(name=name, content=markdown_view(citation, content), display="side")
+        viewer = cl.Text(name=name, content=markdown_view(citation, content), display="page")
     original = cl.File(name=f"{name} original — {citation.filename}", content=content,
                        display="inline", mime="application/pdf" if citation.format == "pdf" else "application/octet-stream")
     return [viewer, original]

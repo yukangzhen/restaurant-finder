@@ -278,6 +278,28 @@ class SourceTests(unittest.TestCase):
             with self.subTest(number=number),self.assertRaises(ValueError):
                 sources.viewer_name(citation,number)
 
+    def test_multi_source_answers_have_independent_views_not_a_grouped_sidebar(self):
+        values, contents, answer = self.multipart_sources()
+        originals = {sources.Citation.model_validate(value).source_key: content
+                     for value, content in zip(values, contents)}
+        def get_object(**kwargs):
+            content = originals[kwargs["Key"]]
+            return {"Body": Body(content), "ContentLength": len(content)}
+        with patch.object(sources, "_get_s3_client", return_value=SimpleNamespace(get_object=get_object)), \
+             patch.object(sources.cl, "Pdf", side_effect=lambda **kw: SimpleNamespace(**kw)), \
+             patch.object(sources.cl, "Text", side_effect=lambda **kw: SimpleNamespace(**kw)), \
+             patch.object(sources.cl, "File", side_effect=lambda **kw: SimpleNamespace(**kw)):
+            elements, notice, links = self.prepare(values, answer)
+        self.assertEqual(notice, "")
+        self.assertEqual(len(links), 4)
+        # Chainlit 2.12 auto-groups every side element beneath the last title.
+        # A citation must instead navigate to exactly one document.
+        self.assertEqual([element.display for element in elements[::2]], ["page"] * 4)
+        self.assertFalse(any(element.display == "side" for element in elements))
+        self.assertEqual([element.display for element in elements[1::2]], ["inline"] * 4)
+        self.assertEqual([element.content for element in elements[1::2]], contents)
+        self.assertEqual([element.name for element in elements[::2]], list(links.values()))
+
     def test_sdk_timeouts_and_attempt_bound(self):
         import boto3
         previous=sources._s3_client

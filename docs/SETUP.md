@@ -220,7 +220,7 @@ Optional **billable** checks, after deciding your budget:
 4. Ask: "Which is cheaper?" with follow-ups enabled.
 5. Ask an explicit unsupported parking question; missing evidence must not become a fact.
 
-These use fictional fixtures, not Ciccio/Bottega. Search can return names outside the document corpus. The source-viewer association issue remains unresolved; independently verify source associations.
+These use fictional fixtures, not Ciccio/Bottega. Search can return names outside the document corpus. Open each citation's dedicated document view, verify the restaurant, document and cited location, then use the view's back arrow to return to chat. Repeat these source checks with your configured AWS account; offline fixture verification does not establish live source viewing.
 
 ## 5. Optional local API
 

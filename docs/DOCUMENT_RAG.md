@@ -89,7 +89,7 @@ Context records validated targets/item/generation/ownership consistency, not cac
 
 The API sends citation metadata, not public S3 URLs. The local Chainlit UI derives a generation-specific original key, fetches at most 5 MiB, verifies SHA-256 and opens the cited PDF page or numbered Markdown text with a download option. Set the UI's `RAG_DOCUMENT_BUCKET` and allow its profile `s3:GetObject` on the source prefix.
 
-The corpus bucket remains private. This source viewer is a local controlled feature, not a shared-service authorization boundary. A source interaction has shown a mismatched original; that association issue remains unresolved. Independently verify that the displayed restaurant, quotation and document match the answer.
+The corpus bucket remains private. This source viewer is a local controlled feature, not a shared-service authorization boundary. Each citation opens a dedicated document view, avoiding Chainlit 2.12's automatic grouping of side elements under the last source's title. Use the view's back arrow to return to chat. Browser verification used fictional PDF/Markdown fixtures; live AWS source viewing has not been revalidated. Independently verify that the displayed restaurant, quotation and document match the answer.
 
 ## Feature defaults and bounds
 

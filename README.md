@@ -112,7 +112,7 @@ Image and infrastructure deployment workflows are **manual-only** in this revisi
 
 - Document support is bounded: one/two restaurants, admitted menu-price/cancellation forms, at most six documents and 48 chunks per generation. OCR and arbitrary table reconstruction are unsupported.
 - The UI is a local controlled demo. Caller-provided actor/session IDs and access to the source bucket are not authentication or document-level authorization for a shared public service.
-- A source-viewer interaction has shown a mismatched original; that association issue remains unresolved. Independently inspect restaurant, document and quotation before relying on a citation.
+- The recorded walkthrough uses the earlier side-panel viewer. Current citations open one document per view to avoid a reproduced Chainlit 2.12 grouping ambiguity; use the view's back arrow to return to chat. This repair is browser-verified with fictional fixtures; live AWS source viewing has not been revalidated. Independently inspect restaurant, document and quotation.
 - CloudWatch can contain prompts/results. Keep trace/log access restricted and choose suitable retention. Dashboard/indexing availability depends on regional account configuration.
 - No production availability, measured cost reduction, general answer-accuracy score or fresh-account deployment certification is claimed.
 
