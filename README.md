@@ -14,13 +14,33 @@ Silent, 55 seconds, 1080p. The walkthrough shows restaurant discovery, cited men
 
 ## Architecture
 
-[![Architecture: local Chainlit UI calls an AWS AgentCore backend; Jev routing selects restaurant search or document RAG, with final moderation, approved memory, separate original-source inspection and CloudWatch observability.](docs/assets/architecture.png)](docs/assets/architecture.svg)
+[![System overview: local Chainlit calls AWS AgentCore Runtime; Jev routes intent, restaurant search uses Gateway and Lambda to call SearchAPI, and document RAG retrieves from S3 Vectors and stored chunks.](docs/assets/architecture.png)](docs/assets/architecture.svg)
 
-[Open the full-size diagram](docs/assets/architecture.svg) · [Component-to-code map and logo credits](docs/assets/architecture-sources.md)
+[Open the full-size overview](docs/assets/architecture.svg) · [Component-to-code map and logo credits](docs/assets/architecture-sources.md)
 
-- **Follow the numbered flow:** the local UI calls the deployed backend; input checks and routing select a workflow; the final answer is moderated before delivery and durable memory writes.
-- **Choose a workflow:** restaurant search calls live web tools, while document RAG retrieves from a separately prepared corpus and validates quotations. These are alternative paths, not consecutive steps.
-- **Inspect the evidence:** citation clicks use a separate local viewer to fetch and hash-check the original from private S3. The backend reads manifests/chunks and vectors, not those originals.
+The local interface calls the AWS-hosted agent. Routing selects **live restaurant search** or **document RAG**; final moderation precedes delivery and durable approved-turn memory writes. Expand the views below for document evidence and AWS operations.
+
+<details>
+<summary><strong>Document RAG: preparation, answers and original-source inspection</strong></summary>
+
+[![Document RAG: reviewed PDFs are explicitly prepared into retrieval data and private originals; the Runtime retrieves and validates evidence; a separate local Chainlit viewer fetches and hash-checks cited originals.](docs/assets/architecture-rag.png)](docs/assets/architecture-rag.svg)
+
+[Open the full-size RAG diagram](docs/assets/architecture-rag.svg)
+
+Document preparation is separate from live search. The Runtime reads vectors and versioned manifests/chunks. Citation clicks use the local viewer's AWS profile to fetch generation-specific original documents and verify their SHA-256 hashes.
+
+</details>
+
+<details>
+<summary><strong>AWS: image deployment and request tracing</strong></summary>
+
+[![AWS deployment and tracing: CDK defines infrastructure, an ARM64 application image is pushed to ECR and released to AgentCore Runtime, and configured OpenTelemetry exports operation spans, logs and metrics to CloudWatch.](docs/assets/architecture-deployment.png)](docs/assets/architecture-deployment.svg)
+
+[Open the full-size deployment and tracing diagram](docs/assets/architecture-deployment.svg)
+
+An explicit build/push/release supplies the image Runtime runs. During application use, configured OpenTelemetry instrumentation correlates workflow operations with CloudWatch evidence. These are separate release and request paths.
+
+</details>
 
 The API buffers the answer for final moderation before sending a complete SSE text chunk. This is not token-by-token output streaming. Prompt synchronization is an explicit deployment operation, separate from application startup. CDK defines ECR, RAG and AgentCore stacks; regional trace-destination setup is a separate account operation.
 
