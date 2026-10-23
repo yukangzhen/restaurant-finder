@@ -8,7 +8,7 @@ Adapted from [Joud Awad's original project](https://github.com/JoudAwad97/agenti
 
 https://github.com/user-attachments/assets/cae18692-3582-482a-b5b5-5b1ab285f887
 
-[Download the original MP4 (21 MB)](https://github.com/yukangzhen/restaurant-finder/releases/download/demo-walkthrough/restaurant-finder-demo.mp4)
+[Download the final full-quality MP4](https://github.com/yukangzhen/restaurant-finder/releases/download/demo-walkthrough/restaurant-finder-demo-final.mp4)
 
 Silent, 55 seconds, 1080p. The walkthrough shows restaurant discovery, cited menu comparison, a contextual follow-up and AWS deployment/tracing evidence.
 
