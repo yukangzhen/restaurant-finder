@@ -2,7 +2,7 @@
 
 An AI engineering portfolio project using **LangGraph**, **Amazon Bedrock AgentCore**, and **Chainlit**. It finds restaurants through web search, answers bounded questions from versioned menu/policy documents, and lets users inspect cited originals. The Python backend runs in an ARM64 container on AWS; the demonstrated Chainlit interface runs locally and calls that cloud backend.
 
-Adapted from [Joud Awad's original project](https://github.com/JoudAwad97/agentic-ai-langgraph-and-aws-agentcore). This repository extends that foundation; it does not claim authorship of the original application. It is a demonstration, not an operated production service.
+It is a demonstration, not an operated production service.
 
 ## Demo
 
