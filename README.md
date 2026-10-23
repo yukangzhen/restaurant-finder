@@ -6,20 +6,11 @@ Adapted from [Joud Awad's original project](https://github.com/JoudAwad97/agenti
 
 ## Demo
 
-[![Open the Restaurant Finder walkthrough: document-backed menu comparison with source citations](docs/assets/demo-preview.jpg)](https://github.com/yukangzhen/restaurant-finder/releases/tag/demo-walkthrough)
+https://github.com/user-attachments/assets/cae18692-3582-482a-b5b5-5b1ab285f887
 
-**[Open the demo release](https://github.com/yukangzhen/restaurant-finder/releases/tag/demo-walkthrough)** · [Download the MP4 (21 MB)](https://github.com/yukangzhen/restaurant-finder/releases/download/demo-walkthrough/restaurant-finder-demo.mp4)
+[Download the original MP4 (21 MB)](https://github.com/yukangzhen/restaurant-finder/releases/download/demo-walkthrough/restaurant-finder-demo.mp4)
 
-Silent, 55 seconds, 1080p. The walkthrough shows restaurant discovery, cited menu comparison, a contextual follow-up and AWS deployment/tracing evidence. Your browser may download the MP4 rather than play it inline.
-
-## What this version adds
-
-- **Jev routing with a Bedrock fallback:** TypeSafe Jev classifies intent; Claude Haiku 4.5 handles routing when Jev is unavailable. No measured latency or cost saving is claimed.
-- **Document RAG:** Titan V2 embeddings, S3 Vectors, private S3 originals, immutable corpus generations, scoped retrieval and verified quotations. Optional hybrid retrieval combines BM25 and vector rankings with Reciprocal Rank Fusion.
-- **Bounded parallel work:** price comparisons and multipart price/cancellation-policy questions use validated tasks and at most two concurrent document workers. Supported follow-ups resolve restaurant/item context and retrieve fresh evidence.
-- **Inspectable evidence:** approved responses carry source metadata; Chainlit fetches the corresponding original, verifies its hash and opens a PDF page or numbered Markdown text.
-- **Safety and reliability repairs:** tool budgets, isolated browser lifecycles, complete-answer moderation, approved memory writes and regression coverage.
-- **Engineering evidence:** credential-free CI with five simulated document evaluations, CDK infrastructure, immutable prompt metadata and correlated AWS spans/logs.
+Silent, 55 seconds, 1080p. The walkthrough shows restaurant discovery, cited menu comparison, a contextual follow-up and AWS deployment/tracing evidence.
 
 ## Architecture
 
