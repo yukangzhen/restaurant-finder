@@ -1,16 +1,18 @@
 # Architecture: reading guide and sources
 
-[Editable SVG](architecture.svg) · [PNG preview](architecture.png)
+- [System overview SVG](architecture.svg) · [PNG](architecture.png)
+- [Document RAG SVG](architecture-rag.svg) · [PNG](architecture-rag.png)
+- [Deployment and tracing SVG](architecture-deployment.svg) · [PNG](architecture-deployment.png)
 
-The diagram describes the repository's supported architecture, not a live inventory of a particular AWS account. Optional paths require the switches and account configuration documented in the [setup guide](../SETUP.md). The demonstrated UI is local; the Python backend runs on AWS.
+These three views describe the repository's supported architecture, not a live inventory of a particular AWS account. Optional paths require the switches and account configuration documented in the [setup guide](../SETUP.md). The demonstrated UI is local; the Python backend runs on AWS.
 
 ## Read the connections
 
-- **Blue:** application requests and web-tool calls. Restaurant search and document RAG are alternatives selected by the router, not a sequential pipeline.
-- **Gray:** workflow answers converge on final moderation. Simple/off-topic responses bypass the tools. The diagram groups internal functions to keep the overview readable.
-- **Purple:** external Jev classification and the approved-turn memory path. Missing/unavailable Jev falls back to Bedrock; supported contextual document follow-ups can use deterministic routing shortcuts.
-- **Teal:** document retrieval and the separately authorized local original-source read. Source originals, manifest/chunks and vectors are different objects/access paths.
-- **Bottom strip:** supporting deployment and telemetry relationships, not extra steps performed for each question. CDK defines resources; an explicit build/push supplies the ECR image that Runtime runs.
+- **System overview:** local, AWS and external-provider boundaries show where components run. The router selects restaurant search or document RAG; these are alternatives. Blue indicates application/web-tool calls, teal indicates document retrieval, and purple identifies external-provider calls. The two-way UI link summarizes request and approved-response exchange. The shared final-moderation card applies across workflows; supporting memory and CloudWatch services sit beneath the main paths.
+- **Document RAG:** three separate lanes show explicit document preparation (purple), question answering (teal), and original-source inspection through the local viewer (blue). The dashed preparation branch retains originals for later inspection. Source originals, versioned manifests/chunks and vectors are different objects/access paths; the lanes do not grant Runtime original-document access.
+- **Deployment and tracing:** the top view separates local release tooling from AWS resources. Dashed purple CDK connections show infrastructure configuration; solid blue connections show image push/release. The lower view shows operation telemetry exported to CloudWatch in teal. Release operations do not run again for each question.
+
+Missing/unavailable Jev falls back to Bedrock; supported contextual document follow-ups can use deterministic routing shortcuts. Simple/off-topic responses bypass tools. The views group internal functions and summarize supported behavior rather than reproducing every graph edge.
 
 Bedrock serves the configured chat model, router fallback, Titan V2 embeddings and enabled guardrails. The Bedrock service icon is reused for those capabilities; it is not a separate Titan or Claude logo. AgentCore's service icon represents Runtime, Gateway and Memory because the supplied toolkit does not provide distinct icons for each of those capabilities.
 
@@ -58,7 +60,7 @@ Artwork was retrieved from the official sources below on **2026-10-23**. Logos i
 | SearchAPI | [Official SearchAPI site](https://www.searchapi.io/), inline header logo SVG. Complete mark/wordmark preserved with its original proportions. |
 | OpenTelemetry | [Official OpenTelemetry site](https://opentelemetry.io/), inline header SVG labeled `opentelemetry-logo-title`. Original white lockup on a dark background. |
 
-Custom workflow cards, boundaries and arrows are generic diagram elements, not fabricated vendor logos. Logo SVGs are embedded in the editable diagram; the Chainlit PNG is embedded as a data URI. No external image requests, scripts or fonts are needed to display the SVG. The PNG is a direct 2× raster export of that same SVG.
+Custom workflow cards, boundaries and arrows are generic diagram elements, not fabricated vendor logos. The three views reuse the verified artwork from the original architecture asset. Logo SVGs are embedded in each editable diagram; the Chainlit PNG is embedded as a data URI where used. No external image requests, scripts or fonts are needed to display the SVGs. Each PNG is a direct 2× raster export of its matching SVG.
 
 ### AWS package members used
 
