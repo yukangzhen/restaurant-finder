@@ -116,12 +116,12 @@ Image and infrastructure deployment workflows are **manual-only** in this revisi
 - CloudWatch can contain prompts/results. Keep trace/log access restricted and choose suitable retention. Dashboard/indexing availability depends on regional account configuration.
 - No production availability, measured cost reduction, general answer-accuracy score or fresh-account deployment certification is claimed.
 
-## Further reading and attribution
+## Further reading and acknowledgments
 
 - [Canonical setup instructions](docs/SETUP.md)
 - [Document RAG engineering guide](docs/DOCUMENT_RAG.md)
 - [Offline checks and evaluation interpretation](docs/CI_AND_RAG_EVALUATION.md)
 - [Backend](restaurant-finder-api/README.md), [UI](restaurant-finder-ui/README.md), [infrastructure](restaurant-finder-infra/README.md)
-- [Original repository](https://github.com/JoudAwad97/agentic-ai-langgraph-and-aws-agentcore) and [author's walkthrough](https://joudwawad.medium.com/production-ready-ai-agent-from-scratch-with-langgraph-aws-agentcore-e236cd3f675f)
+- This repository builds on the [Restaurant Finder project by Joud Awad](https://github.com/JoudAwad97/agentic-ai-langgraph-and-aws-agentcore).
 
-Neither this repository nor upstream had an identified license file at review time. No new license covering inherited code or third-party documents is asserted here.
+This repository does not include a license covering inherited code or third-party documents.
