@@ -2,9 +2,9 @@
 
 Use [Setup](SETUP.md) for commands and the [evaluation guide](CI_AND_RAG_EVALUATION.md) for offline checks and report interpretation.
 
-## What this adds
+## Workflow overview
 
-The original project used web/browser tools and conversational memory. This fork adds a separate `document_qa` route with immutable document generations, restaurant-scoped retrieval, verified quotations and inspectable originals. Jev classifies ordinary intent; Haiku is the fallback. Recognized opt-in follow-ups can resolve scope deterministically. Conversation memory is separate from the document corpus.
+The LangGraph workflow routes incoming requests to restaurant search, document question answering, or a simple response. The document QA path uses immutable corpus generations, restaurant-scoped retrieval, verified quotations, and inspectable source documents. Jev classifies ordinary intent, with Claude Haiku on Bedrock as the fallback. Recognized opt-in follow-ups can resolve scope deterministically. Conversation memory and the document corpus are managed separately.
 
 The reproducible corpus is `restaurant-finder-api/sample_documents/corpus.json`: six PDF/Markdown documents for three fictional venues. `corpus-v2.json` changes Harbor's mushroom pasta price from RM28 to RM32. Nothing is uploaded until explicit publication. The real-source catalog includes venues used in the video, but its privately reviewed originals/research are not committed.
 
